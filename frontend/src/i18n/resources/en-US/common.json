@@ -1,0 +1,22 @@
+{
+    "button": {
+      "submit": "Submit",
+      "cancel": "Cancel",
+      "confirm": "Confirm",
+      "delete": "Delete",
+      "edit": "Edit",
+      "save": "Save"
+    },
+    "error": {
+      "404": "Page Not Found",
+      "500": "Server Error",
+      "network": "Network Connection Failed",
+      "unauthorized": "Unauthorized",
+      "forbidden": "Forbidden"
+    },
+    "message": {
+      "loading": "Loading...",
+      "success": "Success",
+      "failed": "Failed"
+    }
+  }
