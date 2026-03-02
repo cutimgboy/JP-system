@@ -1,0 +1,25 @@
+{
+  "name": "jp-system",
+  "version": "1.0.0",
+  "description": "JP System - Frontend, Backend and Admin",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently \"pnpm dev:frontend\" \"pnpm dev:backend\" \"pnpm dev:admin\"",
+    "dev:frontend": "pnpm --filter jp-system-frontend dev",
+    "dev:backend": "pnpm --filter jp-vietnam start:dev",
+    "dev:admin": "pnpm --filter jp-system-admin dev",
+    "build": "pnpm --filter jp-system-frontend build && pnpm --filter jp-vietnam build && pnpm --filter jp-system-admin build",
+    "build:frontend": "pnpm --filter jp-system-frontend build",
+    "build:backend": "pnpm --filter jp-vietnam build",
+    "build:admin": "pnpm --filter jp-system-admin build",
+    "start": "concurrently \"pnpm start:frontend\" \"pnpm start:backend\" \"pnpm start:admin\"",
+    "start:frontend": "pnpm --filter jp-system-frontend preview",
+    "start:backend": "pnpm --filter jp-vietnam start:prod",
+    "start:admin": "pnpm --filter jp-system-admin preview",
+    "install:all": "pnpm install",
+    "clean": "pnpm --recursive exec rm -rf node_modules && rm -rf node_modules"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}
