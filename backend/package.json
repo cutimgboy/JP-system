@@ -19,7 +19,8 @@
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "create-admin": "cross-env NODE_ENV=development ts-node -r tsconfig-paths/register scripts/create-admin.ts",
-    "import-products": "cross-env NODE_ENV=development ts-node -r tsconfig-paths/register scripts/import-products.ts"
+    "import-products": "cross-env NODE_ENV=development ts-node -r tsconfig-paths/register scripts/import-products.ts",
+    "import-base-info": "cross-env NODE_ENV=development ts-node -r tsconfig-paths/register scripts/import-base-info.ts"
   },
   "dependencies": {
     "@nestjs/cache-manager": "^3.0.1",
