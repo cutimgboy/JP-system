@@ -4,7 +4,7 @@ import { BottomNav } from '../../components/BottomNav';
 import { AccountHeader } from '../../components/AccountHeader';
 import { useNavigate } from 'react-router-dom';
 import { useAccount } from '../../contexts/AccountContext';
-import apiClient from '../../utils/api';
+import apiClient, { extractData } from '../../utils/api';
 
 interface Market {
   code: string;
@@ -37,7 +37,7 @@ export default function MarketPage() {
         const response = await apiClient.get('/api/products/quotes', {
           params: { type: activeTab }
         });
-        let quotesData = response.data.data || response.data || [];
+        let quotesData = extractData(response) || [];
 
         // 确保是数组
         if (!Array.isArray(quotesData)) {

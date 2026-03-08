@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Battery, Wifi, Signal, Calendar, Users as UsersIcon } from 'lucide-react';
 import { BottomNav } from '../../components/BottomNav';
-import { apiClient } from '../../utils/api';
+import { apiClient, extractData } from '../../utils/api';
 
 interface LeaderboardItem {
   rank: number;
@@ -39,10 +39,14 @@ export default function CommunityPage() {
         apiClient.get('/api/community/settings'),
       ]);
 
-      const leaderboard = leaderboardRes.data || [];
+      let leaderboard = extractData(leaderboardRes) || [];
+      if (!Array.isArray(leaderboard)) {
+        console.warn('排行榜数据不是数组,使用空数组');
+        leaderboard = [];
+      }
       setLeaderboardData(leaderboard);
 
-      const settingsData = settingsRes.data || {};
+      const settingsData = extractData(settingsRes) || {};
       setSettings({
         date: settingsData.date || new Date().toISOString().split('T')[0],
         participants: settingsData.participants || '0',

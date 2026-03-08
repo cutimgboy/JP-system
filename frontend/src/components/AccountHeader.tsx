@@ -1,7 +1,7 @@
 import { ChevronDown, ChevronUp, Check } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import apiClient from '../utils/api';
+import apiClient, { extractData } from '../utils/api';
 
 interface AccountHeaderProps {
   accountType: 'demo' | 'real';
@@ -26,8 +26,8 @@ export function AccountHeader({
       const response = await apiClient.get('/account/balance', {
         params: { accountType: type }
       });
-      const balanceData = response.data.data || response.data;
-      const balance = balanceData.balance || 0;
+      const balanceData = extractData(response);
+      const balance = balanceData?.balance || 0;
 
       if (type === 'demo') {
         setDemoBalance(balance);

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { apiClient } from '../../../utils/api';
+import { apiClient, extractData } from '../../../utils/api';
 
 interface TradingHoursProps {
   stockCode: string;
@@ -15,10 +15,10 @@ export function TradingHours({ stockCode }: TradingHoursProps) {
       try {
         setLoading(true);
         const response = await apiClient.get(`/api/products/${stockCode}`);
-        const productData = response.data.data || response.data;
+        const productData = extractData(response);
 
         // 如果有交易时间，则显示
-        if (productData.tradingHours) {
+        if (productData?.tradingHours) {
           setTradingHoursText(productData.tradingHours);
           setHasData(true);
         } else {

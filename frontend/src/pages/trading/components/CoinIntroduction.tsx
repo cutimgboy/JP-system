@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { apiClient } from '../../../utils/api';
+import { apiClient, extractData } from '../../../utils/api';
 
 interface CoinIntroductionProps {
   stockCode: string;
@@ -15,10 +15,10 @@ export function CoinIntroduction({ stockCode }: CoinIntroductionProps) {
       try {
         setLoading(true);
         const response = await apiClient.get(`/api/products/${stockCode}`);
-        const productData = response.data.data || response.data;
+        const productData = extractData(response);
 
         // 如果有简体介绍，则显示
-        if (productData.descriptionCn) {
+        if (productData?.descriptionCn) {
           setIntroduction(productData.descriptionCn);
           setHasData(true);
         } else {

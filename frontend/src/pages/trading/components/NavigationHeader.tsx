@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import api from '../../../utils/api';
+import api, { extractData } from '../../../utils/api';
 
 interface NavigationHeaderProps {
   selectedStock: string;
@@ -27,7 +27,7 @@ export function NavigationHeader({ selectedStock, onStockChange }: NavigationHea
       try {
         setLoading(true);
         const response = await api.get('/api/products/quotes');
-        let quotesData = response.data.data || response.data || [];
+        let quotesData = extractData(response) || [];
 
         // 确保是数组
         if (!Array.isArray(quotesData)) {

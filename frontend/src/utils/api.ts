@@ -50,14 +50,14 @@ apiClient.interceptors.response.use(
 /**
  * 从响应中提取实际数据
  * 后端返回格式: { data: { data: [...], code: 0, msg: '...' } }
- * 或三层嵌套: { data: { data: { data: {...}, message: '...' }, code: 0, msg: '...' } }
+ * 或三层嵌套: { data: { data: { data: {...}, code: 0, msg: '...' }, code: 0, msg: '...' } }
  */
 export function extractData(response: any) {
   if (!response?.data) {
     return null;
   }
 
-  // level1 = { data: [...], code: 0, msg: '...' }
+  // level1 = { data: {...}, code: 0, msg: '...' }
   const level1 = response.data;
 
   // 如果第一层直接是数组,返回它
@@ -70,13 +70,13 @@ export function extractData(response: any) {
     return level1;
   }
 
-  // 检查第一层是否有 data 字段
-  if (!level1.hasOwnProperty('data')) {
+  // 检查第一层的 data 字段
+  const level2 = level1.data;
+
+  // 如果没有 data 字段,返回第一层
+  if (level2 === undefined) {
     return level1;
   }
-
-  // level2 = [...] 或 { data: {...}, message: '...' }
-  const level2 = level1.data;
 
   // 如果第二层是数组,返回它
   if (Array.isArray(level2)) {
@@ -88,9 +88,10 @@ export function extractData(response: any) {
     return level2;
   }
 
-  // 检查第二层是否有 data 字段 (三层嵌套)
-  if (level2.hasOwnProperty('data')) {
-    return level2.data;
+  // 检查第二层的 data 字段 (三层嵌套)
+  const level3 = level2.data;
+  if (level3 !== undefined) {
+    return level3;
   }
 
   // 返回第二层

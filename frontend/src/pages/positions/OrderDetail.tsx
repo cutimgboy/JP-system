@@ -2,7 +2,7 @@ import { ArrowLeft, Battery, Wifi, Signal, TrendingUp, TrendingDown } from 'luci
 import { useNavigate, useParams } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { useAccount } from '../../contexts/AccountContext';
-import apiClient from '../../utils/api';
+import apiClient, { extractData } from '../../utils/api';
 
 interface OrderDetail {
   id: number;
@@ -37,7 +37,7 @@ export default function OrderDetail() {
       const response = await apiClient.get(`/trade/order/${orderId}`, {
         params: { accountType }
       });
-      const orderData = response.data.data || response.data;
+      const orderData = extractData(response);
       setOrder(orderData);
     } catch (error) {
       console.error('获取订单详情失败:', error);

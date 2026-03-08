@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { apiClient } from '../../../utils/api';
+import { apiClient, extractData } from '../../../utils/api';
 
 interface MarketOverviewProps {
   stockCode: string;
@@ -14,10 +14,10 @@ export function MarketOverview({ stockCode }: MarketOverviewProps) {
       try {
         setLoading(true);
         const response = await apiClient.get(`/api/products/${stockCode}`);
-        const productData = response.data.data || response.data;
+        const productData = extractData(response);
 
         // 检查是否有市值排名（只有加密货币有这个字段）
-        if (productData.marketCapRank) {
+        if (productData?.marketCapRank) {
           setHasData(true);
         } else {
           setHasData(false);
