@@ -47,7 +47,7 @@ export function DepositReview() {
       console.log('获取入金记录响应:', response);
 
       const actualData = response.data || response;
-      if (actualData.code === 0 || response.code === 0) {
+      if (actualData.code === 0) {
         const records = actualData.data || actualData || [];
         setDeposits(Array.isArray(records) ? records : []);
       } else {

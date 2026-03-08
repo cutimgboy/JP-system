@@ -34,7 +34,7 @@ export function BankCards() {
 
       // 处理嵌套的响应结构
       const actualData = response.data || response;
-      if (actualData.code === 0 || response.code === 0) {
+      if (actualData.code === 0) {
         const cards = actualData.data || actualData || [];
         setBankCards(Array.isArray(cards) ? cards : []);
       } else {

@@ -27,7 +27,7 @@ export function RewardSettings() {
     try {
       const response = await apiClient.get('/reward/settings');
       const actualData = response.data || response;
-      if (actualData.code === 0 || response.code === 0) {
+      if (actualData.code === 0) {
         const settingsData = actualData.data || actualData || [];
         setSettings(Array.isArray(settingsData) ? settingsData : []);
       }

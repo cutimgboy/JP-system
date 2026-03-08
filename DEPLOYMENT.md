@@ -41,8 +41,8 @@ JP-system/
 
 ### 1.3 服务端口
 - **Backend API**: 3000 (内部)
-- **Frontend**: 通过 Nginx 80/443
-- **Admin**: 通过 Nginx 80/443
+- **Frontend**: 80 (通过 Nginx)
+- **Admin**: 8080 (通过 Nginx)
 - **MySQL**: 3306 (内部)
 - **Redis**: 6379 (内部)
 
@@ -65,11 +65,12 @@ JP-system/
 - **Node.js**: 20.x LTS
 
 ### 2.3 需要的端口
-- `80`: HTTP (Nginx)
-- `443`: HTTPS (Nginx)
+- `80`: HTTP - 前端 (Nginx)
+- `8080`: HTTP - 管理后台 (Nginx)
 - `3000`: 后端 API (内部)
 - `3306`: MySQL (内部)
 - `6379`: Redis (内部)
+- `22`: SSH (管理)
 
 ---
 
@@ -268,12 +269,12 @@ NODE_ENV=production
 # Google OAuth 配置（可选）
 GOOGLE_CLIENT_ID=your-google-client-id
 GOOGLE_CLIENT_SECRET=your-google-client-secret
-GOOGLE_CALLBACK_URL=https://your-domain.com/auth/google/callback
+GOOGLE_CALLBACK_URL=http://119.29.161.60/auth/google/callback
 
 # Facebook OAuth 配置（可选）
 FACEBOOK_APP_ID=your-facebook-app-id
 FACEBOOK_APP_SECRET=your-facebook-app-secret
-FACEBOOK_CALLBACK_URL=https://your-domain.com/auth/facebook/callback
+FACEBOOK_CALLBACK_URL=http://119.29.161.60/auth/facebook/callback
 
 # WebSocket 行情源配置
 QUOTE_WS_TOKEN=your-quote-ws-token
@@ -299,7 +300,7 @@ cd /var/www/JP-system/frontend
 
 # 创建生产环境配置
 cat > .env.production << 'EOF'
-VITE_API_URL=https://your-domain.com
+VITE_API_URL=http://119.29.161.60
 EOF
 ```
 
@@ -309,7 +310,7 @@ cd /var/www/JP-system/admin
 
 # 创建生产环境配置
 cat > .env.production << 'EOF'
-VITE_API_URL=https://your-domain.com
+VITE_API_URL=http://119.29.161.60
 EOF
 ```
 
@@ -401,10 +402,7 @@ sudo nano /etc/nginx/sites-available/jp-system
 # 前端配置
 server {
     listen 80;
-    server_name your-domain.com www.your-domain.com;
-
-    # 重定向到 HTTPS（配置 SSL 后启用）
-    # return 301 https://$server_name$request_uri;
+    server_name 119.29.161.60;
 
     root /var/www/JP-system/frontend/dist;
     index index.html;
@@ -466,13 +464,10 @@ server {
                application/json application/javascript;
 }
 
-# 管理后台配置
+# 管理后台配置（使用不同端口）
 server {
-    listen 80;
-    server_name admin.your-domain.com;
-
-    # 重定向到 HTTPS（配置 SSL 后启用）
-    # return 301 https://$server_name$request_uri;
+    listen 8080;
+    server_name 119.29.161.60;
 
     root /var/www/JP-system/admin/dist;
     index index.html;
@@ -515,6 +510,8 @@ server {
 }
 ```
 
+**注意**: 由于使用 IP 地址而非域名，管理后台使用不同端口（8080）来区分。
+
 ### 6.2 启用配置
 ```bash
 # 创建软链接
@@ -530,21 +527,26 @@ sudo systemctl restart nginx
 sudo systemctl status nginx
 ```
 
-### 6.3 配置 SSL (推荐)
-使用 Let's Encrypt 免费 SSL 证书：
+### 6.3 开放端口
+由于使用 IP 地址访问，需要确保防火墙开放相应端口：
 ```bash
-# 安装 Certbot
-sudo apt install certbot python3-certbot-nginx -y
+# Ubuntu UFW
+sudo ufw allow 80/tcp     # 前端
+sudo ufw allow 8080/tcp   # 管理后台
+sudo ufw allow 22/tcp     # SSH
+sudo ufw status
 
-# 获取证书（自动配置 Nginx）
-sudo certbot --nginx -d your-domain.com -d www.your-domain.com -d admin.your-domain.com
-
-# 测试自动续期
-sudo certbot renew --dry-run
-
-# 设置自动续期（已自动配置 cron）
-sudo systemctl status certbot.timer
+# CentOS Firewalld
+sudo firewall-cmd --permanent --add-port=80/tcp
+sudo firewall-cmd --permanent --add-port=8080/tcp
+sudo firewall-cmd --reload
 ```
+
+**注意**:
+- 前端访问地址: http://119.29.161.60
+- 管理后台访问地址: http://119.29.161.60:8080
+- 由于使用 IP 地址，无法申请免费的 Let's Encrypt SSL 证书
+- 如需 HTTPS，需要购买 SSL 证书或使用自签名证书
 
 ---
 
@@ -648,10 +650,10 @@ chmod +x /var/www/JP-system/deploy.sh
 curl http://localhost:3000/api/health
 
 # 检查前端
-curl http://localhost/
+curl http://119.29.161.60/
 
 # 检查管理后台
-curl http://admin.your-domain.com/
+curl http://119.29.161.60:8080/
 ```
 
 ---
@@ -1281,15 +1283,15 @@ sudo sysctl -p
 sudo ufw default deny incoming
 sudo ufw default allow outgoing
 sudo ufw allow 22/tcp      # SSH
-sudo ufw allow 80/tcp      # HTTP
-sudo ufw allow 443/tcp     # HTTPS
+sudo ufw allow 80/tcp      # HTTP - 前端
+sudo ufw allow 8080/tcp    # HTTP - 管理后台
 sudo ufw enable
 sudo ufw status
 
 # CentOS Firewalld
 sudo firewall-cmd --permanent --add-service=ssh
-sudo firewall-cmd --permanent --add-service=http
-sudo firewall-cmd --permanent --add-service=https
+sudo firewall-cmd --permanent --add-port=80/tcp
+sudo firewall-cmd --permanent --add-port=8080/tcp
 sudo firewall-cmd --reload
 ```
 
@@ -1378,16 +1380,16 @@ chmod +x /var/www/JP-system/update-system.sh
 ```
 
 ### 12.6 安全检查清单
-- [ ] 已配置防火墙，只开放必要端口
+- [ ] 已配置防火墙，只开放必要端口（22, 80, 8080）
 - [ ] SSH 已加固（更改端口、禁用 root 登录）
 - [ ] 数据库只监听 localhost
 - [ ] Redis 已设置密码（如需要）
 - [ ] 环境变量文件权限正确（600）
-- [ ] 已配置 SSL 证书
 - [ ] 已设置自动备份
 - [ ] 定期更新系统和依赖
 - [ ] 日志轮转已配置
 - [ ] 监控系统已部署
+- [ ] 强密码策略已实施
 
 ---
 
@@ -1409,7 +1411,7 @@ sudo netstat -tulpn | grep -E '(3000|3306|6379|80|443)'
 ```bash
 # 测试后端 API
 curl http://localhost:3000/api/health
-curl https://your-domain.com/api/health
+curl http://119.29.161.60/api/health
 
 # 测试数据库连接
 mysql -u jpuser -p vietnam_test -e "SELECT 1;"
@@ -1418,23 +1420,22 @@ mysql -u jpuser -p vietnam_test -e "SELECT 1;"
 redis-cli ping
 
 # 测试前端访问
-curl -I https://your-domain.com
-curl -I https://admin.your-domain.com
+curl -I http://119.29.161.60
+curl -I http://119.29.161.60:8080
 ```
 
 ### 13.3 验证清单
-- [ ] 后端 API 可访问: `https://your-domain.com/api/health`
-- [ ] 前端页面正常显示
-- [ ] 管理后台可登录
+- [ ] 后端 API 可访问: `http://119.29.161.60/api/health`
+- [ ] 前端页面正常显示: `http://119.29.161.60`
+- [ ] 管理后台可登录: `http://119.29.161.60:8080`
 - [ ] 数据库连接正常
 - [ ] Redis 连接正常
 - [ ] PM2 进程运行正常（`pm2 status`）
 - [ ] Nginx 配置正确（`sudo nginx -t`）
-- [ ] SSL 证书有效（`sudo certbot certificates`）
 - [ ] 日志正常记录
 - [ ] 备份脚本测试通过
 - [ ] WebSocket 连接正常
-- [ ] 防火墙配置正确
+- [ ] 防火墙配置正确（端口 80, 8080, 22 已开放）
 - [ ] 监控系统运行正常
 
 ---
