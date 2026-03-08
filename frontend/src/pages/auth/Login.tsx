@@ -91,18 +91,25 @@ export function Login() {
       });
 
       console.log('登录响应:', response);
+      console.log('response.data:', response.data);
+      console.log('response.data.data:', response.data?.data);
 
       // 后端返回结构: { data: { data: { token, userInfo }, code: 0, msg: '请求成功' } }
       // response.data 是后端返回的完整对象
       // response.data.data 才是实际的登录数据
       const loginData = response.data?.data;
 
+      console.log('loginData:', loginData);
+      console.log('loginData.token:', loginData?.token);
+      console.log('loginData.userInfo:', loginData?.userInfo);
+
       if (loginData?.token && loginData?.userInfo) {
         login(loginData.token, loginData.userInfo);
         // 跳转到首页
         navigate('/', { replace: true });
       } else {
-        console.error('登录数据格式错误:', response);
+        console.error('登录数据格式错误 - loginData:', loginData);
+        console.error('完整响应:', response);
         setError('登录失败，请重试');
       }
     } catch (err: any) {
