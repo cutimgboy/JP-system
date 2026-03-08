@@ -28,7 +28,9 @@ apiClient.interceptors.request.use(
 // Response interceptor
 apiClient.interceptors.response.use(
   (response) => {
-    return response.data;
+    // 不要在这里返回 response.data,保持原始响应结构
+    // 让调用方自己处理 response.data
+    return response;
   },
   (error) => {
     if (error.response?.status === 401) {

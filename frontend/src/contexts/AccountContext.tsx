@@ -34,14 +34,32 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   const fetchAccounts = async () => {
     try {
       const response = await apiClient.get('/account/list');
-      const accountList = response.data.data || response.data;
+
+      // 安全地获取账户列表
+      let accountList = [];
+      if (response && response.data) {
+        accountList = response.data.data || response.data;
+      }
+
+      // 确保 accountList 是数组
+      if (!Array.isArray(accountList)) {
+        console.warn('账户列表不是数组,使用空数组');
+        accountList = [];
+      }
+
       setAccounts(accountList);
 
       // 根据当前选择的账户类型，设置当前账户
-      const account = accountList.find((acc: Account) => acc.accountType === accountType);
-      setCurrentAccount(account || null);
+      if (accountList.length > 0) {
+        const account = accountList.find((acc: Account) => acc.accountType === accountType);
+        setCurrentAccount(account || null);
+      } else {
+        setCurrentAccount(null);
+      }
     } catch (error) {
       console.error('获取账户列表失败:', error);
+      setAccounts([]);
+      setCurrentAccount(null);
     }
   };
 

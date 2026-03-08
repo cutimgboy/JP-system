@@ -331,19 +331,37 @@ pnpm build
 ```bash
 cd /var/www/JP-system/backend
 
+# 检查初始化脚本是否存在
+ls -la scripts/
+
 # 如果有初始化 SQL 文件
 mysql -u jpuser -p vietnam_test < scripts/init.sql
 
-# 运行数据导入脚本
-pnpm run import:products
-pnpm run import:base-info
+# 运行数据导入脚本（注意是连字符，不是冒号）
+pnpm run import-products
+pnpm run import-base-info
 
 # 创建管理员账户
 pnpm run create-admin
 ```
 
+**注意**：
+- 如果 `scripts/` 目录不存在或脚本文件缺失，可以跳过这一步
+- 可以在后端启动后通过 API 或数据库手动添加初始数据
+
 ### 5.8 启动后端服务
-创建 PM2 配置文件：
+
+#### 验证构建结果
+```bash
+# 确认 main.js 文件存在
+ls -la /var/www/JP-system/backend/dist/src/main.js
+
+# 如果文件不存在，需要重新构建
+cd /var/www/JP-system/backend
+pnpm run build
+```
+
+#### 创建 PM2 配置文件
 ```bash
 cd /var/www/JP-system
 
@@ -351,11 +369,10 @@ cat > ecosystem.config.js << 'EOF'
 module.exports = {
   apps: [{
     name: 'jp-backend',
-    script: './backend/dist/main.js',
+    script: 'dist/src/main.js',
     cwd: '/var/www/JP-system/backend',
-    instances: 2,
-    exec_mode: 'cluster',
-    env_file: '.env.production',
+    instances: 1,
+    exec_mode: 'fork',
     env: {
       NODE_ENV: 'production',
       PORT: 3000
@@ -372,7 +389,15 @@ module.exports = {
   }]
 };
 EOF
+```
 
+**注意**：
+- `script` 路径是 `dist/src/main.js`（不是 `dist/main.js`）
+- 使用单实例模式（`instances: 1, exec_mode: 'fork'`）更稳定
+- 环境变量通过后端代码中的 `ConfigModule` 加载 `.env.production`
+
+#### 启动应用
+```bash
 # 启动应用
 pm2 start ecosystem.config.js
 
@@ -381,11 +406,25 @@ pm2 save
 
 # 设置开机自启
 pm2 startup
-# 执行上面命令输出的命令
+# 复制并执行上面命令输出的命令
 
 # 查看状态
 pm2 status
+
+# 查看日志
 pm2 logs jp-backend --lines 50
+
+# 如果启动失败，查看错误日志
+pm2 logs jp-backend --err --lines 100
+```
+
+#### 测试后端 API
+```bash
+# 测试健康检查接口
+curl http://localhost:3000/api/health
+
+# 或者测试根路径
+curl http://localhost:3000/
 ```
 
 ---
@@ -394,7 +433,7 @@ pm2 logs jp-backend --lines 50
 
 ### 6.1 创建 Nginx 配置文件
 ```bash
-sudo nano /etc/nginx/sites-available/jp-system
+sudo vi /etc/nginx/sites-available/jp-system
 ```
 
 配置内容：
@@ -428,6 +467,23 @@ server {
         proxy_read_timeout 60s;
 
         # 增加请求体大小限制
+        client_max_body_size 10M;
+    }
+
+    # 直接代理后端路由(不带/api前缀)
+    location ~ ^/(auth|users|products|orders|quotes|health|admin) {
+        proxy_pass http://localhost:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
         client_max_body_size 10M;
     }
 
@@ -490,6 +546,20 @@ server {
         proxy_cache_bypass $http_upgrade;
 
         # 增加请求体大小限制
+        client_max_body_size 10M;
+    }
+
+    # 直接代理后端路由(不带/api前缀)
+    location ~ ^/(auth|users|products|orders|quotes|health|admin) {
+        proxy_pass http://localhost:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
         client_max_body_size 10M;
     }
 
