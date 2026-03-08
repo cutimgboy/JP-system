@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import { apiClient } from '../../utils/api';
+import { apiClient, extractData } from '../../utils/api';
 
 export function Login() {
   const navigate = useNavigate();
@@ -92,10 +92,8 @@ export function Login() {
 
       console.log('登录响应:', response);
 
-      // 后端返回结构是三层嵌套:
-      // response.data = { data: { message: '登录成功', data: { token, userInfo } }, code: 0, msg: '请求成功' }
-      // 所以实际的登录数据在 response.data.data.data
-      const loginData = response.data?.data?.data;
+      // 使用 extractData 自动处理不同的数据嵌套格式
+      const loginData = extractData(response);
 
       if (loginData?.token && loginData?.userInfo) {
         login(loginData.token, loginData.userInfo);

@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { apiClient } from '../utils/api';
+import { apiClient, extractData } from '../utils/api';
 
 type AccountType = 'demo' | 'real';
 
@@ -35,11 +35,8 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     try {
       const response = await apiClient.get('/account/list');
 
-      // 安全地获取账户列表
-      let accountList = [];
-      if (response && response.data) {
-        accountList = response.data.data || response.data;
-      }
+      // 使用 extractData 自动处理数据格式
+      let accountList = extractData(response) || [];
 
       // 确保 accountList 是数组
       if (!Array.isArray(accountList)) {

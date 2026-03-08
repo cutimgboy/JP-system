@@ -5,7 +5,7 @@ import { Toast } from '../../components/Toast';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAccount } from '../../contexts/AccountContext';
-import apiClient from '../../utils/api';
+import apiClient, { extractData } from '../../utils/api';
 
 interface Position {
   id: number;
@@ -53,8 +53,8 @@ export default function PositionsPage() {
       const response = await apiClient.get('/trade/orders/open', {
         params: { accountType }
       });
-      const ordersData = response.data.data || response.data || [];
-      setPositions(ordersData);
+      const ordersData = extractData(response) || [];
+      setPositions(Array.isArray(ordersData) ? ordersData : []);
     } catch (error) {
       console.error('获取持仓失败:', error);
       setPositions([]);
@@ -74,8 +74,8 @@ export default function PositionsPage() {
           accountType
         }
       });
-      const ordersData = response.data.data || response.data || [];
-      setHistoryRecords(ordersData);
+      const ordersData = extractData(response) || [];
+      setHistoryRecords(Array.isArray(ordersData) ? ordersData : []);
     } catch (error) {
       console.error('获取历史记录失败:', error);
       setHistoryRecords([]);

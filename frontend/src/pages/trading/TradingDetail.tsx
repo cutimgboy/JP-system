@@ -7,7 +7,7 @@ import { CoinIntroduction } from './components/CoinIntroduction';
 import { TradingHours } from './components/TradingHours';
 import { TimeSelector } from './components/TimeSelector';
 import { AlertDialog } from '../../components/AlertDialog';
-import { apiClient } from '../../utils/api';
+import { apiClient, extractData } from '../../utils/api';
 import { useAccount } from '../../contexts/AccountContext';
 
 interface TradingDetailProps {
@@ -68,7 +68,7 @@ export function TradingDetail({
         const response = await apiClient.get('/trade/orders/open', {
           params: { accountType }
         });
-        const openOrders = response.data.data || response.data;
+        const openOrders = extractData(response) || [];
 
         // 如果有进行中的订单，自动恢复第一个
         if (openOrders && openOrders.length > 0) {
@@ -87,7 +87,7 @@ export function TradingDetail({
   const loadOrderAndRestoreState = async (orderId: number) => {
     try {
       const response = await apiClient.get(`/trade/order/${orderId}`);
-      const orderData = response.data.data || response.data;
+      const orderData = extractData(response);
 
       // 检查订单是否还在进行中
       if (orderData.status === 'open') {
@@ -130,9 +130,8 @@ export function TradingDetail({
       const response = await apiClient.get('/account/balance', {
         params: { accountType }
       });
-      // 注意：API返回的数据结构是双层嵌套的 response.data.data
-      const balanceData = response.data.data || response.data;
-      setBalance(balanceData.balance || 0);
+      const balanceData = extractData(response);
+      setBalance(balanceData?.balance || 0);
       setBalanceLoading(false);
     } catch (error) {
       console.error('获取余额失败:', error);
@@ -206,7 +205,7 @@ export function TradingDetail({
         accountId, // 使用 accountId 而不是 accountType
       });
 
-      const orderData = response.data.data || response.data;
+      const orderData = extractData(response);
       setCurrentOrderId(orderData.id);
       setCountdown(seconds);
       setTradeStatus('bull');
@@ -279,7 +278,7 @@ export function TradingDetail({
         accountId, // 使用 accountId 而不是 accountType
       });
 
-      const orderData = response.data.data || response.data;
+      const orderData = extractData(response);
       setCurrentOrderId(orderData.id);
       setCountdown(seconds);
       setTradeStatus('bear');
@@ -314,7 +313,7 @@ export function TradingDetail({
   const fetchOrderDetail = async (orderId: number) => {
     try {
       const response = await apiClient.get(`/trade/order/${orderId}`);
-      const orderData = response.data.data || response.data;
+      const orderData = extractData(response);
       setActualProfitLoss(orderData.profitLoss || 0);
 
       // 如果订单还是open状态，说明还没有平仓，继续轮询
