@@ -12,6 +12,20 @@ export class AccountController {
   constructor(private readonly accountService: AccountService) {}
 
   /**
+   * 获取用户所有账户列表
+   */
+  @Get('list')
+  async getAccountList(@Request() req) {
+    const userId = req.user.id;
+    const accounts = await this.accountService.getUserAccounts(userId);
+    return {
+      data: accounts,
+      code: 0,
+      msg: '请求成功',
+    };
+  }
+
+  /**
    * 获取账户余额
    */
   @Get('balance')

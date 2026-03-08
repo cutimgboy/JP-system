@@ -8,6 +8,7 @@ import { TradingHours } from './components/TradingHours';
 import { TimeSelector } from './components/TimeSelector';
 import { AlertDialog } from '../../components/AlertDialog';
 import { apiClient } from '../../utils/api';
+import { useAccount } from '../../contexts/AccountContext';
 
 interface TradingDetailProps {
   onBack: () => void;
@@ -20,8 +21,9 @@ export function TradingDetail({
   onBack,
   initialStock = 'AAPL.US',
   initialOrderId = null,
-  accountType = 'demo'
+  accountType: _accountType = 'demo' // 保留参数但不使用
 }: TradingDetailProps) {
+  const { accountId, accountType } = useAccount(); // 从 context 获取 accountId
   const [showTimeSelector, setShowTimeSelector] = useState(false);
   const [selectedTime, setSelectedTime] = useState('00:30');
   const [tempSelectedTime, setTempSelectedTime] = useState('00:30');
@@ -37,6 +39,8 @@ export function TradingDetail({
   const [entryPrice, setEntryPrice] = useState<number | undefined>(undefined);
   const [entryTime, setEntryTime] = useState<number | undefined>(undefined);
   const [targetTime, setTargetTime] = useState<number | null>(null); // 目标时间（秒）
+  const [latestPrice, setLatestPrice] = useState<number>(0); // 最新价格
+  const [latestTime, setLatestTime] = useState<number>(0); // 最新时间
 
   // 当 initialStock 变化时更新 selectedStock
   useEffect(() => {
@@ -49,6 +53,35 @@ export function TradingDetail({
       loadOrderAndRestoreState(parseInt(initialOrderId));
     }
   }, [initialOrderId]);
+
+  // 当进入交易页时，自动检查是否有进行中的订单
+  useEffect(() => {
+    const checkAndRestoreActiveOrder = async () => {
+      // 如果已经有 initialOrderId，说明是从持仓页点击进来的，不需要再检查
+      if (initialOrderId) return;
+
+      // 如果没有 accountId，等待账户加载
+      if (!accountId) return;
+
+      try {
+        // 获取当前账户类型的进行中订单
+        const response = await apiClient.get('/trade/orders/open', {
+          params: { accountType }
+        });
+        const openOrders = response.data.data || response.data;
+
+        // 如果有进行中的订单，自动恢复第一个
+        if (openOrders && openOrders.length > 0) {
+          const activeOrder = openOrders[0];
+          loadOrderAndRestoreState(activeOrder.id);
+        }
+      } catch (error) {
+        console.error('检查进行中订单失败:', error);
+      }
+    };
+
+    checkAndRestoreActiveOrder();
+  }, [accountId, accountType, initialOrderId]);
 
   // 加载订单详情并恢复交易状态
   const loadOrderAndRestoreState = async (orderId: number) => {
@@ -129,6 +162,11 @@ export function TradingDetail({
       return;
     }
 
+    if (!accountId) {
+      setAlertDialog({ isOpen: true, title: '提示', message: '账户信息加载中，请稍候' });
+      return;
+    }
+
     if (isNaN(amount) || amount <= 0) {
       setAlertDialog({ isOpen: true, title: '提示', message: '请输入有效的投资金额' });
       return;
@@ -148,6 +186,16 @@ export function TradingDetail({
       return;
     }
 
+    // 检查是否已有进行中的交易
+    if (tradeStatus !== 'idle') {
+      setAlertDialog({
+        isOpen: true,
+        title: '提示',
+        message: '您已有进行中的交易，请等待当前交易完成'
+      });
+      return;
+    }
+
     try {
       const response = await apiClient.post('/trade/order', {
         stockCode: selectedStock,
@@ -155,18 +203,18 @@ export function TradingDetail({
         tradeType: 'bull',
         investmentAmount: amount,
         durationSeconds: seconds,
-        accountType,
+        accountId, // 使用 accountId 而不是 accountType
       });
 
       const orderData = response.data.data || response.data;
       setCurrentOrderId(orderData.id);
       setCountdown(seconds);
       setTradeStatus('bull');
-      // 保存买入价和买入时间
-      setEntryPrice(orderData.openPrice);
-      setEntryTime(new Date(orderData.openTime).getTime() / 1000); // 转换为秒
+      // 保存买入价和买入时间 - 使用K线图的最新价格和时间
+      setEntryPrice(latestPrice || orderData.openPrice);
+      setEntryTime(latestTime || Date.now() / 1000);
       // 设置目标时间
-      setTargetTime(new Date(orderData.openTime).getTime() / 1000 + seconds);
+      setTargetTime((latestTime || Date.now() / 1000) + seconds);
       fetchBalance(); // 刷新余额
     } catch (error: any) {
       console.error('创建订单失败:', error);
@@ -187,6 +235,11 @@ export function TradingDetail({
       return;
     }
 
+    if (!accountId) {
+      setAlertDialog({ isOpen: true, title: '提示', message: '账户信息加载中，请稍候' });
+      return;
+    }
+
     if (isNaN(amount) || amount <= 0) {
       setAlertDialog({ isOpen: true, title: '提示', message: '请输入有效的投资金额' });
       return;
@@ -206,6 +259,16 @@ export function TradingDetail({
       return;
     }
 
+    // 检查是否已有进行中的交易
+    if (tradeStatus !== 'idle') {
+      setAlertDialog({
+        isOpen: true,
+        title: '提示',
+        message: '您已有进行中的交易，请等待当前交易完成'
+      });
+      return;
+    }
+
     try {
       const response = await apiClient.post('/trade/order', {
         stockCode: selectedStock,
@@ -213,18 +276,18 @@ export function TradingDetail({
         tradeType: 'bear',
         investmentAmount: amount,
         durationSeconds: seconds,
-        accountType,
+        accountId, // 使用 accountId 而不是 accountType
       });
 
       const orderData = response.data.data || response.data;
       setCurrentOrderId(orderData.id);
       setCountdown(seconds);
       setTradeStatus('bear');
-      // 保存买入价和买入时间
-      setEntryPrice(orderData.openPrice);
-      setEntryTime(new Date(orderData.openTime).getTime() / 1000); // 转换为秒
+      // 保存买入价和买入时间 - 使用K线图的最新价格和时间
+      setEntryPrice(latestPrice || orderData.openPrice);
+      setEntryTime(latestTime || Date.now() / 1000);
       // 设置目标时间
-      setTargetTime(new Date(orderData.openTime).getTime() / 1000 + seconds);
+      setTargetTime((latestTime || Date.now() / 1000) + seconds);
       fetchBalance(); // 刷新余额
     } catch (error: any) {
       console.error('创建订单失败:', error);
@@ -253,6 +316,11 @@ export function TradingDetail({
       const response = await apiClient.get(`/trade/order/${orderId}`);
       const orderData = response.data.data || response.data;
       setActualProfitLoss(orderData.profitLoss || 0);
+
+      // 如果订单还是open状态，说明还没有平仓，继续轮询
+      if (orderData.status === 'open') {
+        setTimeout(() => fetchOrderDetail(orderId), 1000);
+      }
     } catch (error) {
       console.error('获取订单详情失败:', error);
     }
@@ -302,6 +370,12 @@ export function TradingDetail({
         stockCode={selectedStock}
         entryPrice={entryPrice}
         entryTime={entryTime}
+        onPriceUpdate={(price, time) => {
+          setLatestPrice(price);
+          setLatestTime(time);
+        }}
+        profitLoss={actualProfitLoss}
+        showProfit={tradeStatus === 'completed'}
       />
 
       <TradingControls

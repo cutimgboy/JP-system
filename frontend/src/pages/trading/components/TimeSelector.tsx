@@ -21,16 +21,16 @@ export function TimeSelector({
   return (
     <>
       {/* Backdrop */}
-      <div 
-        className="fixed inset-0 bg-black/50 z-40 transition-opacity"
+      <div
+        className="fixed inset-0 bg-black/50 z-[60] transition-opacity"
         onClick={onClose}
       ></div>
-      
+
       {/* Bottom Sheet */}
-      <div className="fixed bottom-0 left-0 right-0 bg-[#1f2633] rounded-t-2xl z-50 animate-slide-up shadow-2xl border-t border-gray-700/50">
-        <div className="px-6 py-5">
+      <div className="fixed bottom-0 left-0 right-0 bg-[#1f2633] rounded-t-2xl z-[70] animate-slide-up shadow-2xl border-t border-gray-700/50">
+        <div className="px-6 py-5 pb-20">
           <h3 className="text-white mb-4">选择到期时间</h3>
-          
+
           {/* Options List */}
           <div className="space-y-2 mb-4">
             {timeOptions.map((option) => (
@@ -47,7 +47,7 @@ export function TimeSelector({
               </button>
             ))}
           </div>
-          
+
           {/* Confirm Button */}
           <button
             className="w-full bg-orange-500 hover:bg-orange-600 text-white py-3 rounded-full transition-colors"

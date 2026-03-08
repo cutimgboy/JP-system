@@ -1,10 +1,21 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { apiClient } from '../utils/api';
 
 type AccountType = 'demo' | 'real';
 
+interface Account {
+  id: number;
+  accountType: AccountType;
+  balance: number;
+  frozenBalance: number;
+}
+
 interface AccountContextType {
   accountType: AccountType;
+  accountId: number | null;
+  currentAccount: Account | null;
   setAccountType: (type: AccountType) => void;
+  refreshAccount: () => Promise<void>;
 }
 
 const AccountContext = createContext<AccountContextType | undefined>(undefined);
@@ -16,6 +27,40 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     return (saved === 'demo' || saved === 'real') ? saved : 'demo';
   });
 
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [currentAccount, setCurrentAccount] = useState<Account | null>(null);
+
+  // 获取用户的所有账户
+  const fetchAccounts = async () => {
+    try {
+      const response = await apiClient.get('/account/list');
+      const accountList = response.data.data || response.data;
+      setAccounts(accountList);
+
+      // 根据当前选择的账户类型，设置当前账户
+      const account = accountList.find((acc: Account) => acc.accountType === accountType);
+      setCurrentAccount(account || null);
+    } catch (error) {
+      console.error('获取账户列表失败:', error);
+    }
+  };
+
+  // 刷新当前账户信息
+  const refreshAccount = async () => {
+    await fetchAccounts();
+  };
+
+  // 初始化时获取账户列表
+  useEffect(() => {
+    fetchAccounts();
+  }, []);
+
+  // 当账户类型改变时，更新当前账户
+  useEffect(() => {
+    const account = accounts.find(acc => acc.accountType === accountType);
+    setCurrentAccount(account || null);
+  }, [accountType, accounts]);
+
   // 当账户类型改变时，保存到 localStorage
   const setAccountType = (type: AccountType) => {
     setAccountTypeState(type);
@@ -23,7 +68,13 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AccountContext.Provider value={{ accountType, setAccountType }}>
+    <AccountContext.Provider value={{
+      accountType,
+      accountId: currentAccount?.id || null,
+      currentAccount,
+      setAccountType,
+      refreshAccount
+    }}>
       {children}
     </AccountContext.Provider>
   );

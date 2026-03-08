@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 
 export interface KLineData {
   time: number; // 时间戳（秒）
@@ -14,6 +14,8 @@ interface KLineChartProps {
   countdownTime?: number; // 倒计时时间（秒）
   entryPrice?: number; // 买入价
   entryTime?: number; // 买入时间（秒）
+  profitLoss?: number; // 交易收益
+  showProfit?: boolean; // 是否显示收益
 }
 
 export function KLineChart({
@@ -24,15 +26,171 @@ export function KLineChart({
   countdownTime,
   entryPrice,
   entryTime,
+  profitLoss,
+  showProfit = false,
 }: KLineChartProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [animationFrame, setAnimationFrame] = useState(0);
   const [canvasSize, setCanvasSize] = useState({ width: width, height: height });
-  const [currentRealTime, setCurrentRealTime] = useState(() => Date.now() / 1000); // 当前实际时间（秒）
-  
-  // 记录倒计时开始的时间和初始倒计时值，用于固定倒计时线位置
+  const [currentRealTime, setCurrentRealTime] = useState(() => Date.now() / 1000);
+
+  // 缩放和拖动状态
+  const [scale, setScale] = useState(1); // 缩放级别，1 = 默认
+  const [offset, setOffset] = useState(0); // 时间偏移量（秒），0 = 当前时间
+
+  // 交互状态
+  const touchStateRef = useRef({
+    isPinching: false,
+    isDragging: false,
+    lastTouchDistance: 0,
+    lastTouchX: 0,
+    lastTouchTime: 0,
+    isMouseDragging: false,
+    lastMouseX: 0,
+  });
+
+  // 记录倒计时开始的时间和初始倒计时值
   const countdownStartRef = useRef<{ startTime: number; initialCountdown: number } | null>(null);
+
+  // 计算两个触摸点之间的距离
+  const getTouchDistance = (touches: TouchList) => {
+    if (touches.length < 2) return 0;
+    const dx = touches[0].clientX - touches[1].clientX;
+    const dy = touches[0].clientY - touches[1].clientY;
+    return Math.sqrt(dx * dx + dy * dy);
+  };
+
+  // 触摸开始
+  const handleTouchStart = useCallback((e: TouchEvent) => {
+    if (e.touches.length === 2) {
+      // 双指触摸，准备缩放
+      touchStateRef.current.isPinching = true;
+      touchStateRef.current.isDragging = false;
+      touchStateRef.current.lastTouchDistance = getTouchDistance(e.touches);
+    } else if (e.touches.length === 1) {
+      // 单指触摸，准备拖动
+      touchStateRef.current.isDragging = true;
+      touchStateRef.current.isPinching = false;
+      touchStateRef.current.lastTouchX = e.touches[0].clientX;
+      touchStateRef.current.lastTouchTime = e.touches[0].clientX;
+    }
+  }, []);
+
+  // 触摸移动
+  const handleTouchMove = useCallback((e: TouchEvent) => {
+    e.preventDefault();
+
+    if (touchStateRef.current.isPinching && e.touches.length === 2) {
+      // 双指缩放
+      const currentDistance = getTouchDistance(e.touches);
+      const distanceDelta = currentDistance - touchStateRef.current.lastTouchDistance;
+
+      if (Math.abs(distanceDelta) > 5) {
+        const scaleDelta = distanceDelta / 100;
+        setScale(prev => Math.max(0.1, Math.min(10, prev + scaleDelta)));
+        touchStateRef.current.lastTouchDistance = currentDistance;
+      }
+    } else if (touchStateRef.current.isDragging && e.touches.length === 1) {
+      // 单指拖动
+      const currentX = e.touches[0].clientX;
+      const deltaX = currentX - touchStateRef.current.lastTouchX;
+
+      if (Math.abs(deltaX) > 2) {
+        const canvas = canvasRef.current;
+        if (canvas) {
+          const rect = canvas.getBoundingClientRect();
+          const baseDisplayDuration = 60;
+          const displayDuration = baseDisplayDuration / scale;
+          const timeDelta = -(deltaX / rect.width) * displayDuration;
+
+          setOffset(prev => {
+            const newOffset = prev + timeDelta;
+            // 限制偏移范围，不能超出数据范围
+            const maxOffset = 0; // 不能查看未来
+            const minOffset = data.length > 0 ? -(data[data.length - 1].time - data[0].time) : -3600;
+            return Math.max(minOffset, Math.min(maxOffset, newOffset));
+          });
+
+          touchStateRef.current.lastTouchX = currentX;
+        }
+      }
+    }
+  }, [scale, data]);
+
+  // 触摸结束
+  const handleTouchEnd = useCallback(() => {
+    touchStateRef.current.isPinching = false;
+    touchStateRef.current.isDragging = false;
+  }, []);
+
+  // 鼠标滚轮缩放
+  const handleWheel = useCallback((e: WheelEvent) => {
+    e.preventDefault();
+    const scaleDelta = -e.deltaY / 500;
+    setScale(prev => Math.max(0.1, Math.min(10, prev + scaleDelta)));
+  }, []);
+
+  // 鼠标按下
+  const handleMouseDown = useCallback((e: MouseEvent) => {
+    touchStateRef.current.isMouseDragging = true;
+    touchStateRef.current.lastMouseX = e.clientX;
+  }, []);
+
+  // 鼠标移动
+  const handleMouseMove = useCallback((e: MouseEvent) => {
+    if (touchStateRef.current.isMouseDragging) {
+      const deltaX = e.clientX - touchStateRef.current.lastMouseX;
+
+      if (Math.abs(deltaX) > 2) {
+        const canvas = canvasRef.current;
+        if (canvas) {
+          const rect = canvas.getBoundingClientRect();
+          const baseDisplayDuration = 60;
+          const displayDuration = baseDisplayDuration / scale;
+          const timeDelta = -(deltaX / rect.width) * displayDuration;
+
+          setOffset(prev => {
+            const newOffset = prev + timeDelta;
+            const maxOffset = 0;
+            const minOffset = data.length > 0 ? -(data[data.length - 1].time - data[0].time) : -3600;
+            return Math.max(minOffset, Math.min(maxOffset, newOffset));
+          });
+
+          touchStateRef.current.lastMouseX = e.clientX;
+        }
+      }
+    }
+  }, [scale, data]);
+
+  // 鼠标松开
+  const handleMouseUp = useCallback(() => {
+    touchStateRef.current.isMouseDragging = false;
+  }, []);
+
+  // 添加事件监听器
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
+    canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
+    canvas.addEventListener('touchend', handleTouchEnd);
+    canvas.addEventListener('wheel', handleWheel, { passive: false });
+    canvas.addEventListener('mousedown', handleMouseDown);
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      canvas.removeEventListener('touchstart', handleTouchStart);
+      canvas.removeEventListener('touchmove', handleTouchMove);
+      canvas.removeEventListener('touchend', handleTouchEnd);
+      canvas.removeEventListener('wheel', handleWheel);
+      canvas.removeEventListener('mousedown', handleMouseDown);
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [handleTouchStart, handleTouchMove, handleTouchEnd, handleWheel, handleMouseDown, handleMouseMove, handleMouseUp]);
 
   // 响应式调整画布尺寸
   useEffect(() => {
@@ -105,6 +263,15 @@ export function KLineChart({
 
     // 计算价格范围
     const prices = displayData.map(d => d.price);
+
+    // 将当前价格和买入价也加入价格范围计算
+    if (currentPrice !== undefined) {
+      prices.push(currentPrice);
+    }
+    if (entryPrice !== undefined) {
+      prices.push(entryPrice);
+    }
+
     const minPrice = Math.min(...prices);
     const maxPrice = Math.max(...prices);
     const priceRange = maxPrice - minPrice;
@@ -156,21 +323,27 @@ export function KLineChart({
       ? countdownStartRef.current.startTime + countdownStartRef.current.initialCountdown
       : null;
     
-    // 计算显示的时间窗口：当前时间在中央，向前和向后各显示一定时间
-    // 向前显示的时间（历史数据）- 显示30秒
-    const forwardDuration = Math.min(dataDuration, 30); // 向前显示已有数据或30秒，取较小值
+    // 计算显示的时间窗口：根据缩放和偏移调整
+    // 基础显示时间范围（秒）
+    const baseDisplayDuration = 60; // 默认显示60秒
+    const displayDuration = baseDisplayDuration / scale; // 根据缩放调整显示时间
 
-    // 向后显示的时间：如果有倒计时目标时间，确保能显示到目标时间；否则显示30秒
-    let backwardDuration = 30; // 默认30秒
-    if (countdownTargetTime !== null) {
-      // 计算从当前时间到目标时间需要显示多少时间
+    // 中心时间：当前时间 + 偏移量
+    const centerTime = currentTime + offset;
+
+    // 向前和向后显示的时间
+    const forwardDuration = displayDuration / 2;
+    const backwardDuration = displayDuration / 2;
+
+    // 如果有倒计时目标时间，确保能显示到目标时间
+    let adjustedBackwardDuration = backwardDuration;
+    if (countdownTargetTime !== null && offset === 0) {
       const timeToTarget = countdownTargetTime - currentTime;
-      // 向后显示的时间应该至少能显示到目标时间，再加上一些余量
-      backwardDuration = Math.max(timeToTarget + 10, 30); // 至少显示到目标时间+10秒，或30秒
+      adjustedBackwardDuration = Math.max(timeToTarget + 10, backwardDuration);
     }
-    
-    const minTime = currentTime - forwardDuration;
-    const maxTime = currentTime + backwardDuration;
+
+    const minTime = centerTime - forwardDuration;
+    const maxTime = centerTime + adjustedBackwardDuration;
     const timeRange = maxTime - minTime;
 
     // 绘制区域
@@ -407,8 +580,9 @@ export function KLineChart({
       ctx.font = '9.5px sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
+      const currentPriceValue = typeof currentPrice === 'number' ? currentPrice : parseFloat(String(currentPrice));
       ctx.fillText(
-        currentPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+        currentPriceValue.toFixed(2),
         logicalWidth - chartPadding.right,
         currentY
       );
@@ -437,76 +611,80 @@ export function KLineChart({
     }
 
     // 绘制买入价标记
-    if (entryPrice !== undefined && entryTime !== undefined && displayData.length > 0) {
-      const entryX = timeToX(entryTime);
+    if (entryPrice !== undefined && entryTime !== undefined) {
+      // 即使没有数据，也显示买入价格线
       const entryY = priceToY(entryPrice);
 
-      // 检查买入价标记是否在可见范围内
-      const isEntryVisible = entryX >= chartPadding.left && entryX <= logicalWidth - chartPadding.right;
+      // 始终绘制水平价格线
+      ctx.strokeStyle = 'rgba(59, 130, 246, 0.6)'; // 蓝色半透明
+      ctx.lineWidth = 1;
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath();
+      ctx.moveTo(chartPadding.left, entryY);
+      ctx.lineTo(logicalWidth - chartPadding.right, entryY);
+      ctx.stroke();
+      ctx.setLineDash([]);
 
-      if (isEntryVisible) {
-        // 绘制垂直虚线
-        ctx.strokeStyle = '#3b82f6'; // 蓝色
-        ctx.lineWidth = 1.5;
-        ctx.setLineDash([4, 4]);
-        ctx.beginPath();
-        ctx.moveTo(entryX, chartPadding.top);
-        ctx.lineTo(entryX, logicalHeight - chartPadding.bottom);
-        ctx.stroke();
-        ctx.setLineDash([]);
+      // 始终绘制买入价标签
+      ctx.fillStyle = 'rgba(59, 130, 246, 0.25)';
+      const entryLabelWidth = 96;
+      const entryLabelHeight = 24;
+      const entryLabelX = logicalWidth - chartPadding.right - entryLabelWidth / 2;
+      const entryLabelY = entryY - entryLabelHeight / 2;
+      ctx.beginPath();
+      const radius = 12;
+      ctx.moveTo(entryLabelX + radius, entryLabelY);
+      ctx.lineTo(entryLabelX + entryLabelWidth - radius, entryLabelY);
+      ctx.quadraticCurveTo(entryLabelX + entryLabelWidth, entryLabelY, entryLabelX + entryLabelWidth, entryLabelY + radius);
+      ctx.lineTo(entryLabelX + entryLabelWidth, entryLabelY + entryLabelHeight - radius);
+      ctx.quadraticCurveTo(entryLabelX + entryLabelWidth, entryLabelY + entryLabelHeight, entryLabelX + entryLabelWidth - radius, entryLabelY + entryLabelHeight);
+      ctx.lineTo(entryLabelX + radius, entryLabelY + entryLabelHeight);
+      ctx.quadraticCurveTo(entryLabelX, entryLabelY + entryLabelHeight, entryLabelX, entryLabelY + entryLabelHeight - radius);
+      ctx.lineTo(entryLabelX, entryLabelY + radius);
+      ctx.quadraticCurveTo(entryLabelX, entryLabelY, entryLabelX + radius, entryLabelY);
+      ctx.closePath();
+      ctx.fill();
 
-        // 绘制水平虚线
-        ctx.strokeStyle = 'rgba(59, 130, 246, 0.6)'; // 蓝色半透明
-        ctx.lineWidth = 1;
-        ctx.setLineDash([4, 4]);
-        ctx.beginPath();
-        ctx.moveTo(chartPadding.left, entryY);
-        ctx.lineTo(logicalWidth - chartPadding.right, entryY);
-        ctx.stroke();
-        ctx.setLineDash([]);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '9.5px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      const entryPriceValue = typeof entryPrice === 'number' ? entryPrice : parseFloat(String(entryPrice));
+      ctx.fillText(
+        entryPriceValue.toFixed(2),
+        logicalWidth - chartPadding.right,
+        entryY
+      );
 
-        // 绘制买入价标签
-        ctx.fillStyle = 'rgba(59, 130, 246, 0.25)';
-        const entryLabelWidth = 96;
-        const entryLabelHeight = 24;
-        const entryLabelX = logicalWidth - chartPadding.right - entryLabelWidth / 2;
-        const entryLabelY = entryY - entryLabelHeight / 2;
-        ctx.beginPath();
-        const radius = 12;
-        ctx.moveTo(entryLabelX + radius, entryLabelY);
-        ctx.lineTo(entryLabelX + entryLabelWidth - radius, entryLabelY);
-        ctx.quadraticCurveTo(entryLabelX + entryLabelWidth, entryLabelY, entryLabelX + entryLabelWidth, entryLabelY + radius);
-        ctx.lineTo(entryLabelX + entryLabelWidth, entryLabelY + entryLabelHeight - radius);
-        ctx.quadraticCurveTo(entryLabelX + entryLabelWidth, entryLabelY + entryLabelHeight, entryLabelX + entryLabelWidth - radius, entryLabelY + entryLabelHeight);
-        ctx.lineTo(entryLabelX + radius, entryLabelY + entryLabelHeight);
-        ctx.quadraticCurveTo(entryLabelX, entryLabelY + entryLabelHeight, entryLabelX, entryLabelY + entryLabelHeight - radius);
-        ctx.lineTo(entryLabelX, entryLabelY + radius);
-        ctx.quadraticCurveTo(entryLabelX, entryLabelY, entryLabelX + radius, entryLabelY);
-        ctx.closePath();
-        ctx.fill();
+      // 只有当有数据且买入点在可见范围内时，才绘制垂直线和买入点标记
+      if (displayData.length > 0) {
+        const entryX = timeToX(entryTime);
+        const isEntryVisible = entryX >= chartPadding.left && entryX <= logicalWidth - chartPadding.right;
 
-        ctx.fillStyle = '#ffffff';
-        ctx.font = '9.5px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(
-          entryPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-          logicalWidth - chartPadding.right,
-          entryY
-        );
+        if (isEntryVisible) {
+          // 绘制垂直虚线
+          ctx.strokeStyle = '#3b82f6'; // 蓝色
+          ctx.lineWidth = 1.5;
+          ctx.setLineDash([4, 4]);
+          ctx.beginPath();
+          ctx.moveTo(entryX, chartPadding.top);
+          ctx.lineTo(entryX, logicalHeight - chartPadding.bottom);
+          ctx.stroke();
+          ctx.setLineDash([]);
 
-        // 绘制买入点标记
-        ctx.fillStyle = '#3b82f6';
-        ctx.beginPath();
-        ctx.arc(entryX, entryY, 5, 0, Math.PI * 2);
-        ctx.fill();
+          // 绘制买入点标记
+          ctx.fillStyle = '#3b82f6';
+          ctx.beginPath();
+          ctx.arc(entryX, entryY, 5, 0, Math.PI * 2);
+          ctx.fill();
 
-        // 绘制白色边框
-        ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.arc(entryX, entryY, 5, 0, Math.PI * 2);
-        ctx.stroke();
+          // 绘制白色边框
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(entryX, entryY, 5, 0, Math.PI * 2);
+          ctx.stroke();
+        }
       }
     }
 
@@ -515,8 +693,8 @@ export function KLineChart({
       // 使用固定的目标时间，而不是当前时间 + 剩余倒计时
       const countdownX = timeToX(countdownTargetTime);
       
-      // 计算当前剩余倒计时（用于显示）
-      const remainingCountdown = Math.max(0, Math.ceil(countdownTargetTime - currentTime));
+      // 直接使用传递过来的倒计时值，避免时间不同步
+      const remainingCountdown = countdownTime || 0;
 
       // 检查倒计时线是否在可见范围内（放宽条件，允许稍微超出边界）
       const isVisible = countdownX >= chartPadding.left - 10 && countdownX <= logicalWidth - chartPadding.right + 10;
@@ -580,7 +758,7 @@ export function KLineChart({
     for (let i = 0; i <= priceGridCount; i++) {
       const price = priceMin + (priceRangeWithPadding * i) / priceGridCount;
       const y = priceToY(price);
-      ctx.fillText(Math.round(price).toString(), logicalWidth - chartPadding.right + 5, y);
+      ctx.fillText(price.toFixed(2), logicalWidth - chartPadding.right + 5, y);
     }
 
     // 绘制 X 轴时间标签（每四分钟一格）
@@ -626,19 +804,77 @@ export function KLineChart({
       ctx.textBaseline = 'top';
       ctx.fillText(`${currentHours}:${currentMinutes}:${currentSeconds}`, currentX, logicalHeight - chartPadding.bottom + 5);
     }
-  }, [data, canvasSize, currentPrice, countdownTime, animationFrame, currentRealTime]);
+
+    // 绘制交易收益（交易结束后显示在购入价格下方）
+    if (showProfit && profitLoss !== undefined && entryPrice !== undefined) {
+      const profitValue = typeof profitLoss === 'number' ? profitLoss : parseFloat(String(profitLoss));
+      const isProfit = profitValue >= 0;
+
+      const entryY = priceToY(entryPrice);
+
+      // 绘制收益标签（在购入价格标签下方）
+      const labelWidth = 96;
+      const labelHeight = 24;
+      const labelX = logicalWidth - chartPadding.right - labelWidth / 2;
+      const labelY = entryY + 20; // 在购入价格标签下方20px
+
+      // 绘制背景
+      ctx.fillStyle = isProfit ? 'rgba(34, 197, 94, 0.25)' : 'rgba(239, 68, 68, 0.25)';
+      ctx.beginPath();
+      const radius = 12;
+      ctx.moveTo(labelX + radius, labelY);
+      ctx.lineTo(labelX + labelWidth - radius, labelY);
+      ctx.quadraticCurveTo(labelX + labelWidth, labelY, labelX + labelWidth, labelY + radius);
+      ctx.lineTo(labelX + labelWidth, labelY + labelHeight - radius);
+      ctx.quadraticCurveTo(labelX + labelWidth, labelY + labelHeight, labelX + labelWidth - radius, labelY + labelHeight);
+      ctx.lineTo(labelX + radius, labelY + labelHeight);
+      ctx.quadraticCurveTo(labelX, labelY + labelHeight, labelX, labelY + labelHeight - radius);
+      ctx.lineTo(labelX, labelY + radius);
+      ctx.quadraticCurveTo(labelX, labelY, labelX + radius, labelY);
+      ctx.closePath();
+      ctx.fill();
+
+      // 绘制收益金额
+      ctx.fillStyle = isProfit ? '#22c55e' : '#ef4444';
+      ctx.font = 'bold 9.5px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      const profitText = `${isProfit ? '+' : ''}${Math.floor(profitValue)}`;
+      ctx.fillText(profitText, logicalWidth - chartPadding.right, labelY + labelHeight / 2);
+    }
+  }, [data, canvasSize, currentPrice, countdownTime, animationFrame, currentRealTime, scale, offset, profitLoss, showProfit]);
 
   return (
-    <div ref={containerRef} className="w-full h-full">
+    <div ref={containerRef} className="w-full h-full relative">
       <canvas
         ref={canvasRef}
         className="w-full h-full"
-        style={{ 
-          width: '100%', 
+        style={{
+          width: '100%',
           height: '100%',
-          display: 'block'
+          display: 'block',
+          touchAction: 'none', // 禁用默认触摸行为
         }}
       />
+      {/* 重置按钮 - 当用户缩放或拖动后显示 */}
+      {(scale !== 1 || offset !== 0) && (
+        <button
+          onClick={() => {
+            setScale(1);
+            setOffset(0);
+          }}
+          className="absolute top-2 right-2 bg-gray-800/80 text-white text-xs px-3 py-1.5 rounded-full hover:bg-gray-700/80 transition-colors backdrop-blur-sm"
+          style={{ zIndex: 10 }}
+        >
+          重置视图
+        </button>
+      )}
+      {/* 缩放提示 */}
+      {scale !== 1 && (
+        <div className="absolute bottom-2 left-2 bg-gray-800/80 text-white text-xs px-2 py-1 rounded backdrop-blur-sm">
+          {scale > 1 ? `放大 ${scale.toFixed(1)}x` : `缩小 ${(1/scale).toFixed(1)}x`}
+        </div>
+      )}
     </div>
   );
 }

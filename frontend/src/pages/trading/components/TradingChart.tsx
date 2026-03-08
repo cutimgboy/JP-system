@@ -6,9 +6,12 @@ interface TradingChartProps {
   stockCode?: string; // 股票代码，默认为 AAPL.US
   entryPrice?: number; // 买入价
   entryTime?: number; // 买入时间（秒）
+  onPriceUpdate?: (price: number, time: number) => void; // 价格更新回调
+  profitLoss?: number; // 交易收益
+  showProfit?: boolean; // 是否显示收益
 }
 
-export function TradingChart({ countdown, stockCode = 'AAPL.US', entryPrice, entryTime }: TradingChartProps) {
+export function TradingChart({ countdown, stockCode = 'AAPL.US', entryPrice, entryTime, onPriceUpdate, profitLoss, showProfit }: TradingChartProps) {
   const [kLineData, setKLineData] = useState<KLineData[]>([]);
   const [currentPrice, setCurrentPrice] = useState(0);
   const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting');
@@ -66,6 +69,11 @@ export function TradingChart({ countdown, stockCode = 'AAPL.US', entryPrice, ent
           });
 
           setCurrentPrice(data.price);
+
+          // 通知父组件价格和时间更新
+          if (onPriceUpdate) {
+            onPriceUpdate(data.price, data.time);
+          }
         } else if (data.type === 'heartbeat') {
           console.log('收到心跳:', data.timestamp);
         }
@@ -152,6 +160,8 @@ export function TradingChart({ countdown, stockCode = 'AAPL.US', entryPrice, ent
             countdownTime={countdown}
             entryPrice={entryPrice}
             entryTime={entryTime}
+            profitLoss={profitLoss}
+            showProfit={showProfit}
           />
         )}
       </div>

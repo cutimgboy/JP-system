@@ -15,6 +15,21 @@ export class AccountService {
   ) {}
 
   /**
+   * 获取用户所有账户列表
+   */
+  async getUserAccounts(userId: number): Promise<UserAccountEntity[]> {
+    // 确保用户至少有 demo 和 real 两个账户
+    await this.getOrCreateAccount(userId, AccountType.DEMO);
+    await this.getOrCreateAccount(userId, AccountType.REAL);
+
+    // 返回用户的所有账户
+    return await this.accountRepository.find({
+      where: { userId },
+      order: { accountType: 'ASC' }, // demo 在前，real 在后
+    });
+  }
+
+  /**
    * 获取用户账户信息
    * 如果不存在则自动创建
    */

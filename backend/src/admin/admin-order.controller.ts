@@ -30,7 +30,7 @@ export class AdminOrderController {
   ) {
     const pageNum = page ? parseInt(page.toString()) : 1;
     const pageSize = limit ? parseInt(limit.toString()) : 20;
-    const type = accountType === 'demo' ? AccountType.DEMO : AccountType.REAL;
+    const type = accountType === 'demo' ? AccountType.DEMO : accountType === 'real' ? AccountType.REAL : undefined;
 
     const result = await this.tradeOrderService.getAllOrdersWithPagination(
       pageNum,
@@ -52,7 +52,7 @@ export class AdminOrderController {
    */
   @Get('stats')
   async getOrderStats(@Query('accountType') accountType?: string) {
-    const type = accountType === 'demo' ? AccountType.DEMO : AccountType.REAL;
+    const type = accountType === 'demo' ? AccountType.DEMO : accountType === 'real' ? AccountType.REAL : undefined;
     const stats = await this.tradeOrderService.getGlobalStats(type);
     return {
       data: stats,

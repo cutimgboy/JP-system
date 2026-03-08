@@ -329,6 +329,7 @@ export default function PositionsPage() {
               <div
                 key={record.id}
                 className="bg-[#1f2633] rounded-xl p-4 shadow-sm border border-gray-700/50 cursor-pointer hover:bg-[#252b3a] transition-colors active:scale-[0.98]"
+                onClick={() => navigate(`/positions/order/${record.id}`)}
               >
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">

@@ -17,6 +17,7 @@ import { DepositModule } from './deposit/deposit.module';
 import { RewardModule } from './reward/reward.module';
 import { CommunityModule } from './community/community.module';
 import { MessageModule } from './message/message.module';
+import { MigrationModule } from './migration/migration.module';
 import { JwtAuthGuard } from './user/guards/jwt-auth.guard';
 import envConfig from '../config/env';
 
@@ -39,6 +40,7 @@ import { RewardClaimEntity } from './reward/entities/reward-claim.entity';
 import { LeaderboardEntity } from './community/entities/leaderboard.entity';
 import { CommunitySettingsEntity } from './community/entities/community-settings.entity';
 import { MessageEntity } from './message/entities/message.entity';
+import { MigrationEntity } from './migration/entities/migration.entity';
 
 @Module({
   imports: [
@@ -71,6 +73,7 @@ import { MessageEntity } from './message/entities/message.entity';
           LeaderboardEntity,
           CommunitySettingsEntity,
           MessageEntity,
+          MigrationEntity,
         ], // 数据表实体，synchronize为true时，自动创建表，生产环境建议关闭
         host: configService.get('DB_HOST'), // 主机，默认为localhost
         port: configService.get<number>('DB_PORT'), // 端口号
@@ -93,6 +96,7 @@ import { MessageEntity } from './message/entities/message.entity';
     RewardModule,
     CommunityModule,
     MessageModule,
+    MigrationModule,
   ],
   controllers: [AppController],
   // 注册为全局守卫（已暂时关闭）

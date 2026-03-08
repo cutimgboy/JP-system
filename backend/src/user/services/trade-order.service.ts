@@ -13,6 +13,7 @@ import {
   OrderResult,
   AccountType,
 } from '../entities/trade-order.entity';
+import { UserAccountEntity } from '../entities/user-account.entity';
 import { AccountService } from './account.service';
 import { RedisService } from '../../redis/redis.service';
 import { Cron, CronExpression } from '@nestjs/schedule';
@@ -27,7 +28,8 @@ export class CreateOrderDto {
   investmentAmount: number;
   durationSeconds: number;
   profitRate?: number;
-  accountType?: AccountType;
+  accountId?: number; // 改为使用 accountId
+  accountType?: AccountType; // 保留用于向后兼容，但会被验证
 }
 
 /**
@@ -62,7 +64,108 @@ export class TradeOrderService {
       throw new BadRequestException('交易时长必须在30秒到300秒之间');
     }
 
-    const accountType = dto.accountType || AccountType.DEMO;
+    // 安全验证：从数据库获取真实的账户信息，不信任前端传值
+    let accountType: AccountType;
+
+    // 检查用户是否已有进行中的订单（同一账户类型）
+    if (dto.accountId) {
+      const account = await this.dataSource
+        .getRepository(UserAccountEntity)
+        .findOne({
+          where: { id: dto.accountId, userId },
+        });
+
+      if (!account) {
+        throw new BadRequestException('账户不存在或无权访问');
+      }
+
+      accountType = account.accountType;
+
+      // 检查该账户类型是否有进行中的订单
+      const existingOrder = await this.orderRepository.findOne({
+        where: {
+          userId,
+          accountType,
+          status: OrderStatus.OPEN,
+        },
+      });
+
+      if (existingOrder) {
+        throw new BadRequestException('您已有进行中的交易，请等待当前交易完成后再创建新订单');
+      }
+    } else if (dto.accountType) {
+      const account = await this.dataSource
+        .getRepository(UserAccountEntity)
+        .findOne({
+          where: { userId, accountType: dto.accountType },
+        });
+
+      if (!account) {
+        throw new BadRequestException('账户不存在或无权访问');
+      }
+
+      accountType = account.accountType;
+
+      // 检查该账户类型是否有进行中的订单
+      const existingOrder = await this.orderRepository.findOne({
+        where: {
+          userId,
+          accountType,
+          status: OrderStatus.OPEN,
+        },
+      });
+
+      if (existingOrder) {
+        throw new BadRequestException('您已有进行中的交易，请等待当前交易完成后再创建新订单');
+      }
+    } else {
+      // 默认使用 demo 账户
+      accountType = AccountType.DEMO;
+
+      // 检查 demo 账户是否有进行中的订单
+      const existingOrder = await this.orderRepository.findOne({
+        where: {
+          userId,
+          accountType: AccountType.DEMO,
+          status: OrderStatus.OPEN,
+        },
+      });
+
+      if (existingOrder) {
+        throw new BadRequestException('您已有进行中的交易，请等待当前交易完成后再创建新订单');
+      }
+    }
+
+    if (dto.accountId) {
+      // 如果传了 accountId，验证账户所有权并获取账户类型
+      const account = await this.dataSource
+        .getRepository(UserAccountEntity)
+        .findOne({
+          where: { id: dto.accountId, userId },
+        });
+
+      if (!account) {
+        throw new BadRequestException('账户不存在或无权访问');
+      }
+
+      accountType = account.accountType;
+    } else if (dto.accountType) {
+      // 如果只传了 accountType（向后兼容），验证用户是否拥有该类型账户
+      const account = await this.dataSource
+        .getRepository(UserAccountEntity)
+        .findOne({
+          where: { userId, accountType: dto.accountType },
+        });
+
+      if (!account) {
+        throw new BadRequestException('账户不存在或无权访问');
+      }
+
+      accountType = account.accountType;
+    } else {
+      // 默认使用 demo 账户
+      accountType = AccountType.DEMO;
+    }
 
     // 获取当前价格
     const currentPrice = await this.getCurrentPrice(dto.stockCode);
@@ -342,12 +445,11 @@ export class TradeOrderService {
       .createQueryBuilder('order')
       .leftJoinAndSelect('order.user', 'user');
 
-    // 只查询真实账户的订单
+    // 根据账户类型筛选
     if (accountType) {
       query.andWhere('order.accountType = :accountType', { accountType });
-    } else {
-      query.andWhere('order.accountType = :accountType', { accountType: AccountType.REAL });
     }
+    // 如果不传 accountType，则查询所有账户类型的订单
 
     if (status) {
       query.andWhere('order.status = :status', { status });

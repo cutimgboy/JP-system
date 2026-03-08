@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Plus, Edit2, Trash2, Save, X } from 'lucide-react';
 import axios from 'axios';
+import { Toast } from '../components/Toast';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
@@ -17,6 +18,8 @@ interface LeaderboardItem {
 interface CommunitySettings {
   date: string;
   participants: number;
+  baseDate: string;
+  baseParticipants: number;
 }
 
 export function CommunityManagement() {
@@ -24,6 +27,8 @@ export function CommunityManagement() {
   const [settings, setSettings] = useState<CommunitySettings>({
     date: new Date().toISOString().split('T')[0],
     participants: 0,
+    baseDate: '2024-01-01',
+    baseParticipants: 1039284,
   });
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editingItem, setEditingItem] = useState<LeaderboardItem | null>(null);
@@ -36,6 +41,7 @@ export function CommunityManagement() {
     profit: 0,
     rank: 1,
   });
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'warning' } | null>(null);
 
   useEffect(() => {
     fetchData();
@@ -57,6 +63,8 @@ export function CommunityManagement() {
       setSettings({
         date: settingsData.date || new Date().toISOString().split('T')[0],
         participants: parseInt(settingsData.participants || '0'),
+        baseDate: settingsData.baseDate || '2024-01-01',
+        baseParticipants: parseInt(settingsData.baseParticipants || '1039284'),
       });
     } catch (error) {
       console.error('获取数据失败:', error);
@@ -71,10 +79,11 @@ export function CommunityManagement() {
         settings,
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      alert('设置保存成功');
+      setToast({ message: '设置保存成功', type: 'success' });
+      fetchData(); // 刷新数据
     } catch (error) {
       console.error('保存设置失败:', error);
-      alert('保存设置失败');
+      setToast({ message: '保存设置失败', type: 'error' });
     }
   };
 
@@ -95,10 +104,11 @@ export function CommunityManagement() {
         profit: 0,
         rank: 1,
       });
+      setToast({ message: '添加成功', type: 'success' });
       fetchData();
     } catch (error) {
       console.error('添加失败:', error);
-      alert('添加失败');
+      setToast({ message: '添加失败', type: 'error' });
     }
   };
 
@@ -119,10 +129,11 @@ export function CommunityManagement() {
       );
       setEditingId(null);
       setEditingItem(null);
+      setToast({ message: '保存成功', type: 'success' });
       fetchData();
     } catch (error) {
       console.error('保存失败:', error);
-      alert('保存失败');
+      setToast({ message: '保存失败', type: 'error' });
     }
   };
 
@@ -135,10 +146,11 @@ export function CommunityManagement() {
         `${API_BASE_URL}/api/admin/community/leaderboard/${id}`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
+      setToast({ message: '删除成功', type: 'success' });
       fetchData();
     } catch (error) {
       console.error('删除失败:', error);
-      alert('删除失败');
+      setToast({ message: '删除失败', type: 'error' });
     }
   };
 
@@ -160,11 +172,29 @@ export function CommunityManagement() {
             />
           </div>
           <div>
-            <label className="block text-sm text-gray-600 mb-2">参与人数</label>
+            <label className="block text-sm text-gray-600 mb-2">参与人数（设置为0则自动计算）</label>
             <input
               type="number"
               value={settings.participants}
               onChange={(e) => setSettings({ ...settings, participants: parseInt(e.target.value) || 0 })}
+              className="w-full bg-white text-gray-800 px-4 py-2 rounded-lg border border-gray-300 focus:border-blue-500 focus:outline-none"
+            />
+          </div>
+          <div>
+            <label className="block text-sm text-gray-600 mb-2">基准日期</label>
+            <input
+              type="date"
+              value={settings.baseDate}
+              onChange={(e) => setSettings({ ...settings, baseDate: e.target.value })}
+              className="w-full bg-white text-gray-800 px-4 py-2 rounded-lg border border-gray-300 focus:border-blue-500 focus:outline-none"
+            />
+          </div>
+          <div>
+            <label className="block text-sm text-gray-600 mb-2">基准人数</label>
+            <input
+              type="number"
+              value={settings.baseParticipants}
+              onChange={(e) => setSettings({ ...settings, baseParticipants: parseInt(e.target.value) || 0 })}
               className="w-full bg-white text-gray-800 px-4 py-2 rounded-lg border border-gray-300 focus:border-blue-500 focus:outline-none"
             />
           </div>
@@ -196,10 +226,10 @@ export function CommunityManagement() {
           <div className="bg-gray-50 rounded-lg p-4 mb-4 border border-gray-200">
             <div className="grid grid-cols-6 gap-3 mb-3">
               <input
-                type="number"
+                type="text"
                 placeholder="排名"
-                value={newItem.rank}
-                onChange={(e) => setNewItem({ ...newItem, rank: parseInt(e.target.value) || 1 })}
+                value={newItem.rank || ''}
+                onChange={(e) => setNewItem({ ...newItem, rank: parseInt(e.target.value) || 0 })}
                 className="bg-white text-gray-800 px-3 py-2 rounded border border-gray-300 focus:border-blue-500 focus:outline-none"
               />
               <input
@@ -210,23 +240,23 @@ export function CommunityManagement() {
                 className="bg-white text-gray-800 px-3 py-2 rounded border border-gray-300 focus:border-blue-500 focus:outline-none"
               />
               <input
-                type="number"
+                type="text"
                 placeholder="交易笔数"
-                value={newItem.trades}
+                value={newItem.trades || ''}
                 onChange={(e) => setNewItem({ ...newItem, trades: parseInt(e.target.value) || 0 })}
                 className="bg-white text-gray-800 px-3 py-2 rounded border border-gray-300 focus:border-blue-500 focus:outline-none"
               />
               <input
-                type="number"
+                type="text"
                 placeholder="胜率(%)"
-                value={newItem.winRate}
+                value={newItem.winRate || ''}
                 onChange={(e) => setNewItem({ ...newItem, winRate: parseFloat(e.target.value) || 0 })}
                 className="bg-white text-gray-800 px-3 py-2 rounded border border-gray-300 focus:border-blue-500 focus:outline-none"
               />
               <input
-                type="number"
+                type="text"
                 placeholder="收益"
-                value={newItem.profit}
+                value={newItem.profit || ''}
                 onChange={(e) => setNewItem({ ...newItem, profit: parseFloat(e.target.value) || 0 })}
                 className="bg-white text-gray-800 px-3 py-2 rounded border border-gray-300 focus:border-blue-500 focus:outline-none"
               />
@@ -353,6 +383,15 @@ export function CommunityManagement() {
           </table>
         </div>
       </div>
+
+      {/* Toast Notification */}
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
     </div>
   );
 }

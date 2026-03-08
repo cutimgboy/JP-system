@@ -91,13 +91,17 @@ export function DepositReview() {
         return;
       }
 
-      const inputAmount = parseFloat(confirmAmount);
+      // 移除千分位分隔符和空格后再解析
+      const cleanAmount = confirmAmount.replace(/[,\s]/g, '');
+      const inputAmount = parseFloat(cleanAmount);
+      const expectedAmount = parseFloat(String(selectedDeposit.amount));
+
       if (isNaN(inputAmount)) {
         setToast({ message: '请输入有效的金额', type: 'error' });
         return;
       }
 
-      if (inputAmount !== selectedDeposit.amount) {
+      if (inputAmount !== expectedAmount) {
         setToast({ message: '输入金额与申请金额不一致，请核对', type: 'error' });
         return;
       }
@@ -289,7 +293,7 @@ export function DepositReview() {
 
       {/* Detail Modal */}
       {showDetailModal && selectedDeposit && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <h2 className="text-xl font-bold mb-4">入金详情</h2>
 
@@ -386,7 +390,7 @@ export function DepositReview() {
 
       {/* Review Modal */}
       {showReviewModal && selectedDeposit && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg p-6 max-w-md w-full">
             <h2 className="text-xl font-bold mb-4">
               {reviewAction === 1 ? '审核通过' : '审核拒绝'}

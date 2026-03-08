@@ -18,5 +18,8 @@
       "loading": "Loading...",
       "success": "Success",
       "failed": "Failed"
+    },
+    "language": {
+      "title": "Change Language"
     }
   }

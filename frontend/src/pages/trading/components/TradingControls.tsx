@@ -32,9 +32,9 @@ export function TradingControls({
   // 格式化数字显示
   const formatNumber = (num: number) => {
     if (num === undefined || num === null || isNaN(num)) {
-      return '0.00';
+      return '0';
     }
-    return num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return Math.floor(num).toLocaleString('en-US');
   };
 
   return (
@@ -157,7 +157,7 @@ export function TradingControls({
               {tradeStatus === 'idle' ? (
                 // 未投资时显示上一次的收益
                 <span className="font-medium ml-1">
-                  {expectedProfit === 0 ? '0.00' : (expectedProfit > 0 ? `+${formatNumber(expectedProfit)}` : formatNumber(expectedProfit))}
+                  {expectedProfit === 0 ? '0' : (expectedProfit > 0 ? `+${formatNumber(expectedProfit)}` : formatNumber(expectedProfit))}
                 </span>
               ) : tradeStatus === 'completed' ? (
                 // 已完成显示实际收益

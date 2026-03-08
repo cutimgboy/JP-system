@@ -1,4 +1,4 @@
-import { ChevronRight, Shield, CircleArrowDown, CircleArrowUp, Receipt, Building2 } from 'lucide-react';
+import { ChevronRight, Shield, CircleArrowDown, CircleArrowUp, Receipt, Building2, Zap, Headphones, Gift } from 'lucide-react';
 import { BottomNav } from '../../components/BottomNav';
 import { AccountHeader } from '../../components/AccountHeader';
 import { useState, useEffect } from 'react';
@@ -20,6 +20,21 @@ export default function ProfilePage() {
       icon: 'shield',
       title: '资金安全，全球合规',
       description: '您的资金享有高标准托管机制，遵循全球多重监管要求，层层防护，确保交易环境安全可靠。'
+    },
+    {
+      icon: 'fast',
+      title: '极速出入金，秒级到账',
+      description: '支持多种支付方式，入金即时到账，提现快速处理，让您的资金流转更加便捷高效。'
+    },
+    {
+      icon: 'support',
+      title: '7×24小时专业客服',
+      description: '全天候在线客服团队，随时为您解答疑问，提供专业的交易指导和技术支持服务。'
+    },
+    {
+      icon: 'gift',
+      title: '新人专享福利大礼包',
+      description: '注册即送体验金，首次入金享受高额返利，更有多重优惠活动等您来领取。'
     }
   ];
 
@@ -70,6 +85,21 @@ export default function ProfilePage() {
                       <polyline points="20 6 9 17 4 12"></polyline>
                     </svg>
                   </div>
+                </div>
+              )}
+              {currentSlide === 2 && (
+                <div className="flex items-center justify-center">
+                  <Zap className="w-16 h-16 text-yellow-400 fill-yellow-400 stroke-[1.5]" />
+                </div>
+              )}
+              {currentSlide === 3 && (
+                <div className="flex items-center justify-center">
+                  <Headphones className="w-16 h-16 text-blue-400 stroke-[1.5]" />
+                </div>
+              )}
+              {currentSlide === 4 && (
+                <div className="flex items-center justify-center">
+                  <Gift className="w-16 h-16 text-pink-400 stroke-[1.5]" />
                 </div>
               )}
             </div>

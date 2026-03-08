@@ -19,8 +19,8 @@ export function MarketItem({ icon, symbol, name, price, change, changePercent, o
       className="w-full bg-[#1f2633] rounded-lg p-4 flex items-center gap-3 hover:bg-[#252d3d] transition-colors text-left border border-gray-700/30"
       onClick={onClick}
     >
-      <div className="w-10 h-10 bg-gray-700/50 rounded-full flex items-center justify-center flex-shrink-0 text-sm text-gray-300">
-        {icon}
+      <div className="w-10 h-10 bg-gray-700/50 rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden">
+        <img src={icon} alt={symbol} className="w-6 h-6 object-contain" />
       </div>
 
       <div className="flex-1 min-w-0">

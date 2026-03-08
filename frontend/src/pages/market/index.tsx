@@ -42,7 +42,7 @@ export default function MarketPage() {
         const marketData: Market[] = quotesData.map((quote: any) => {
           return {
             code: quote.code,
-            icon: quote.nameCn?.charAt(0) || quote.code.charAt(0),
+            icon: `/logo/${quote.code}.svg`,
             symbol: quote.code,
             name: quote.name,
             nameCn: quote.nameCn,

@@ -5,6 +5,7 @@ import Trading from './pages/trading';
 import Market from './pages/market';
 import Community from './pages/community';
 import Positions from './pages/positions';
+import OrderDetail from './pages/positions/OrderDetail';
 import Profile from './pages/profile';
 import { PersonalInfo } from './pages/personal-info';
 import { MessageCenter } from './pages/message-center';
@@ -66,6 +67,14 @@ function App() {
         element={
           <ProtectedRoute>
             <Positions />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/positions/order/:orderId"
+        element={
+          <ProtectedRoute>
+            <OrderDetail />
           </ProtectedRoute>
         }
       />

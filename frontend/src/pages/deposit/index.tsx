@@ -51,16 +51,7 @@ export function Deposit() {
   };
 
   const handleBankCardClick = (card: BankCard) => {
-    // 检查是否为模拟账户
-    if (accountType === 'demo') {
-      setToast({
-        message: '模拟账户不支持充值，请切换到真实账户',
-        type: 'warning',
-      });
-      return;
-    }
-
-    // 真实账户可以继续充值流程
+    // 所有账户类型都可以充值
     navigate('/deposit/funds', { state: { userBankCard: card } });
   };
 

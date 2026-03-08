@@ -15,6 +15,8 @@ interface LeaderboardItem {
 interface CommunitySettings {
   date: string;
   participants: string;
+  baseDate?: string;
+  baseParticipants?: number;
 }
 
 export default function CommunityPage() {
@@ -44,6 +46,8 @@ export default function CommunityPage() {
       setSettings({
         date: settingsData.date || new Date().toISOString().split('T')[0],
         participants: settingsData.participants || '0',
+        baseDate: settingsData.baseDate || '2024-01-01',
+        baseParticipants: parseInt(settingsData.baseParticipants) || 1039284,
       });
     } catch (error) {
       console.error('获取社区数据失败:', error);
@@ -65,6 +69,26 @@ export default function CommunityPage() {
     const n = typeof num === 'string' ? parseInt(num) : num;
     return n.toLocaleString();
   };
+
+  // 计算参与人数：从基准值开始每天增加
+  const calculateParticipants = () => {
+    const baseDate = new Date(settings.baseDate || '2024-01-01');
+    const baseCount = settings.baseParticipants || 1039284;
+    const today = new Date();
+
+    // 计算天数差
+    const diffTime = today.getTime() - baseDate.getTime();
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+    // 每天增加的人数（使用日期作为种子生成固定的随机数）
+    const dailyIncrease = 200 + (diffDays % 300); // 每天增加 200-500 人之间
+
+    return baseCount + (diffDays * dailyIncrease);
+  };
+
+  const displayParticipants = settings.participants && parseInt(settings.participants) > 0
+    ? parseInt(settings.participants)
+    : calculateParticipants();
 
   return (
     <div className="min-h-screen bg-[#1a1f2e] pb-20">
@@ -94,7 +118,7 @@ export default function CommunityPage() {
             </div>
             <div>
               <div className="text-xs text-gray-500 mb-1">参与人数</div>
-              <div className="text-sm font-medium text-white">{formatNumber(settings.participants)}</div>
+              <div className="text-sm font-medium text-white">{formatNumber(displayParticipants)}</div>
             </div>
           </div>
         </div>
@@ -145,7 +169,7 @@ export default function CommunityPage() {
 
                   {/* Profit */}
                   <div className="text-sm text-teal-400 font-medium text-right whitespace-nowrap">
-                    +₫{(Number(item.profit) / 1000).toFixed(0)}k
+                    +₫{Number(item.profit).toLocaleString()}
                   </div>
                 </div>
               ))

@@ -4,6 +4,7 @@ import { apiClient } from '../utils/api';
 interface Order {
   id: number;
   userId: number;
+  accountType: 'demo' | 'real';
   stockCode: string;
   stockName: string;
   tradeType: 'bull' | 'bear';
@@ -42,13 +43,14 @@ export function OrderManagement() {
   const [totalPages, setTotalPages] = useState(1);
   const [search, setSearch] = useState('');
   const [searchInput, setSearchInput] = useState('');
+  const [accountTypeFilter, setAccountTypeFilter] = useState<'all' | 'demo' | 'real'>('all');
   const limit = 20;
 
   // 获取订单统计
   const fetchStats = async () => {
     try {
       const response = await apiClient.get('/admin/orders/stats', {
-        params: { accountType: 'real' }
+        params: { accountType: accountTypeFilter === 'all' ? undefined : accountTypeFilter }
       });
       setStats(response.data.data || response.data);
     } catch (error) {
@@ -64,7 +66,7 @@ export function OrderManagement() {
         params: {
           page,
           limit,
-          accountType: 'real',
+          accountType: accountTypeFilter === 'all' ? undefined : accountTypeFilter,
           search: search || undefined,
         }
       });
@@ -81,11 +83,11 @@ export function OrderManagement() {
 
   useEffect(() => {
     fetchStats();
-  }, []);
+  }, [accountTypeFilter]);
 
   useEffect(() => {
     fetchOrders();
-  }, [page, search]);
+  }, [page, search, accountTypeFilter]);
 
   const handleSearch = () => {
     setSearch(searchInput);
@@ -116,6 +118,14 @@ export function OrderManagement() {
     return type === 'bull' ? 'bg-red-100 text-red-800' : 'bg-teal-100 text-teal-800';
   };
 
+  const getAccountTypeLabel = (type: string) => {
+    return type === 'demo' ? '模拟' : '真实';
+  };
+
+  const getAccountTypeColor = (type: string) => {
+    return type === 'demo' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800';
+  };
+
   const getStatusLabel = (status: string) => {
     return status === 'open' ? '进行中' : '已平仓';
   };
@@ -134,7 +144,7 @@ export function OrderManagement() {
     <div className="p-6">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-800">订单管理</h1>
-        <p className="text-gray-600 mt-1">查看和管理所有真实账户交易订单</p>
+        <p className="text-gray-600 mt-1">查看和管理所有交易订单</p>
       </div>
 
       {/* 统计卡片 */}
@@ -199,7 +209,7 @@ export function OrderManagement() {
       {/* 订单列表 */}
       <div className="bg-white rounded-lg shadow">
         <div className="p-6 border-b border-gray-200">
-          <div className="flex gap-4">
+          <div className="flex gap-4 mb-4">
             <input
               type="text"
               placeholder="搜索订单号、用户ID、股票代码..."
@@ -213,6 +223,40 @@ export function OrderManagement() {
               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
             >
               搜索
+            </button>
+          </div>
+
+          {/* 账户类型筛选器 */}
+          <div className="flex gap-2">
+            <button
+              onClick={() => setAccountTypeFilter('all')}
+              className={`px-4 py-2 rounded-lg transition-colors ${
+                accountTypeFilter === 'all'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              全部账户
+            </button>
+            <button
+              onClick={() => setAccountTypeFilter('demo')}
+              className={`px-4 py-2 rounded-lg transition-colors ${
+                accountTypeFilter === 'demo'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              模拟账户
+            </button>
+            <button
+              onClick={() => setAccountTypeFilter('real')}
+              className={`px-4 py-2 rounded-lg transition-colors ${
+                accountTypeFilter === 'real'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              真实账户
             </button>
           </div>
         </div>
@@ -229,6 +273,7 @@ export function OrderManagement() {
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">订单ID</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">用户ID</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">账户类型</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">股票代码</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">类型</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">投资金额</th>
@@ -244,6 +289,11 @@ export function OrderManagement() {
                     <tr key={order.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{order.id}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{order.userId}</td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getAccountTypeColor(order.accountType)}`}>
+                          {getAccountTypeLabel(order.accountType)}
+                        </span>
+                      </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         {order.stockCode}
                         <div className="text-xs text-gray-500">{order.stockName}</div>

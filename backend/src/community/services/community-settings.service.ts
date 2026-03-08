@@ -39,9 +39,17 @@ export class CommunitySettingsService {
     }
   }
 
-  async updateSettings(settings: { date: string; participants: number }) {
+  async updateSettings(settings: { date: string; participants: number; baseDate?: string; baseParticipants?: number }) {
     await this.setSetting('date', settings.date, '社区日期');
     await this.setSetting('participants', settings.participants.toString(), '参与人数');
+
+    if (settings.baseDate) {
+      await this.setSetting('baseDate', settings.baseDate, '基准日期');
+    }
+    if (settings.baseParticipants !== undefined) {
+      await this.setSetting('baseParticipants', settings.baseParticipants.toString(), '基准人数');
+    }
+
     return { success: true };
   }
 }

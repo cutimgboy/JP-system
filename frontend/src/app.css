@@ -14,6 +14,16 @@ body {
   color-scheme: dark;
 }
 
+/* 隐藏滚动条 */
+::-webkit-scrollbar {
+  display: none;
+}
+
+* {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
 /* Toast Animation */
 @keyframes slide-down {
   from {

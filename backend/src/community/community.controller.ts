@@ -86,7 +86,7 @@ export class AdminCommunityController {
    * 更新社区设置
    */
   @Put('settings')
-  async updateSettings(@Body() settings: { date: string; participants: number }) {
+  async updateSettings(@Body() settings: { date: string; participants: number; baseDate?: string; baseParticipants?: number }) {
     return await this.settingsService.updateSettings(settings);
   }
 }

@@ -1,0 +1,25 @@
+{
+  "button": {
+    "submit": "Gửi",
+    "cancel": "Hủy",
+    "confirm": "Xác nhận",
+    "delete": "Xóa",
+    "edit": "Chỉnh sửa",
+    "save": "Lưu"
+  },
+  "error": {
+    "404": "Không tìm thấy trang",
+    "500": "Lỗi máy chủ",
+    "network": "Kết nối mạng thất bại",
+    "unauthorized": "Truy cập không được phép",
+    "forbidden": "Không có quyền truy cập"
+  },
+  "message": {
+    "loading": "Đang tải...",
+    "success": "Thao tác thành công",
+    "failed": "Thao tác thất bại"
+  },
+  "language": {
+    "title": "Đổi ngôn ngữ"
+  }
+}

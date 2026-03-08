@@ -128,6 +128,8 @@ export class MockQuoteService implements OnModuleInit {
       nameCn: product.nameCn,
       nameVn: product.nameVn,
       type: product.type,
+      descriptionCn: product.descriptionCn,
+      descriptionVn: product.descriptionVn,
       price: Number(currentPrice.toFixed(2)),
       bidPrice: Number(bidPrice.toFixed(2)),
       askPrice: Number(askPrice.toFixed(2)),

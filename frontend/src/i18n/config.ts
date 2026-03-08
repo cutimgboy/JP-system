@@ -7,6 +7,8 @@ import zhCNCommon from './resources/zh-CN/common.json';
 import zhCNHome from './resources/zh-CN/home.json';
 import enUSCommon from './resources/en-US/common.json';
 import enUSHome from './resources/en-US/home.json';
+import viCommon from './resources/vi/common.json';
+import viHome from './resources/vi/home.json';
 
 const resources = {
   'zh-CN': {
@@ -16,6 +18,10 @@ const resources = {
   'en-US': {
     common: enUSCommon,
     home: enUSHome,
+  },
+  'vi': {
+    common: viCommon,
+    home: viHome,
   },
 };
 
@@ -27,7 +33,7 @@ if (typeof window !== 'undefined') {
     .init({
       resources,
       fallbackLng: 'zh-CN', // 默认语言
-      supportedLngs: ['zh-CN', 'en-US'], // 支持的语言
+      supportedLngs: ['zh-CN', 'en-US', 'vi'], // 支持的语言
       defaultNS: 'common', // 默认命名空间
       ns: ['common', 'home'], // 命名空间列表
 
@@ -53,7 +59,7 @@ if (typeof window !== 'undefined') {
     .init({
       resources,
       fallbackLng: 'zh-CN',
-      supportedLngs: ['zh-CN', 'en-US'],
+      supportedLngs: ['zh-CN', 'en-US', 'vi'],
       defaultNS: 'common',
       ns: ['common', 'home'],
       interpolation: {

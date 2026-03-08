@@ -11,6 +11,8 @@ interface Product {
   tradeCode: string;
   nameCn: string;
   type: string;
+  descriptionCn?: string;
+  descriptionVn?: string;
 }
 
 export function NavigationHeader({ selectedStock, onStockChange }: NavigationHeaderProps) {
@@ -109,12 +111,12 @@ export function NavigationHeader({ selectedStock, onStockChange }: NavigationHea
                   onClick={() => onStockChange(product.code)}
                   className="flex flex-col items-center gap-1.5 transition-all"
                 >
-                  <div className={`w-12 h-12 rounded-full flex items-center justify-center text-sm font-semibold transition-all ${
+                  <div className={`w-12 h-12 rounded-full flex items-center justify-center transition-all overflow-hidden ${
                     selectedStock === product.code
-                      ? 'bg-gradient-to-br from-blue-600 to-blue-500 text-white shadow-lg'
-                      : 'bg-gray-700/50 text-gray-300 hover:bg-gray-700'
+                      ? 'bg-gradient-to-br from-blue-600 to-blue-500 shadow-lg'
+                      : 'bg-gray-700/50 hover:bg-gray-700'
                   }`}>
-                    {product.code.charAt(0)}
+                    <img src={`/logo/${product.code}.svg`} alt={product.code} className="w-7 h-7 object-contain" />
                   </div>
                   <div className={`text-[10px] whitespace-nowrap transition-colors ${
                     selectedStock === product.code ? 'text-blue-400 font-medium' : 'text-gray-400'
