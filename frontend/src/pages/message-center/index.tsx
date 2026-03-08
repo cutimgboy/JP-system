@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { ArrowLeft, Battery, Wifi, Signal, ChevronRight } from 'lucide-react';
 import { BottomNav } from '../../components/BottomNav';
 import { useNavigate } from 'react-router-dom';
-import { apiClient } from '../../utils/api';
+import { apiClient, extractData } from '../../utils/api';
 
 interface Message {
   id: number;
@@ -28,7 +28,11 @@ export function MessageCenter() {
     try {
       setLoading(true);
       const response = await apiClient.get('/api/messages');
-      const data = response.data || [];
+      let data = extractData(response) || [];
+      if (!Array.isArray(data)) {
+        console.warn('消息列表不是数组,使用空数组');
+        data = [];
+      }
       setMessages(data);
     } catch (error) {
       console.error('获取消息失败:', error);

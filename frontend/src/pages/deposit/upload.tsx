@@ -2,7 +2,7 @@ import { ArrowLeft, Battery, Wifi, Signal, Building2, X, ImageIcon } from 'lucid
 import { BottomNav } from '../../components/BottomNav';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useState, useEffect } from 'react';
-import { apiClient } from '../../utils/api';
+import { apiClient, extractData } from '../../utils/api';
 import { Toast } from '../../components/Toast';
 
 interface BankCard {
@@ -74,14 +74,14 @@ export function DepositUpload() {
       });
 
       console.log('提交入金记录响应:', response);
-      const actualData = response.data || response;
-      if (actualData.code === 0 || response.code === 0) {
+      const depositData = extractData(response);
+      if (depositData) {
         setToast({ message: '提交成功，等待审核', type: 'success' });
         setTimeout(() => {
-          navigate('/deposit/detail', { state: { depositId: actualData.data?.id } });
+          navigate('/deposit/detail', { state: { depositId: depositData.id } });
         }, 1500);
       } else {
-        setToast({ message: actualData.msg || '提交失败', type: 'error' });
+        setToast({ message: '提交失败', type: 'error' });
       }
     } catch (error) {
       console.error('提交入金记录失败:', error);

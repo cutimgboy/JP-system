@@ -45,14 +45,14 @@ export function MyBank() {
   const handleDelete = async (id: number) => {
     try {
       const response: any = await apiClient.delete(`/bank-card/${id}`);
-      const actualData = response.data || response;
-      if (actualData.code === 0 || response.code === 0) {
+      const result = extractData(response);
+      if (result !== null) {
         setToast({ message: '删除成功', type: 'success' });
         setDeleteConfirm(null);
         // 刷新列表
         fetchBankCards();
       } else {
-        setToast({ message: actualData.msg || '删除失败', type: 'error' });
+        setToast({ message: '删除失败', type: 'error' });
       }
     } catch (error) {
       console.error('删除银行卡失败:', error);

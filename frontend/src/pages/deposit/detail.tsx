@@ -2,7 +2,7 @@ import { ArrowLeft, Battery, Wifi, Signal } from 'lucide-react';
 import { BottomNav } from '../../components/BottomNav';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useState, useEffect } from 'react';
-import { apiClient } from '../../utils/api';
+import { apiClient, extractData } from '../../utils/api';
 
 interface DepositDetail {
   id: number;
@@ -40,9 +40,9 @@ export function DepositDetail() {
   const fetchDepositDetail = async () => {
     try {
       const response: any = await apiClient.get(`/deposit/${depositId}`);
-      const actualData = response.data || response;
-      if (actualData.code === 0 || response.code === 0) {
-        setDeposit(actualData.data || actualData);
+      const depositData = extractData(response);
+      if (depositData) {
+        setDeposit(depositData);
       }
     } catch (error) {
       console.error('获取入金详情失败:', error);

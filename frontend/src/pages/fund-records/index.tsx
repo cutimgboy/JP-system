@@ -2,7 +2,7 @@ import { ArrowLeft, Battery, Wifi, Signal, TrendingUp, TrendingDown } from 'luci
 import { BottomNav } from '../../components/BottomNav';
 import { useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
-import { apiClient } from '../../utils/api';
+import { apiClient, extractData } from '../../utils/api';
 
 interface FundRecord {
   id: number;
@@ -30,10 +30,9 @@ export function FundRecords() {
 
       // 获取入金记录
       const depositResponse: any = await apiClient.get('/deposit/list');
-      const depositData = depositResponse.data || depositResponse;
-
-      if (depositData.code === 0 || depositResponse.code === 0) {
-        const deposits = (depositData.data || depositData || []).map((d: any) => ({
+      let deposits = extractData(depositResponse) || [];
+      if (Array.isArray(deposits)) {
+        const depositRecords = deposits.map((d: any) => ({
           id: d.id,
           type: 'deposit' as const,
           amount: d.amount,
@@ -41,7 +40,7 @@ export function FundRecords() {
           time: d.createTime,
           description: '银行卡充值',
         }));
-        allRecords.push(...deposits);
+        allRecords.push(...depositRecords);
       }
 
       // 获取交易记录（已平仓的订单）
@@ -49,10 +48,9 @@ export function FundRecords() {
         const tradeResponse: any = await apiClient.get('/trade/orders', {
           params: { status: 'closed', limit: 100 }
         });
-        const tradeData = tradeResponse.data || tradeResponse;
-
-        if (tradeData.code === 0 || tradeResponse.code === 0) {
-          const trades = (tradeData.data || tradeData || [])
+        let trades = extractData(tradeResponse) || [];
+        if (Array.isArray(trades)) {
+          const tradeRecords = trades
             .filter((t: any) => t.status === 'closed')
             .map((t: any) => ({
               id: t.id,
@@ -62,7 +60,7 @@ export function FundRecords() {
               time: t.closeTime || t.createdAt,
               description: `${t.stockName || t.stockCode} ${t.tradeType === 'bull' ? '看涨' : '看跌'}`,
             }));
-          allRecords.push(...trades);
+          allRecords.push(...tradeRecords);
         }
       } catch (error) {
         console.error('获取交易记录失败:', error);

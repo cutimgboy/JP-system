@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { apiClient } from '../utils/api';
+import { apiClient, extractData } from '../utils/api';
 
 interface User {
   id: number;
@@ -66,9 +66,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         },
       });
 
-      if (response.data) {
-        setUser(response.data);
-        localStorage.setItem('user', JSON.stringify(response.data));
+      const userData = extractData(response);
+      if (userData) {
+        setUser(userData);
+        localStorage.setItem('user', JSON.stringify(userData));
       }
     } catch (error) {
       console.error('刷新用户信息失败:', error);

@@ -2,7 +2,7 @@ import { ArrowLeft, Battery, Wifi, Signal, Building2 } from 'lucide-react';
 import { BottomNav } from '../../components/BottomNav';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useState, useEffect } from 'react';
-import { apiClient } from '../../utils/api';
+import { apiClient, extractData } from '../../utils/api';
 
 interface BankCard {
   id: number;
@@ -35,9 +35,8 @@ export function DepositFunds() {
     try {
       const response: any = await apiClient.get('/system-bank-card/active');
       console.log('系统银行卡响应:', response);
-      const actualData = response.data || response;
-      if (actualData.code === 0 || response.code === 0) {
-        const card = actualData.data || actualData;
+      const card = extractData(response);
+      if (card) {
         setSystemBankCard(card);
       }
     } catch (error) {

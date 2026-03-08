@@ -2,7 +2,7 @@ import { ArrowLeft, Battery, Wifi, Signal } from 'lucide-react';
 import { BottomNav } from '../../components/BottomNav';
 import { useNavigate } from 'react-router-dom';
 import { useState } from 'react';
-import { apiClient } from '../../utils/api';
+import { apiClient, extractData } from '../../utils/api';
 import { Toast } from '../../components/Toast';
 
 export function AddBankCard() {
@@ -27,14 +27,14 @@ export function AddBankCard() {
     try {
       const response: any = await apiClient.post('/bank-card', formData);
       console.log('添加银行卡响应:', response);
-      const actualData = response.data || response;
-      if (actualData.code === 0 || response.code === 0) {
+      const result = extractData(response);
+      if (result) {
         setToast({ message: '添加成功', type: 'success' });
         setTimeout(() => {
           navigate('/my-bank');
         }, 1500);
       } else {
-        setToast({ message: actualData.msg || '添加失败', type: 'error' });
+        setToast({ message: '添加失败', type: 'error' });
       }
     } catch (error) {
       console.error('添加银行卡失败:', error);
