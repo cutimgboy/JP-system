@@ -50,7 +50,7 @@ apiClient.interceptors.response.use(
 /**
  * 从响应中提取实际数据
  * 处理后端不同的返回格式:
- * 1. { data: { data: {...}, code: 0, msg: '...' } } - 两层嵌套
+ * 1. { data: { data: [...], code: 0, msg: '...' } } - 标准格式
  * 2. { data: { data: { data: {...}, message: '...' }, code: 0, msg: '...' } } - 三层嵌套
  */
 export function extractData(response: any) {
@@ -60,12 +60,22 @@ export function extractData(response: any) {
 
   const firstLevel = response.data;
 
+  // 如果第一层直接是数组,返回它
+  if (Array.isArray(firstLevel)) {
+    return firstLevel;
+  }
+
   // 如果第一层有 data 字段
   if (firstLevel.data !== undefined) {
     const secondLevel = firstLevel.data;
 
-    // 检查是否是三层嵌套 (有 message 和 data 字段)
-    if (secondLevel && typeof secondLevel === 'object' && 'data' in secondLevel) {
+    // 如果第二层是数组,直接返回
+    if (Array.isArray(secondLevel)) {
+      return secondLevel;
+    }
+
+    // 检查是否是三层嵌套 (第二层有 message 和 data 字段)
+    if (secondLevel && typeof secondLevel === 'object' && 'data' in secondLevel && 'message' in secondLevel) {
       return secondLevel.data;
     }
 
