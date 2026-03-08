@@ -2,7 +2,7 @@ import { ArrowLeft, Battery, Wifi, Signal, Building2, Plus, Trash2 } from 'lucid
 import { BottomNav } from '../../components/BottomNav';
 import { useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
-import { apiClient } from '../../utils/api';
+import { apiClient, extractData } from '../../utils/api';
 import { Toast } from '../../components/Toast';
 
 interface BankCard {
@@ -29,11 +29,12 @@ export function MyBank() {
     try {
       const response: any = await apiClient.get('/bank-card/list');
       console.log('银行卡列表响应:', response);
-      const actualData = response.data || response;
-      if (actualData.code === 0 || response.code === 0) {
-        const cards = actualData.data || actualData || [];
-        setBankCards(cards);
+      let cards = extractData(response) || [];
+      if (!Array.isArray(cards)) {
+        console.warn('银行卡列表不是数组,使用空数组');
+        cards = [];
       }
+      setBankCards(cards);
     } catch (error) {
       console.error('获取银行卡列表失败:', error);
     } finally {

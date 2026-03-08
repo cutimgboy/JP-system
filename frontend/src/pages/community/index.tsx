@@ -39,7 +39,10 @@ export default function CommunityPage() {
         apiClient.get('/api/community/settings'),
       ]);
 
+      console.log('排行榜原始响应:', leaderboardRes);
       let leaderboard = extractData(leaderboardRes) || [];
+      console.log('extractData处理后的排行榜数据:', leaderboard);
+      console.log('是否为数组:', Array.isArray(leaderboard));
       if (!Array.isArray(leaderboard)) {
         console.warn('排行榜数据不是数组,使用空数组');
         leaderboard = [];
