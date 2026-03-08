@@ -27,7 +27,14 @@ export function NavigationHeader({ selectedStock, onStockChange }: NavigationHea
       try {
         setLoading(true);
         const response = await api.get('/api/products/quotes');
-        const quotesData = response.data.data || [];
+        let quotesData = response.data.data || response.data || [];
+
+        // 确保是数组
+        if (!Array.isArray(quotesData)) {
+          console.warn('产品列表不是数组:', quotesData);
+          quotesData = [];
+        }
+
         setProducts(quotesData);
 
         // 如果当前选中的股票是默认值且产品列表不为空，自动选择第一个产品

@@ -92,9 +92,10 @@ export function Login() {
 
       console.log('登录响应:', response);
 
-      // 后端返回结构: { data: { message: '登录成功', data: { token, userInfo } } }
-      // API 拦截器已经解析了第一层，所以这里是 response.data.data
-      const loginData = response.data.data;
+      // 后端返回结构: { data: { data: { token, userInfo }, code: 0, msg: '请求成功' } }
+      // response.data 是后端返回的完整对象
+      // response.data.data 才是实际的登录数据
+      const loginData = response.data?.data;
 
       if (loginData?.token && loginData?.userInfo) {
         login(loginData.token, loginData.userInfo);

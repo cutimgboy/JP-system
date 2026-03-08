@@ -37,7 +37,13 @@ export default function MarketPage() {
         const response = await apiClient.get('/api/products/quotes', {
           params: { type: activeTab }
         });
-        const quotesData = response.data.data || [];
+        let quotesData = response.data.data || response.data || [];
+
+        // 确保是数组
+        if (!Array.isArray(quotesData)) {
+          console.warn('行情数据不是数组:', quotesData);
+          quotesData = [];
+        }
 
         const marketData: Market[] = quotesData.map((quote: any) => {
           return {
