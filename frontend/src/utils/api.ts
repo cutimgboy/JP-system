@@ -53,11 +53,11 @@ apiClient.interceptors.response.use(
  * 或三层嵌套: { data: { data: { data: {...}, message: '...' }, code: 0, msg: '...' } }
  */
 export function extractData(response: any) {
-  if (!response || !response.data) {
+  if (!response?.data) {
     return null;
   }
 
-  // response.data 是后端返回的第一层
+  // level1 = { data: [...], code: 0, msg: '...' }
   const level1 = response.data;
 
   // 如果第一层直接是数组,返回它
@@ -66,35 +66,35 @@ export function extractData(response: any) {
   }
 
   // 如果第一层不是对象,直接返回
-  if (typeof level1 !== 'object' || level1 === null) {
+  if (!level1 || typeof level1 !== 'object') {
     return level1;
   }
 
-  // 如果第一层有 data 字段,继续往下找
-  if ('data' in level1) {
-    const level2 = level1.data;
+  // 检查第一层是否有 data 字段
+  if (!level1.hasOwnProperty('data')) {
+    return level1;
+  }
 
-    // 如果第二层是数组,返回它
-    if (Array.isArray(level2)) {
-      return level2;
-    }
+  // level2 = [...] 或 { data: {...}, message: '...' }
+  const level2 = level1.data;
 
-    // 如果第二层是对象,检查是否还有嵌套
-    if (level2 && typeof level2 === 'object') {
-      // 三层嵌套: { data: { message: '...', data: {...} } }
-      if ('data' in level2) {
-        return level2.data;
-      }
-      // 否则返回第二层
-      return level2;
-    }
-
-    // 第二层是其他类型,直接返回
+  // 如果第二层是数组,返回它
+  if (Array.isArray(level2)) {
     return level2;
   }
 
-  // 第一层没有 data 字段,返回第一层
-  return level1;
+  // 如果第二层不是对象,直接返回
+  if (!level2 || typeof level2 !== 'object') {
+    return level2;
+  }
+
+  // 检查第二层是否有 data 字段 (三层嵌套)
+  if (level2.hasOwnProperty('data')) {
+    return level2.data;
+  }
+
+  // 返回第二层
+  return level2;
 }
 
 export { apiClient };
