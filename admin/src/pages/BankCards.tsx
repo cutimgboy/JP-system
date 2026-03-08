@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
+import { apiClient } from '../utils/api';
 
 interface SystemBankCard {
   id: number;
@@ -23,13 +23,6 @@ export function BankCards() {
     swiftCode: '',
   });
 
-  const apiClient = axios.create({
-    baseURL: 'http://localhost:3000',
-    headers: {
-      Authorization: `Bearer ${localStorage.getItem('admin_token')}`,
-    },
-  });
-
   useEffect(() => {
     fetchBankCards();
   }, []);
@@ -40,8 +33,8 @@ export function BankCards() {
       console.log('获取银行卡列表响应:', response);
 
       // 处理嵌套的响应结构
-      const actualData = response.data.data || response.data;
-      if (actualData.code === 0 || response.data.code === 0) {
+      const actualData = response.data || response;
+      if (actualData.code === 0 || response.code === 0) {
         const cards = actualData.data || actualData || [];
         setBankCards(Array.isArray(cards) ? cards : []);
       } else {

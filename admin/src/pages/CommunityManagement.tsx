@@ -1,9 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Plus, Edit2, Trash2, Save, X } from 'lucide-react';
-import axios from 'axios';
 import { Toast } from '../components/Toast';
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+import { apiClient } from '../utils/api';
 
 interface LeaderboardItem {
   id?: number;
@@ -49,17 +47,14 @@ export function CommunityManagement() {
 
   const fetchData = async () => {
     try {
-      const token = localStorage.getItem('admin_token');
-      const headers = { Authorization: `Bearer ${token}` };
-
       const [leaderboardRes, settingsRes] = await Promise.all([
-        axios.get(`${API_BASE_URL}/api/admin/community/leaderboard`, { headers }),
-        axios.get(`${API_BASE_URL}/api/community/settings`),
+        apiClient.get('/api/admin/community/leaderboard'),
+        apiClient.get('/api/community/settings'),
       ]);
 
-      setLeaderboard(leaderboardRes.data.data || []);
+      setLeaderboard(leaderboardRes.data || []);
 
-      const settingsData = settingsRes.data.data || {};
+      const settingsData = settingsRes.data || {};
       setSettings({
         date: settingsData.date || new Date().toISOString().split('T')[0],
         participants: parseInt(settingsData.participants || '0'),
@@ -73,12 +68,7 @@ export function CommunityManagement() {
 
   const handleSaveSettings = async () => {
     try {
-      const token = localStorage.getItem('admin_token');
-      await axios.put(
-        `${API_BASE_URL}/api/admin/community/settings`,
-        settings,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      await apiClient.put('/api/admin/community/settings', settings);
       setToast({ message: '设置保存成功', type: 'success' });
       fetchData(); // 刷新数据
     } catch (error) {
@@ -89,12 +79,7 @@ export function CommunityManagement() {
 
   const handleAdd = async () => {
     try {
-      const token = localStorage.getItem('admin_token');
-      await axios.post(
-        `${API_BASE_URL}/api/admin/community/leaderboard`,
-        newItem,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      await apiClient.post('/api/admin/community/leaderboard', newItem);
       setIsAdding(false);
       setNewItem({
         username: '',
@@ -121,12 +106,7 @@ export function CommunityManagement() {
     if (!editingItem || !editingId) return;
 
     try {
-      const token = localStorage.getItem('admin_token');
-      await axios.put(
-        `${API_BASE_URL}/api/admin/community/leaderboard/${editingId}`,
-        editingItem,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      await apiClient.put(`/api/admin/community/leaderboard/${editingId}`, editingItem);
       setEditingId(null);
       setEditingItem(null);
       setToast({ message: '保存成功', type: 'success' });
@@ -141,11 +121,7 @@ export function CommunityManagement() {
     if (!confirm('确定要删除这条记录吗？')) return;
 
     try {
-      const token = localStorage.getItem('admin_token');
-      await axios.delete(
-        `${API_BASE_URL}/api/admin/community/leaderboard/${id}`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      await apiClient.delete(`/api/admin/community/leaderboard/${id}`);
       setToast({ message: '删除成功', type: 'success' });
       fetchData();
     } catch (error) {

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { KLineChart, type KLineData } from './KLineChart';
+import { API_BASE_URL } from '../../../utils/api';
 
 interface TradingChartProps {
   countdown?: number; // 倒计时时间（秒）
@@ -28,8 +29,7 @@ export function TradingChart({ countdown, stockCode = 'AAPL.US', entryPrice, ent
     setKLineData([]);
     setCurrentPrice(0);
 
-    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-    const sseUrl = `${apiUrl}/api/quote/stream/${stockCode}`;
+    const sseUrl = `${API_BASE_URL}/api/quote/stream/${stockCode}`;
 
     console.log(`正在连接 SSE: ${sseUrl}`);
     setConnectionStatus('connecting');

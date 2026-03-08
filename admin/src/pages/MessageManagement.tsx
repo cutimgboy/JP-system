@@ -1,8 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Plus, Edit2, Trash2, Save, X } from 'lucide-react';
-import axios from 'axios';
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+import { apiClient } from '../utils/api';
 
 interface Message {
   id?: number;
@@ -34,11 +32,8 @@ export function MessageManagement() {
 
   const fetchData = async () => {
     try {
-      const token = localStorage.getItem('admin_token');
-      const headers = { Authorization: `Bearer ${token}` };
-
-      const response = await axios.get(`${API_BASE_URL}/api/admin/messages`, { headers });
-      setMessages(response.data.data || []);
+      const response = await apiClient.get('/api/admin/messages');
+      setMessages(response.data || []);
     } catch (error) {
       console.error('获取数据失败:', error);
     }
@@ -46,12 +41,7 @@ export function MessageManagement() {
 
   const handleAdd = async () => {
     try {
-      const token = localStorage.getItem('admin_token');
-      await axios.post(
-        `${API_BASE_URL}/api/admin/messages`,
-        newItem,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      await apiClient.post('/api/admin/messages', newItem);
       setIsAdding(false);
       setNewItem({
         icon: '📢',
@@ -77,12 +67,7 @@ export function MessageManagement() {
     if (!editingItem || !editingId) return;
 
     try {
-      const token = localStorage.getItem('admin_token');
-      await axios.put(
-        `${API_BASE_URL}/api/admin/messages/${editingId}`,
-        editingItem,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      await apiClient.put(`/api/admin/messages/${editingId}`, editingItem);
       setEditingId(null);
       setEditingItem(null);
       fetchData();
@@ -96,11 +81,7 @@ export function MessageManagement() {
     if (!confirm('确定要删除这条消息吗？')) return;
 
     try {
-      const token = localStorage.getItem('admin_token');
-      await axios.delete(
-        `${API_BASE_URL}/api/admin/messages/${id}`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      await apiClient.delete(`/api/admin/messages/${id}`);
       fetchData();
     } catch (error) {
       console.error('删除失败:', error);

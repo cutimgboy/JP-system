@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
 import { Toast } from '../components/Toast';
+import { apiClient } from '../utils/api';
 
 interface DepositRecord {
   id: number;
@@ -35,13 +35,6 @@ export function DepositReview() {
   const [confirmAmount, setConfirmAmount] = useState(''); // 管理员手动输入的金额
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'warning' } | null>(null);
 
-  const apiClient = axios.create({
-    baseURL: 'http://localhost:3000',
-    headers: {
-      Authorization: `Bearer ${localStorage.getItem('admin_token')}`,
-    },
-  });
-
   useEffect(() => {
     fetchDeposits();
   }, [activeTab]);
@@ -53,8 +46,8 @@ export function DepositReview() {
       const response = await apiClient.get('/deposit/all', { params });
       console.log('获取入金记录响应:', response);
 
-      const actualData = response.data.data || response.data;
-      if (actualData.code === 0 || response.data.code === 0) {
+      const actualData = response.data || response;
+      if (actualData.code === 0 || response.code === 0) {
         const records = actualData.data || actualData || [];
         setDeposits(Array.isArray(records) ? records : []);
       } else {

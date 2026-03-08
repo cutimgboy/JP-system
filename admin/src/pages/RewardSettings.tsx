@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
 import { Toast } from '../components/Toast';
+import { apiClient } from '../utils/api';
 
 interface RewardSetting {
   id: number;
@@ -18,13 +18,6 @@ export function RewardSettings() {
   const [editActive, setEditActive] = useState(1);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'warning' } | null>(null);
 
-  const apiClient = axios.create({
-    baseURL: 'http://localhost:3000',
-    headers: {
-      Authorization: `Bearer ${localStorage.getItem('admin_token')}`,
-    },
-  });
-
   useEffect(() => {
     fetchSettings();
   }, []);
@@ -33,8 +26,8 @@ export function RewardSettings() {
     setLoading(true);
     try {
       const response = await apiClient.get('/reward/settings');
-      const actualData = response.data.data || response.data;
-      if (actualData.code === 0 || response.data.code === 0) {
+      const actualData = response.data || response;
+      if (actualData.code === 0 || response.code === 0) {
         const settingsData = actualData.data || actualData || [];
         setSettings(Array.isArray(settingsData) ? settingsData : []);
       }
