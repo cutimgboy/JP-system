@@ -2,7 +2,7 @@ import { ArrowLeft, Battery, Wifi, Signal, Edit2, Check, X } from 'lucide-react'
 import { useNavigate } from 'react-router-dom';
 import { BottomNav } from '../../components/BottomNav';
 import { useState, useEffect } from 'react';
-import { apiClient } from '../../utils/api';
+import { apiClient, extractData } from '../../utils/api';
 
 interface UserInfo {
   id: number;
@@ -33,10 +33,9 @@ export function PersonalInfo() {
     try {
       const response: any = await apiClient.get('/user/info');
       console.log('获取用户信息响应:', response);
-      // 处理嵌套的响应结构
-      const actualData = response.data || response;
-      if (actualData.code === 0 || response.code === 0) {
-        const userData = actualData.data || actualData;
+      const userData = extractData(response);
+      console.log('extractData处理后的用户数据:', userData);
+      if (userData) {
         setUserInfo(userData);
         setEditForm({
           nickname: userData.nickname || '',
@@ -73,16 +72,14 @@ export function PersonalInfo() {
       const response: any = await apiClient.put('/user/info', editForm);
       console.log('收到响应:', response);
 
-      // 处理嵌套的响应结构
-      const actualData = response.data || response;
-      if (actualData.code === 0 || response.code === 0) {
-        const userData = actualData.data || actualData;
+      const userData = extractData(response);
+      if (userData) {
         setUserInfo(userData);
         setIsEditing(false);
         setMessage('保存成功');
         setTimeout(() => setMessage(''), 2000);
       } else {
-        setMessage(actualData.msg || response.msg || '保存失败');
+        setMessage('保存失败');
       }
     } catch (error) {
       console.error('更新用户信息失败:', error);
