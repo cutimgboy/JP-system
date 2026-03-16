@@ -19,7 +19,7 @@ export function NavigationHeader({ selectedStock, onStockChange }: NavigationHea
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const selectedButtonRef = useRef<HTMLButtonElement>(null);
+  const selectedButtonRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
 
