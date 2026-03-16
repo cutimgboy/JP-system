@@ -12,7 +12,7 @@ export default function TradingPage() {
   const { accountType } = useAccount();
 
   return (
-    <div className="min-h-screen bg-[#0a0e1a]">
+    <div className="min-h-screen bg-[#09090b]">
       {showDetail && <TradingDetail onBack={() => window.history.back()} initialStock={stockCode} initialOrderId={orderId} accountType={accountType} />}
       <BottomNav />
     </div>

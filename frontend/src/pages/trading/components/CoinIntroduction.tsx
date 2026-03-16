@@ -47,13 +47,19 @@ export function CoinIntroduction({ stockCode }: CoinIntroductionProps) {
   }
 
   return (
-    <div className="bg-[#1f2633] px-4 py-4 mt-2 border border-gray-700/30 rounded-lg mx-4">
-      <h2 className="text-white mb-3">币种介绍</h2>
-      <div className="text-sm text-gray-400 leading-relaxed space-y-3">
-        {introduction.split('\n').map((paragraph, index) => (
-          paragraph.trim() && <p key={index}>{paragraph}</p>
-        ))}
+    <>
+      {/* Separator */}
+      <div className="h-[8px] bg-[#14141c] w-full my-2"></div>
+
+      <div className="px-5 py-4">
+        <h3 className="text-[16px] font-bold mb-4 flex items-center gap-2 text-white">
+          <div className="w-1 h-4 bg-[#10b981] rounded-full"></div>
+          标的简介
+        </h3>
+        <p className="text-[13px] text-[#8a8a93] leading-relaxed text-justify">
+          {introduction}
+        </p>
       </div>
-    </div>
+    </>
   );
 }

@@ -359,7 +359,7 @@ export function TradingDetail({
                         (tradeStatus === 'completed' ? actualProfitLoss : expectedProfit);
 
   return (
-    <div className="min-h-screen bg-[#1a1f2e] pb-[280px]">
+    <div className="min-h-screen bg-[#09090b] pb-[280px]">
       <NavigationHeader
         selectedStock={selectedStock}
         onStockChange={setSelectedStock}
@@ -398,7 +398,6 @@ export function TradingDetail({
         onResetTrade={handleResetTrade}
       />
 
-      <MarketOverview stockCode={selectedStock} />
       <CoinIntroduction stockCode={selectedStock} />
       <TradingHours stockCode={selectedStock} />
 

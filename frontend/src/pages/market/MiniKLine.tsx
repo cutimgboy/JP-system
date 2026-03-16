@@ -25,45 +25,21 @@ export function MiniKLine({ isPositive }: MiniKLineProps) {
     pathData += ` Q ${cpX} ${prev.y}, ${curr.x} ${curr.y}`;
   }
 
-  // 创建渐变填充区域
-  const fillPathData = `${pathData} L ${points[points.length - 1].x} 100 L ${points[0].x} 100 Z`;
-
   const gradientId = `gradient-${isPositive ? 'up' : 'down'}-${Math.random().toString(36).substr(2, 9)}`;
 
   return (
-    <div className="w-20 h-10 flex items-center justify-center">
+    <div className="w-full h-6 flex items-center justify-center px-4">
       <svg
         viewBox="0 0 100 100"
         className="w-full h-full"
         preserveAspectRatio="none"
       >
-        <defs>
-          <linearGradient id={gradientId} x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop
-              offset="0%"
-              stopColor={isPositive ? '#f87171' : '#5eead4'}
-              stopOpacity="0.3"
-            />
-            <stop
-              offset="100%"
-              stopColor={isPositive ? '#f87171' : '#5eead4'}
-              stopOpacity="0"
-            />
-          </linearGradient>
-        </defs>
-
-        {/* 填充区域 */}
-        <path
-          d={fillPathData}
-          fill={`url(#${gradientId})`}
-        />
-
         {/* 折线 */}
         <path
           d={pathData}
           fill="none"
-          stroke={isPositive ? '#f87171' : '#5eead4'}
-          strokeWidth="2.5"
+          stroke={isPositive ? '#10b981' : '#ef4444'}
+          strokeWidth="2.27"
           strokeLinecap="round"
           strokeLinejoin="round"
         />

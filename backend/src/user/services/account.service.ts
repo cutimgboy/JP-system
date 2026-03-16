@@ -39,13 +39,17 @@ export class AccountService {
     });
 
     if (!account) {
-      // 自动创建账户，初始余额为 1,000,000 VND（用于测试）
+      // 自动创建账户
+      // 模拟账户初始余额为 1,000,000 VND（用于测试）
+      // 真实账户初始余额为 0
+      const initialBalance = accountType === AccountType.DEMO ? 1000000 : 0;
+
       account = this.accountRepository.create({
         userId,
         accountType,
-        balance: 1000000,
+        balance: initialBalance,
         frozenBalance: 0,
-        totalDeposit: 1000000, // 记录为初始充值
+        totalDeposit: initialBalance, // 记录为初始充值（仅模拟账户）
         totalWithdrawal: 0,
         totalProfit: 0,
         totalLoss: 0,

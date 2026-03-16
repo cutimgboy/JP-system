@@ -1,76 +1,93 @@
 import { useNavigate, useLocation } from 'react-router-dom';
+import { BarChart2, ArrowLeftRight, Trophy, Briefcase, User } from 'lucide-react';
+import { motion } from 'framer-motion';
 
 export function BottomNav() {
   const navigate = useNavigate();
   const location = useLocation();
 
   const navItems = [
-    {
-      path: '/market',
-      label: '市场',
-      icon: (active: boolean) => (
-        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={active ? 2.5 : 2} d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" />
-        </svg>
-      ),
-    },
-    {
-      path: '/trading',
-      label: '交易',
-      icon: (active: boolean) => (
-        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={active ? 2.5 : 2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-        </svg>
-      ),
-    },
-    {
-      path: '/community',
-      label: '社区',
-      icon: (active: boolean) => (
-        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={active ? 2.5 : 2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-        </svg>
-      ),
-    },
-    {
-      path: '/positions',
-      label: '持仓',
-      icon: (active: boolean) => (
-        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={active ? 2.5 : 2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-        </svg>
-      ),
-    },
-    {
-      path: '/profile',
-      label: '我的',
-      icon: (active: boolean) => (
-        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={active ? 2.5 : 2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-        </svg>
-      ),
-    },
+    { path: '/market', label: '市场', icon: BarChart2 },
+    { path: '/trading', label: '交易', icon: ArrowLeftRight },
+    { path: '/community', label: '社区', icon: Trophy },
+    { path: '/positions', label: '持仓', icon: Briefcase },
+    { path: '/profile', label: '我的', icon: User },
   ];
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 bg-[#141820] border-t border-gray-700/50 z-50">
-      <div className="flex items-center justify-around h-16">
+    <div className="fixed bottom-0 left-0 right-0 z-50 px-6 pb-4 pt-4 bg-gradient-to-t from-[#09090b] via-[rgba(9,9,11,0.9)] to-transparent">
+      <div className="bg-[#18181b]/80 h-[81.5px] rounded-[30px] w-full flex items-center justify-between px-4 backdrop-blur-xl border border-white/5">
         {navItems.map((item) => {
           const isActive = location.pathname === item.path;
+          const Icon = item.icon;
           return (
-            <button
+            <div
               key={item.path}
               onClick={() => navigate(item.path)}
-              className={`flex flex-col items-center justify-center gap-1 flex-1 h-full transition-colors relative ${
-                isActive ? '!text-white' : '!text-gray-400'
-              }`}
+              className="relative flex flex-col items-center justify-center w-[60px] h-full cursor-pointer group"
             >
-              {item.icon(isActive)}
-              <span className="text-xs">{item.label}</span>
-              {isActive && (
-                <div className="absolute bottom-0 w-12 h-0.5 bg-blue-500 rounded-t"></div>
+              <motion.div
+                initial={false}
+                animate={{
+                  y: isActive ? -10 : 0,
+                  scale: isActive ? 1.1 : 1,
+                  color: isActive ? '#fff' : '#8a8a93',
+                }}
+                transition={{
+                  type: "spring",
+                  stiffness: 400,
+                  damping: 20
+                }}
+                className="relative z-10 flex items-center justify-center h-[34px] w-[34px] rounded-[12px]"
+              >
+                {isActive && (
+                  <motion.div
+                    layoutId="active-bg-rect"
+                    className="absolute inset-0 bg-[#6c48f5] rounded-[12px] shadow-[0px_2px_8px_rgba(108,72,245,0.4)]"
+                    transition={{ type: "spring", stiffness: 400, damping: 25 }}
+                  />
+                )}
+                <motion.div
+                  initial={false}
+                  animate={{
+                    scale: isActive ? [1, 0.8, 1.1, 1] : 1
+                  }}
+                  transition={{
+                    duration: 0.4,
+                    times: [0, 0.3, 0.7, 1]
+                  }}
+                  className="relative z-10"
+                >
+                  <Icon
+                    size={18}
+                    strokeWidth={isActive ? 2.5 : 2}
+                  />
+                </motion.div>
+              </motion.div>
+
+              <motion.span
+                initial={false}
+                animate={{
+                  opacity: isActive ? 1 : 0,
+                  y: isActive ? 0 : 5,
+                  scale: isActive ? 1 : 0.9
+                }}
+                transition={{
+                  type: "spring",
+                  stiffness: 300,
+                  damping: 20
+                }}
+                className="absolute bottom-4 text-[11px] font-medium text-white whitespace-nowrap"
+              >
+                {item.label}
+              </motion.span>
+
+              {!isActive && (
+                <span className="absolute bottom-4 text-[10px] text-[#8a8a93] group-hover:text-white/70 transition-colors duration-200">
+                  {item.label}
+                </span>
               )}
-            </button>
+            </div>
           );
         })}
       </div>

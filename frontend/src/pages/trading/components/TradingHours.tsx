@@ -47,14 +47,24 @@ export function TradingHours({ stockCode }: TradingHoursProps) {
   }
 
   return (
-    <div className="bg-[#1f2633] px-4 py-4 mt-2 mb-2 border border-gray-700/30 rounded-lg mx-4">
-      <h2 className="text-white mb-3">交易时间</h2>
-      <div className="text-sm text-gray-400 leading-relaxed">
-        {tradingHoursText}
+    <>
+      {/* Separator */}
+      <div className="h-[8px] bg-[#14141c] w-full my-2"></div>
+
+      <div className="px-5 py-4 pb-12">
+        <h3 className="text-[16px] font-bold mb-4 flex items-center gap-2 text-white">
+          <div className="w-1 h-4 bg-[#f7931a] rounded-full"></div>
+          交易时间
+        </h3>
+        <div className="flex flex-col gap-3 border border-white/5 rounded-2xl p-4 bg-[#14141c]">
+          <div className="text-[13px] text-[#8a8a93] leading-relaxed whitespace-pre-line">
+            {tradingHoursText}
+          </div>
+        </div>
+        <p className="text-[11px] text-[#8a8a93] mt-3 opacity-60">
+          以上交易时间并未考虑节假日或市场特殊情况调整的影响。
+        </p>
       </div>
-      <p className="text-xs text-gray-500 mt-4 leading-relaxed">
-        业主交易时间根据平台实际情况酌情调整。
-      </p>
-    </div>
+    </>
   );
 }

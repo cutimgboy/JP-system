@@ -7,6 +7,9 @@ import * as path from 'path';
 async function importData() {
   console.log('🚀 开始导入 CFD 数据...\n');
 
+  // 禁用模拟数据生成，避免脚本运行时启动定时任务
+  process.env.MOCK_QUOTE_DATA = 'false';
+
   // 创建 NestJS 应用上下文
   const app = await NestFactory.createApplicationContext(AppModule);
   const cfdService = app.get(CfdService);

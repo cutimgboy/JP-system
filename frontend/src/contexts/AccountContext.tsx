@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { apiClient, extractData } from '../utils/api';
+import { useAuth } from './AuthContext';
 
 type AccountType = 'demo' | 'real';
 
@@ -21,6 +22,7 @@ interface AccountContextType {
 const AccountContext = createContext<AccountContextType | undefined>(undefined);
 
 export function AccountProvider({ children }: { children: ReactNode }) {
+  const { token } = useAuth();
   const [accountType, setAccountTypeState] = useState<AccountType>(() => {
     // 从 localStorage 读取保存的账户类型
     const saved = localStorage.getItem('accountType');
@@ -65,10 +67,12 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     await fetchAccounts();
   };
 
-  // 初始化时获取账户列表
+  // 初始化时获取账户列表（仅在已登录时）
   useEffect(() => {
-    fetchAccounts();
-  }, []);
+    if (token) {
+      fetchAccounts();
+    }
+  }, [token]);
 
   // 当账户类型改变时，更新当前账户
   useEffect(() => {

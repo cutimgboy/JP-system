@@ -1,4 +1,4 @@
-import { ArrowLeft, Battery, Wifi, Signal } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import { BottomNav } from '../../components/BottomNav';
 import { useNavigate } from 'react-router-dom';
 
@@ -6,21 +6,9 @@ export function Promotion() {
   const navigate = useNavigate();
 
   return (
-    <div className="min-h-screen bg-[#1a1f2e] pb-16">
-      {/* Status Bar */}
-      <div className="bg-[#141820] px-4 pt-3 pb-2">
-        <div className="flex items-center justify-between text-xs">
-          <div className="text-white">12:00</div>
-          <div className="flex items-center gap-1 text-white">
-            <Signal className="w-4 h-4" />
-            <Wifi className="w-4 h-4" />
-            <Battery className="w-4 h-4" />
-          </div>
-        </div>
-      </div>
-
-      {/* Navigation Header */}
-      <div className="bg-[#141820] px-4 py-4 border-b border-gray-700/50">
+    <div className="min-h-screen bg-[#1a1f2e] pb-28">
+      {/* Navigation Header - Fixed */}
+      <div className="fixed top-0 left-0 right-0 bg-[#141820] px-4 py-4 border-b border-gray-700/50 z-50">
         <div className="flex items-center justify-center relative">
           <button
             onClick={() => navigate('/profile')}
@@ -32,8 +20,8 @@ export function Promotion() {
         </div>
       </div>
 
-      {/* Content */}
-      <div className="px-4 pt-6">
+      {/* Content with top padding */}
+      <div className="px-4 pt-[72px]">
         {/* Main Banner */}
         <div className="bg-gradient-to-br from-blue-600 to-purple-600 rounded-xl p-8 mb-6 shadow-lg">
           <div className="text-center">

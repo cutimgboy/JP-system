@@ -1,11 +1,11 @@
-import { Clock } from 'lucide-react';
+import { Clock, ArrowRight, History, ChevronDown, CheckCircle2 } from 'lucide-react';
 import { BottomNav } from '../../components/BottomNav';
-import { AccountHeader } from '../../components/AccountHeader';
 import { Toast } from '../../components/Toast';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAccount } from '../../contexts/AccountContext';
 import apiClient, { extractData } from '../../utils/api';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface Position {
   id: number;
@@ -36,15 +36,24 @@ interface HistoryRecord {
 export default function PositionsPage() {
   const navigate = useNavigate();
   const { accountType, setAccountType } = useAccount();
-  const [activeTab, setActiveTab] = useState<'positions' | 'history'>('positions');
+  const [activeTab, setActiveTab] = useState('全部');
   const [positions, setPositions] = useState<Position[]>([]);
   const [historyRecords, setHistoryRecords] = useState<HistoryRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [todayProfitLoss, setTodayProfitLoss] = useState(0);
+  const [todayTradeCount, setTodayTradeCount] = useState(0);
+  const [todayWinRate, setTodayWinRate] = useState(0);
+  const [availableBalance, setAvailableBalance] = useState(0);
+  const [demoBalance, setDemoBalance] = useState(0);
+  const [realBalance, setRealBalance] = useState(0);
   const [rewardAmount, setRewardAmount] = useState(0);
   const [rewardActive, setRewardActive] = useState(0);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'warning' } | null>(null);
   const [claiming, setClaiming] = useState(false);
+  const [isAccountOpen, setIsAccountOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const tabs = ['全部', '今日', '交易中', '盈利', '亏损'];
 
   // 获取持仓订单
   const fetchPositions = async (showLoading = true) => {
@@ -90,10 +99,50 @@ export default function PositionsPage() {
       const response = await apiClient.get('/trade/stats', {
         params: { accountType }
       });
-      const statsData = response.data.data || response.data;
-      setTodayProfitLoss(statsData.todayProfitLoss || 0);
+      const statsData = extractData(response) || {};
+      console.log('Stats data:', statsData); // 调试日志
+      setTodayProfitLoss(Number(statsData.todayProfitLoss || statsData.netProfit || 0));
+      setTodayTradeCount(Number(statsData.todayTradeCount || statsData.totalOrders || 0));
+      setTodayWinRate(Number(statsData.todayWinRate || statsData.winRate || 0));
     } catch (error) {
       console.error('获取统计失败:', error);
+    }
+  };
+
+  // 获取账户余额
+  const fetchBalance = async () => {
+    try {
+      // 获取当前账户余额
+      const response = await apiClient.get('/account/balance', {
+        params: { accountType }
+      });
+      const balanceData = extractData(response) || {};
+      console.log('Balance data:', balanceData); // 调试日志
+      const balance = Number(balanceData.balance || balanceData.availableBalance || 0);
+      setAvailableBalance(balance);
+
+      // 同时更新对应账户类型的余额
+      if (accountType === 'demo') {
+        setDemoBalance(balance);
+      } else {
+        setRealBalance(balance);
+      }
+
+      // 获取另一个账户的余额
+      const otherAccountType = accountType === 'demo' ? 'real' : 'demo';
+      const otherResponse = await apiClient.get('/account/balance', {
+        params: { accountType: otherAccountType }
+      });
+      const otherBalanceData = extractData(otherResponse) || {};
+      const otherBalance = Number(otherBalanceData.balance || otherBalanceData.availableBalance || 0);
+
+      if (otherAccountType === 'demo') {
+        setDemoBalance(otherBalance);
+      } else {
+        setRealBalance(otherBalance);
+      }
+    } catch (error) {
+      console.error('获取余额失败:', error);
     }
   };
 
@@ -103,7 +152,7 @@ export default function PositionsPage() {
       const response = await apiClient.get('/reward/amount', {
         params: { accountType }
       });
-      const rewardData = response.data.data || response.data;
+      const rewardData = extractData(response) || {};
       setRewardAmount(rewardData.rewardAmount || 0);
       setRewardActive(rewardData.isActive || 0);
     } catch (error) {
@@ -124,7 +173,6 @@ export default function PositionsPage() {
       const actualData = response.data.data || response.data;
       if (actualData.code === 0 || response.data.code === 0) {
         setToast({ message: '领取成功！奖励已发放到您的账户', type: 'success' });
-        // 延迟刷新数据，避免影响Toast显示
         setTimeout(() => {
           fetchReward();
           fetchStats();
@@ -144,33 +192,32 @@ export default function PositionsPage() {
   // 初始化数据
   useEffect(() => {
     fetchStats();
+    fetchBalance();
     fetchReward();
     fetchPositions();
     fetchHistory();
 
-    // 每5秒刷新一次数据
     const interval = setInterval(() => {
       fetchStats();
+      fetchBalance();
       fetchReward();
-      // 根据当前 tab 刷新对应数据，不显示 loading
-      if (activeTab === 'positions') {
-        fetchPositions(false);
-      } else {
-        fetchHistory(false);
-      }
+      fetchPositions(false);
+      fetchHistory(false);
     }, 5000);
 
     return () => clearInterval(interval);
-  }, [activeTab, accountType]); // 添加 accountType 依赖
+  }, [accountType]);
 
-  // 切换 tab 时刷新数据
+  // 点击外部关闭下拉菜单
   useEffect(() => {
-    if (activeTab === 'positions') {
-      fetchPositions();
-    } else {
-      fetchHistory();
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsAccountOpen(false);
+      }
     }
-  }, [activeTab]);
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // 计算剩余时间
   const calculateCountdown = (expectedCloseTime: string) => {
@@ -194,195 +241,271 @@ export default function PositionsPage() {
     return () => clearInterval(timer);
   }, []);
 
-  return (
-    <div className="min-h-screen bg-[#1a1f2e] pb-16">
-      {/* Header */}
-      <AccountHeader
-        accountType={accountType}
-        onAccountSwitch={setAccountType}
-      />
+  // 合并所有订单
+  const allOrders = [
+    ...positions.map(p => ({ ...p, type: 'trading' as const })),
+    ...historyRecords.map(h => ({ ...h, type: 'history' as const }))
+  ];
 
-      {/* Banner */}
-      <div className="px-4 pt-3 pb-2">
-        <div className="bg-[#1f2633] rounded-xl p-4 border border-gray-700/50">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="text-sm text-gray-400 mb-1.5">今日盈亏</div>
-              <div className={`text-lg font-medium ${todayProfitLoss >= 0 ? 'text-teal-400' : 'text-red-500'}`}>
-                {todayProfitLoss >= 0 ? '+' : ''}{todayProfitLoss.toLocaleString()} VND
+  // 过滤订单
+  const filteredOrders = allOrders.filter(order => {
+    if (activeTab === '全部') return true;
+    if (activeTab === '交易中') return order.type === 'trading';
+    if (activeTab === '盈利') return order.type === 'history' && (order as HistoryRecord).profitLoss > 0;
+    if (activeTab === '亏损') return order.type === 'history' && (order as HistoryRecord).profitLoss < 0;
+    if (activeTab === '今日') return true; // 可以根据日期过滤
+    return true;
+  });
+
+  return (
+    <div className="min-h-screen bg-[#09090b] pb-28 relative">
+      {/* Scrollable Content */}
+      <div className="flex-1 overflow-y-auto" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+        <style>{`
+          .hide-scroll::-webkit-scrollbar { display: none; }
+        `}</style>
+
+        {/* Top Account Module */}
+        <div className="bg-[#14141c] rounded-b-[32px] p-5 pt-[64px] shadow-[0_10px_30px_rgba(0,0,0,0.5)] relative z-20 border-b border-white/5">
+          <div className="flex justify-between items-center mb-6" ref={dropdownRef}>
+            <div
+              className="flex items-center gap-2 cursor-pointer"
+              onClick={() => setIsAccountOpen(!isAccountOpen)}
+            >
+              <div className="bg-[#2a2a36] text-white text-[12px] px-2 py-0.5 rounded font-medium">
+                {accountType === 'demo' ? '模拟' : '真实'}
+              </div>
+              <div className="text-[#8a8a93] text-[14px] flex items-center gap-1 font-medium">
+                可用资金
+                <ChevronDown
+                  size={16}
+                  className={`transition-transform duration-300 ${isAccountOpen ? 'rotate-180' : ''}`}
+                />
               </div>
             </div>
-            {rewardActive === 1 && rewardAmount > 0 && (
-              <div>
-                <div className="text-sm text-gray-400 mb-1.5">赠送奖励</div>
-                <div className="flex items-center gap-2">
-                  <span className="text-lg text-white font-medium">{rewardAmount.toLocaleString()} VND</span>
-                  <button
-                    onClick={handleClaimReward}
-                    disabled={claiming}
-                    className="!text-blue-400 text-sm hover:!text-blue-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            <button
+              onClick={() => navigate('/deposit')}
+              className="bg-[#6c48f5] hover:bg-[#5a3bd9] transition-colors text-white text-[13px] px-4 py-1.5 rounded-full font-medium shadow-[0_4px_12px_rgba(108,72,245,0.3)]"
+            >
+              存款/充值
+            </button>
+          </div>
+
+          <AnimatePresence>
+            {isAccountOpen && (
+              <motion.div
+                initial={{ opacity: 0, height: 0, marginBottom: 0 }}
+                animate={{ opacity: 1, height: 'auto', marginBottom: 24 }}
+                exit={{ opacity: 0, height: 0, marginBottom: 0 }}
+                className="overflow-hidden"
+              >
+                <div className="bg-[#1a1a24] rounded-2xl p-2 border border-white/10 flex flex-col gap-1">
+                  <div
+                    className={`flex items-center justify-between p-3 rounded-xl cursor-pointer ${
+                      accountType === 'demo' ? 'bg-white/5' : 'hover:bg-white/5'
+                    }`}
+                    onClick={() => {
+                      setAccountType('demo');
+                      setIsAccountOpen(false);
+                    }}
                   >
-                    {claiming ? '领取中...' : '立即领取'}
-                  </button>
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-[#2a2a36] flex items-center justify-center text-xs">
+                        模
+                      </div>
+                      <div>
+                        <div className="text-[13px] font-medium text-white">模拟账户</div>
+                        <div className="text-[12px] text-[#8a8a93] font-mono">đ {demoBalance.toLocaleString()}</div>
+                      </div>
+                    </div>
+                    {accountType === 'demo' && <CheckCircle2 size={18} className="text-[#10b981]" />}
+                  </div>
+                  <div
+                    className={`flex items-center justify-between p-3 rounded-xl cursor-pointer transition-colors ${
+                      accountType === 'real' ? 'bg-white/5' : 'hover:bg-white/5'
+                    }`}
+                    onClick={() => {
+                      setAccountType('real');
+                      setIsAccountOpen(false);
+                    }}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-[#2a2a36] flex items-center justify-center text-xs">
+                        真
+                      </div>
+                      <div>
+                        <div className="text-[13px] font-medium text-white">真实账户</div>
+                        <div className="text-[12px] text-[#8a8a93] font-mono">đ {realBalance.toLocaleString()}</div>
+                      </div>
+                    </div>
+                    {accountType === 'real' && <CheckCircle2 size={18} className="text-[#10b981]" />}
+                  </div>
                 </div>
-              </div>
+              </motion.div>
             )}
+          </AnimatePresence>
+
+          <div className="text-[32px] font-bold font-mono tracking-tight mb-8 leading-none text-white">
+            đ {availableBalance.toLocaleString()}
+          </div>
+
+          <div className="flex justify-between items-center">
+            <div className="flex-1">
+              <div className="text-[#8a8a93] text-[12px] mb-1.5 font-medium">今日盈亏</div>
+              <div
+                className={`text-[16px] font-bold font-mono ${
+                  todayProfitLoss >= 0 ? 'text-[#ef4444]' : 'text-[#10b981]'
+                }`}
+              >
+                {todayProfitLoss >= 0 ? '+' : ''}{Math.floor(todayProfitLoss).toLocaleString()}
+              </div>
+            </div>
+            <div className="flex-1 text-center">
+              <div className="text-[#8a8a93] text-[12px] mb-1.5 font-medium">今日交易笔数</div>
+              <div className="text-white text-[16px] font-bold font-mono">
+                {todayTradeCount}
+                <span className="text-[12px] font-sans font-normal ml-0.5">笔</span>
+              </div>
+            </div>
+            <div className="flex-1 text-right">
+              <div className="text-[#8a8a93] text-[12px] mb-1.5 font-medium">今日交易胜率</div>
+              <div className="text-white text-[16px] font-bold font-mono">{todayWinRate.toFixed(0)}%</div>
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Tabs */}
-      <div className="bg-[#1a1f2e] px-4 py-4">
-        <div className="grid grid-cols-2 gap-3">
-          <button
-            onClick={() => setActiveTab('positions')}
-            className={`py-3 text-sm whitespace-nowrap transition-all rounded-full ${
-              activeTab === 'positions'
-                ? 'bg-blue-600 text-white shadow-sm'
-                : 'bg-gray-700/50 text-gray-300 hover:bg-gray-700'
-            }`}
-          >
-            持仓({positions.length})
-          </button>
-          <button
-            onClick={() => setActiveTab('history')}
-            className={`py-3 text-sm whitespace-nowrap transition-all rounded-full ${
-              activeTab === 'history'
-                ? 'bg-blue-600 text-white shadow-sm'
-                : 'bg-gray-700/50 text-gray-300 hover:bg-gray-700'
-            }`}
-          >
-            历史
-          </button>
-        </div>
-      </div>
-
-      {/* Positions List */}
-      {activeTab === 'positions' && (
-        <div className="px-4 space-y-3">
-          {loading ? (
-            <div className="text-center py-8 text-gray-400">加载中...</div>
-          ) : positions.length === 0 ? (
-            <div className="text-center py-8 text-gray-400">暂无持仓</div>
-          ) : (
-            positions.map((position) => (
-              <div
-                key={position.id}
-                className="bg-[#1f2633] rounded-xl p-4 shadow-sm border border-gray-700/50 cursor-pointer hover:bg-[#252b3a] transition-colors active:scale-[0.98]"
-                onClick={() => navigate(`/trading?stock=${position.stockCode}&orderId=${position.id}`)}
+        {/* Filter Tabs */}
+        <div className="pt-4 pb-2 px-6 sticky top-0 bg-[#09090b]/90 backdrop-blur-md z-10">
+          <div className="flex gap-2.5 overflow-x-auto hide-scroll">
+            {tabs.map(tab => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={`px-4 py-1.5 rounded-[20px] text-[13px] whitespace-nowrap transition-all duration-300 font-medium shrink-0 ${
+                  activeTab === tab
+                    ? 'bg-[#6c48f5] text-white shadow-[0_4px_10px_rgba(108,72,245,0.3)]'
+                    : 'bg-[#1a1a24] text-[#8a8a93] hover:text-white hover:bg-[#2a2a36]'
+                }`}
               >
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    <div className="w-6 h-6 bg-gray-700/50 rounded-full flex items-center justify-center text-[10px] text-gray-400">
-                      {position.stockCode.charAt(0)}
-                    </div>
-                    <span className="text-sm text-white">{position.stockCode}</span>
-                  </div>
-
-                  <div className="flex items-center gap-1.5 text-orange-500">
-                    <Clock className="w-4 h-4" />
-                    <span className="text-sm font-medium">{calculateCountdown(position.expectedCloseTime)}</span>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="text-white">@{Number(position.openPrice).toFixed(2)}</span>
-                    {position.tradeType === 'bull' ? (
-                      <svg className="w-4 h-4 text-green-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                        <polyline points="18 15 12 9 6 15"></polyline>
-                      </svg>
-                    ) : (
-                      <svg className="w-4 h-4 text-red-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                        <polyline points="6 9 12 15 18 9"></polyline>
-                      </svg>
-                    )}
-                    <span className="text-gray-500">—</span>
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    <span className="text-white">{Number(position.investmentAmount).toLocaleString()} VND</span>
-                    <span className={`px-2 py-1 rounded text-xs ${
-                      position.tradeType === 'bull'
-                        ? 'bg-green-500/20 text-green-400'
-                        : 'bg-red-500/20 text-red-400'
-                    }`}>
-                      {position.tradeType === 'bull' ? '看涨' : '看跌'}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            ))
-          )}
+                {tab}
+              </button>
+            ))}
+          </div>
         </div>
-      )}
 
-      {/* History Records List */}
-      {activeTab === 'history' && (
-        <div className="px-4 space-y-3">
-          {loading ? (
-            <div className="text-center py-8 text-gray-400">加载中...</div>
-          ) : historyRecords.length === 0 ? (
-            <div className="text-center py-8 text-gray-400">暂无历史记录</div>
-          ) : (
-            historyRecords.map((record) => (
-              <div
-                key={record.id}
-                className="bg-[#1f2633] rounded-xl p-4 shadow-sm border border-gray-700/50 cursor-pointer hover:bg-[#252b3a] transition-colors active:scale-[0.98]"
-                onClick={() => navigate(`/positions/order/${record.id}`)}
-              >
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    <div className="w-6 h-6 bg-gray-700/50 rounded-full flex items-center justify-center text-[10px] text-gray-400">
-                      {record.stockCode.charAt(0)}
-                    </div>
-                    <span className="text-sm text-white">{record.stockCode}</span>
-                  </div>
-
-                  <span className={`text-sm font-medium ${
-                    record.profitLoss >= 0 ? 'text-teal-400' : 'text-red-400'
-                  }`}>
-                    {record.profitLoss >= 0 ? '+' : ''}{record.profitLoss.toLocaleString()} VND
-                  </span>
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-white text-sm">
-                    <span>@{Number(record.openPrice).toFixed(2)}</span>
-                    <svg className="w-4 h-4 text-gray-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <polyline points="5 12 19 12"></polyline>
-                      <polyline points="12 5 19 12 12 19"></polyline>
-                    </svg>
-                    <span>{Number(record.closePrice).toFixed(2)}</span>
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    <span className="text-white text-sm">{Number(record.investmentAmount).toLocaleString()} VND</span>
-                    <span className={`px-2 py-1 rounded text-xs ${
-                      record.tradeType === 'bull'
-                        ? 'bg-green-500/20 text-green-400'
-                        : 'bg-red-500/20 text-red-400'
-                    }`}>
-                      {record.tradeType === 'bull' ? '看涨' : '看跌'}
-                    </span>
-                  </div>
-                </div>
+        {/* Orders List */}
+        <div className="px-6 py-2 flex flex-col gap-3 pb-4">
+          <AnimatePresence mode="popLayout">
+            {loading ? (
+              <div className="text-center py-12 text-[#8a8a93]">加载中...</div>
+            ) : filteredOrders.length === 0 ? (
+              <div className="py-20 flex flex-col items-center justify-center text-[#8a8a93]">
+                <History size={48} strokeWidth={1} className="mb-4 opacity-20" />
+                <p className="text-[14px]">暂无相关订单记录</p>
               </div>
-            ))
-          )}
+            ) : (
+              filteredOrders.map(order => {
+                const isTrading = order.type === 'trading';
+                const position = isTrading ? (order as Position) : null;
+                const history = !isTrading ? (order as HistoryRecord) : null;
+
+                return (
+                  <motion.div
+                    key={order.id}
+                    layout
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    transition={{ duration: 0.2 }}
+                    className="bg-[#14141c] rounded-[20px] p-4 flex flex-col gap-4 border-[0.5px] border-white/5 shadow-sm hover:border-white/10 transition-colors cursor-pointer"
+                    onClick={() =>
+                      isTrading
+                        ? navigate(`/trading?stock=${order.stockCode}&orderId=${order.id}`)
+                        : navigate(`/positions/order/${order.id}`)
+                    }
+                  >
+                    <div className="flex justify-between items-center">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-[28px] h-[28px] rounded-full flex items-center justify-center shrink-0 shadow-[0_4px_8px_rgba(0,0,0,0.2)] overflow-hidden bg-white">
+                          <img
+                            src={`/logo/${order.stockCode}.svg`}
+                            alt={order.stockCode}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              // 如果图片加载失败，显示文字
+                              const target = e.target as HTMLImageElement;
+                              target.style.display = 'none';
+                              const parent = target.parentElement;
+                              if (parent) {
+                                parent.classList.add('bg-gradient-to-b', 'from-[#8c6bff]', 'to-[#6c48f5]');
+                                parent.classList.remove('bg-white');
+                                const span = document.createElement('span');
+                                span.className = 'text-[11px] text-white font-bold';
+                                span.textContent = order.stockCode.charAt(0);
+                                parent.appendChild(span);
+                              }
+                            }}
+                          />
+                        </div>
+                        <span className="text-[15px] font-semibold text-white/90 tracking-tight">
+                          {order.stockName || order.stockCode}
+                        </span>
+                      </div>
+
+                      {/* Right side status/PNL */}
+                      {isTrading && position ? (
+                        <div className="flex items-center gap-1.5 text-[#f59e0b] font-mono text-[15px] font-bold">
+                          <Clock size={14} className="animate-pulse" />{' '}
+                          {calculateCountdown(position.expectedCloseTime)}
+                        </div>
+                      ) : history ? (
+                        <div
+                          className={`font-mono text-[16px] font-bold ${
+                            history.profitLoss > 0 ? 'text-[#ef4444]' : 'text-[#10b981]'
+                          }`}
+                        >
+                          {history.profitLoss > 0 ? '+' : ''}
+                          {Number(history.profitLoss || 0).toLocaleString()}{' '}
+                          <span className="text-[12px] font-sans font-normal ml-0.5">VND</span>
+                        </div>
+                      ) : null}
+                    </div>
+
+                    <div className="flex justify-between items-end mt-1">
+                      <div className="text-[#8a8a93] text-[13px] font-mono flex items-center">
+                        @{isTrading ? Number(position?.openPrice || 0).toFixed(2) : Number(history?.openPrice || 0).toFixed(2)}
+                        <ArrowRight size={14} className="mx-2 text-white/20" />
+                        <span className={isTrading ? 'text-white/20' : 'text-white/70'}>
+                          {isTrading ? '—' : Number(history?.closePrice || 0).toFixed(2)}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="text-white/90 font-mono text-[14px] font-medium">
+                          {Number(order.investmentAmount || 0).toLocaleString()}
+                        </span>
+                        <span
+                          className={`text-[11px] px-2 py-0.5 rounded-[6px] font-bold tracking-wider whitespace-nowrap shrink-0 ${
+                            order.tradeType === 'bull'
+                              ? 'bg-[#ef4444]/15 text-[#ef4444] border border-[#ef4444]/20'
+                              : 'bg-[#10b981]/15 text-[#10b981] border border-[#10b981]/20'
+                          }`}
+                        >
+                          {order.tradeType === 'bull' ? '看涨' : '看跌'}
+                        </span>
+                      </div>
+                    </div>
+                  </motion.div>
+                );
+              })
+            )}
+          </AnimatePresence>
         </div>
-      )}
+      </div>
 
       <BottomNav />
 
       {/* Toast Notification */}
-      {toast && (
-        <Toast
-          message={toast.message}
-          type={toast.type}
-          onClose={() => setToast(null)}
-        />
-      )}
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     </div>
   );
 }

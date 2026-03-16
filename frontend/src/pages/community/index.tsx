@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Battery, Wifi, Signal, Calendar, Users as UsersIcon } from 'lucide-react';
+import { Crown, Calendar, Users } from 'lucide-react';
+import { motion } from 'framer-motion';
 import { BottomNav } from '../../components/BottomNav';
+import { PageHeader } from '../../components/PageHeader';
 import { apiClient, extractData } from '../../utils/api';
 
 interface LeaderboardItem {
@@ -39,10 +41,7 @@ export default function CommunityPage() {
         apiClient.get('/api/community/settings'),
       ]);
 
-      console.log('排行榜原始响应:', leaderboardRes);
       let leaderboard = extractData(leaderboardRes) || [];
-      console.log('extractData处理后的排行榜数据:', leaderboard);
-      console.log('是否为数组:', Array.isArray(leaderboard));
       if (!Array.isArray(leaderboard)) {
         console.warn('排行榜数据不是数组,使用空数组');
         leaderboard = [];
@@ -97,92 +96,132 @@ export default function CommunityPage() {
     ? parseInt(settings.participants)
     : calculateParticipants();
 
+  const top1 = leaderboardData[0];
+  const top2 = leaderboardData[1];
+  const top3 = leaderboardData[2];
+  const rest = leaderboardData.slice(3);
+
   return (
-    <div className="min-h-screen bg-[#1a1f2e] pb-20">
-      {/* Main Content */}
-      <div className="px-4 pt-6 pb-4">
-        {/* Title */}
-        <h1 className="text-2xl font-bold text-white mb-2">24小时交易</h1>
-        <p className="text-sm text-gray-400 mb-6">对近24小时交易的客户，进行投资收益排行</p>
+    <div className="min-h-screen bg-[#09090b] pb-28">
+      {/* Header - Fixed */}
+      <PageHeader />
 
-        {/* Info Cards */}
-        <div className="grid grid-cols-2 gap-3 mb-6">
-          {/* Date Card */}
-          <div className="bg-[#1f2633] rounded-xl p-4 flex items-center gap-3 border border-gray-700/30">
-            <div className="w-10 h-10 bg-gray-700/50 rounded-lg flex items-center justify-center">
-              <Calendar className="w-5 h-5 text-gray-400" />
+      {/* Content with top padding to account for fixed header */}
+      <div className="pt-[120px]">
+        {/* Header Section */}
+        <div className="px-6 pb-4">
+          <h1 className="text-[32px] font-bold tracking-tight mb-2 text-white">24小时交易</h1>
+          <p className="text-[#8a8a93] text-[14px] mb-4">
+            对近24小时交易的客户，进行投资收益排行
+          </p>
+          <div className="flex items-center gap-4 text-[#8a8a93] text-[13px]">
+            <div className="flex items-center gap-1.5">
+              <Calendar size={14} />
+              <span>{formatDate(settings.date)}</span>
             </div>
-            <div>
-              <div className="text-xs text-gray-500 mb-1">日期</div>
-              <div className="text-sm font-medium text-white">{formatDate(settings.date)}</div>
-            </div>
-          </div>
-
-          {/* Users Count Card */}
-          <div className="bg-[#1f2633] rounded-xl p-4 flex items-center gap-3 border border-gray-700/30">
-            <div className="w-10 h-10 bg-gray-700/50 rounded-lg flex items-center justify-center">
-              <UsersIcon className="w-5 h-5 text-gray-400" />
-            </div>
-            <div>
-              <div className="text-xs text-gray-500 mb-1">参与人数</div>
-              <div className="text-sm font-medium text-white">{formatNumber(displayParticipants)}</div>
+            <div className="flex items-center gap-1.5">
+              <Users size={14} />
+              <span>{formatNumber(displayParticipants)}</span>
             </div>
           </div>
         </div>
 
-        {/* Leaderboard Table */}
-        <div className="bg-[#1f2633] rounded-xl overflow-hidden border border-gray-700/30">
-          {/* Table Header */}
-          <div className="bg-[#141820] px-3 py-3 grid grid-cols-[32px_1fr_48px_60px_90px] gap-2 border-b border-gray-700/30">
-            <div className="text-xs text-gray-500">#</div>
-            <div className="text-xs text-gray-500">用户</div>
-            <div className="text-xs text-gray-500 text-center">笔数</div>
-            <div className="text-xs text-gray-500 text-center">胜率</div>
-            <div className="text-xs text-gray-500 text-right">收益</div>
-          </div>
-
-          {/* Table Body */}
-          <div>
-            {loading ? (
-              <div className="px-3 py-8 text-center text-gray-400">加载中...</div>
-            ) : leaderboardData.length === 0 ? (
-              <div className="px-3 py-8 text-center text-gray-400">暂无数据</div>
-            ) : (
-              leaderboardData.map((item, index) => (
-                <div
-                  key={index}
-                  className={`px-3 py-3 grid grid-cols-[32px_1fr_48px_60px_90px] gap-2 items-center ${
-                    index !== leaderboardData.length - 1 ? 'border-b border-gray-700/20' : ''
-                  }`}
+        {loading ? (
+          <div className="px-6 py-12 text-center text-[#8a8a93]">加载中...</div>
+        ) : leaderboardData.length === 0 ? (
+          <div className="px-6 py-12 text-center text-[#8a8a93]">暂无数据</div>
+        ) : (
+          <>
+            {/* Podium Section */}
+            <div className="flex items-end justify-center gap-2 mt-8 mb-6 px-4">
+              {/* Top 2 */}
+              {top2 && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.1 }}
+                  className="flex flex-col items-center flex-1 pb-4"
                 >
-                  {/* Rank */}
-                  <div className="text-sm text-white font-medium">{item.rank}</div>
-
-                  {/* User */}
-                  <div className="flex items-center gap-2 min-w-0">
-                    <div className="w-7 h-7 bg-gray-700/50 rounded-full flex items-center justify-center flex-shrink-0">
-                      <span className="text-xs text-gray-400">
-                        {item.avatar === 'logo' ? 'L' : item.username[0]}
-                      </span>
-                    </div>
-                    <span className="text-sm text-white truncate">{item.username}</span>
+                  <Crown size={24} className="text-[#94a3b8] mb-2 drop-shadow-[0_0_8px_rgba(148,163,184,0.5)]" fill="currentColor" />
+                  <div className="w-[48px] h-[48px] rounded-full bg-gradient-to-b from-[#94a3b8]/20 to-transparent border border-[#94a3b8]/40 flex items-center justify-center text-[18px] font-bold text-[#94a3b8] mb-3">
+                    2
                   </div>
+                  <span className="font-semibold text-[14px] mb-1 text-white">{top2.username}</span>
+                  <span className="text-[#10b981] font-bold text-[13px] mb-1">+₫{formatNumber(top2.profit)}</span>
+                  <span className="text-[#8a8a93] text-[12px]">{top2.trades} &nbsp; {Number(top2.winRate).toFixed(2)}%</span>
+                </motion.div>
+              )}
 
-                  {/* Trades */}
-                  <div className="text-sm text-white text-center">{item.trades}</div>
-
-                  {/* Win Rate */}
-                  <div className="text-sm text-white text-center">{Number(item.winRate).toFixed(2)}%</div>
-
-                  {/* Profit */}
-                  <div className="text-sm text-teal-400 font-medium text-right whitespace-nowrap">
-                    +₫{Number(item.profit).toLocaleString()}
+              {/* Top 1 */}
+              {top1 && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="flex flex-col items-center flex-1 relative z-10"
+                >
+                  <Crown size={32} className="text-[#f59e0b] mb-2 drop-shadow-[0_0_12px_rgba(245,158,11,0.6)]" fill="currentColor" />
+                  <div className="w-[60px] h-[60px] rounded-full bg-gradient-to-b from-[#f59e0b]/20 to-[#f59e0b]/5 border-2 border-[#f59e0b]/50 flex items-center justify-center text-[24px] font-bold text-[#f59e0b] mb-3 shadow-[0_0_20px_rgba(245,158,11,0.2)]">
+                    1
                   </div>
+                  <span className="font-semibold text-[15px] mb-1 text-white">{top1.username}</span>
+                  <span className="text-[#10b981] font-bold text-[14px] mb-1">+₫{formatNumber(top1.profit)}</span>
+                  <span className="text-[#8a8a93] text-[12px]">{top1.trades} &nbsp; {Number(top1.winRate).toFixed(2)}%</span>
+                </motion.div>
+              )}
+
+              {/* Top 3 */}
+              {top3 && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.2 }}
+                  className="flex flex-col items-center flex-1 pb-4"
+                >
+                  <Crown size={24} className="text-[#b45309] mb-2 drop-shadow-[0_0_8px_rgba(180,83,9,0.5)]" fill="currentColor" />
+                  <div className="w-[48px] h-[48px] rounded-full bg-gradient-to-b from-[#b45309]/20 to-transparent border border-[#b45309]/40 flex items-center justify-center text-[18px] font-bold text-[#b45309] mb-3">
+                    3
+                  </div>
+                  <span className="font-semibold text-[14px] mb-1 text-white">{top3.username}</span>
+                  <span className="text-[#10b981] font-bold text-[13px] mb-1">+₫{formatNumber(top3.profit)}</span>
+                  <span className="text-[#8a8a93] text-[12px]">{top3.trades} &nbsp; {Number(top3.winRate).toFixed(2)}%</span>
+                </motion.div>
+              )}
+            </div>
+
+            {/* List Section */}
+            {rest.length > 0 && (
+              <div className="px-4">
+                {/* Table Header */}
+                <div className="flex items-center bg-[#1a1a24] rounded-t-[16px] px-4 py-3 text-[12px] text-[#8a8a93] font-medium border-b border-white/5">
+                  <div className="w-[40px]">#</div>
+                  <div className="flex-1">用户</div>
+                  <div className="w-[60px] text-center">笔数</div>
+                  <div className="w-[70px] text-center">胜率</div>
+                  <div className="w-[90px] text-right">盈利</div>
                 </div>
-              ))
+
+                {/* Table Body */}
+                <div className="bg-[#14141c] rounded-b-[16px] border border-white/5 overflow-hidden flex flex-col">
+                  {rest.map((item, idx) => (
+                    <motion.div
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: 0.3 + idx * 0.05 }}
+                      key={item.rank}
+                      className="flex items-center px-4 py-4 border-b border-white/5 last:border-none hover:bg-white/5 transition-colors"
+                    >
+                      <div className="w-[40px] font-bold text-[#8a8a93]">{item.rank}</div>
+                      <div className="flex-1 font-semibold text-[14px] text-white">{item.username}</div>
+                      <div className="w-[60px] text-center text-[13px] text-[#8a8a93]">{item.trades}</div>
+                      <div className="w-[70px] text-center text-[13px] text-[#8a8a93]">{Number(item.winRate).toFixed(2)}%</div>
+                      <div className="w-[90px] text-right font-bold text-[13px] text-[#10b981]">+₫{formatNumber(item.profit)}</div>
+                    </motion.div>
+                  ))}
+                </div>
+              </div>
             )}
-          </div>
-        </div>
+          </>
+        )}
       </div>
 
       <BottomNav />

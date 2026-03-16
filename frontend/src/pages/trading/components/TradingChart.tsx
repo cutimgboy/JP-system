@@ -95,25 +95,21 @@ export function TradingChart({ countdown, stockCode = 'AAPL.US', entryPrice, ent
     };
   }, [stockCode]);
   return (
-    <div className="relative bg-[#1a1f2e] h-[60vh] min-h-[400px] pb-4">
+    <div className="relative bg-[#09090b] h-[60vh] min-h-[400px] pb-4">
       {/* Overlaid Trading Pair Title and Price Info */}
       <div className="absolute top-0 left-0 right-0 z-10 px-4 pt-4 pb-2">
         <div className="flex items-start justify-between mb-3">
           <div>
-            <div className="text-white flex items-center gap-2">
-              {stockCode}
-              <span className={`text-xs px-2 py-0.5 rounded ${
-                connectionStatus === 'connected' ? 'bg-green-500/20 text-green-400' :
-                connectionStatus === 'connecting' ? 'bg-yellow-500/20 text-yellow-400' :
-                'bg-red-500/20 text-red-400'
-              }`}>
-                {connectionStatus === 'connected' ? '已连接' :
-                 connectionStatus === 'connecting' ? '连接中...' :
-                 '已断开'}
-              </span>
-            </div>
-            <div className="text-xs text-gray-400 mt-1">
-              交易时间: {new Date().toLocaleString('zh-CN', {
+            <div className="text-white text-[20px] font-bold tracking-tight">{stockCode}</div>
+            <div className="text-[#8a8a93] text-[12px] mt-1 flex items-center gap-2">
+              <span className={`w-1.5 h-1.5 rounded-full ${
+                connectionStatus === 'connected' ? 'bg-[#10b981] animate-pulse' :
+                connectionStatus === 'connecting' ? 'bg-yellow-400 animate-pulse' :
+                'bg-red-400'
+              }`}></span>
+              {connectionStatus === 'connected' ? '交易中' :
+               connectionStatus === 'connecting' ? '连接中...' :
+               '已断开'} {new Date().toLocaleString('zh-CN', {
                 month: '2-digit',
                 day: '2-digit',
                 hour: '2-digit',
@@ -122,29 +118,18 @@ export function TradingChart({ countdown, stockCode = 'AAPL.US', entryPrice, ent
               })}
             </div>
           </div>
-        </div>
-        
-        {/* Price Info */}
-        <div className="flex items-start gap-4">
-          <div>
-            <div className="text-[10px] text-gray-500 mb-0.5">成交价</div>
-            <div className="text-white text-sm">{currentPrice.toFixed(3)}</div>
-          </div>
-          <div>
-            <div className="text-[10px] text-gray-500 mb-0.5">涨跌额</div>
-            <div className={`text-xs ${kLineData.length > 1 && currentPrice >= kLineData[0].price ? 'text-green-400' : 'text-red-400'}`}>
-              {kLineData.length > 1 
-                ? `${currentPrice >= kLineData[0].price ? '+' : ''}${(currentPrice - kLineData[0].price).toFixed(2)}`
-                : '0.00'
-              }
+          <div className="text-right flex flex-col items-end">
+            <div className={`text-[24px] font-bold font-mono leading-none tracking-tight ${
+              kLineData.length > 1 && currentPrice >= kLineData[0].price ? 'text-[#ef4444]' : 'text-[#10b981]'
+            }`}>
+              {currentPrice.toFixed(2)}
             </div>
-          </div>
-          <div>
-            <div className="text-[10px] text-gray-500 mb-0.5">涨跌幅</div>
-            <div className={`text-xs ${kLineData.length > 1 && currentPrice >= kLineData[0].price ? 'text-green-400' : 'text-red-400'}`}>
-              {kLineData.length > 1 
-                ? `${currentPrice >= kLineData[0].price ? '+' : ''}${(((currentPrice - kLineData[0].price) / kLineData[0].price) * 100).toFixed(2)}%`
-                : '0.00%'
+            <div className={`text-[13px] font-medium mt-1 ${
+              kLineData.length > 1 && currentPrice >= kLineData[0].price ? 'text-[#ef4444]' : 'text-[#10b981]'
+            }`}>
+              {kLineData.length > 1
+                ? `${currentPrice >= kLineData[0].price ? '+' : ''}${(currentPrice - kLineData[0].price).toFixed(2)} ${currentPrice >= kLineData[0].price ? '+' : ''}${(((currentPrice - kLineData[0].price) / kLineData[0].price) * 100).toFixed(2)}%`
+                : '+0.00 +0.00%'
               }
             </div>
           </div>
@@ -166,37 +151,15 @@ export function TradingChart({ countdown, stockCode = 'AAPL.US', entryPrice, ent
         )}
       </div>
 
-      {/* Bull/Bear Ratio Bar - Below X-Axis with more spacing */}
-      <div className="absolute bottom-0 left-0 right-0 px-6 pb-3 pt-8 z-10">
-        <div className="flex items-center gap-2">
-          {/* 看涨标签 + 百分比 */}
-          <div className="flex items-center gap-1.5">
-            <span className="text-xs text-gray-400">看涨</span>
-            <span className="text-xs text-teal-400 font-medium">67%</span>
-          </div>
-          
-          {/* 进度条 - with opacity */}
-          <div className="flex-1 flex items-center h-2.5 relative overflow-hidden rounded-full">
-            {/* 看涨区域 - 青绿色，半透明 */}
-            <div 
-              className="bg-teal-500/40 h-full" 
-              style={{ width: '67%' }}
-            ></div>
-            
-            {/* 中间分隔符 - 更低调 */}
-            <div className="w-0.5 h-full bg-white/30 absolute" style={{ left: '67%', transform: 'translateX(-50%)' }}></div>
-            
-            {/* 看跌区域 - 红色，半透明 */}
-            <div 
-              className="bg-red-500/40 h-full flex-1"
-            ></div>
-          </div>
-          
-          {/* 看跌百分比 + 标签 */}
-          <div className="flex items-center gap-1.5">
-            <span className="text-xs text-red-400 font-medium">33%</span>
-            <span className="text-xs text-gray-400">看跌</span>
-          </div>
+      {/* Bull/Bear Progress Bar */}
+      <div className="absolute bottom-0 left-0 right-0 px-4 pb-3 pt-8 z-10">
+        <div className="flex justify-between text-[12px] font-medium mb-2 px-1">
+          <span className="text-[#ef4444]">看涨 32.56%</span>
+          <span className="text-[#10b981]">67.34% 看跌</span>
+        </div>
+        <div className="h-[6px] w-full bg-[#1a1a24] rounded-full overflow-hidden flex">
+          <div className="bg-[#ef4444] h-full transition-all duration-500" style={{ width: '32.56%' }}></div>
+          <div className="bg-[#10b981] h-full transition-all duration-500" style={{ width: '67.44%' }}></div>
         </div>
       </div>
     </div>
