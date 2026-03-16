@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { Login } from './pages/auth/Login';
+import Splash from './pages/splash';
 import Trading from './pages/trading';
 import Market from './pages/market';
 import Community from './pages/community';
@@ -23,21 +24,32 @@ import { MyBank } from './pages/my-bank';
 import { AddBankCard } from './pages/my-bank/add';
 import { Promotion } from './pages/promotion';
 
+function RootRedirect() {
+  const hasSeenSplash = localStorage.getItem('hasSeenSplash');
+  const token = localStorage.getItem('token');
+
+  if (!hasSeenSplash) {
+    return <Navigate to="/splash" replace />;
+  }
+
+  if (!token) {
+    return <Navigate to="/login" replace />;
+  }
+
+  return <Navigate to="/market" replace />;
+}
+
 function App() {
   return (
     <Routes>
+      {/* 启动页 - 公开访问 */}
+      <Route path="/splash" element={<Splash />} />
+
       {/* 登录页面 - 公开访问 */}
       <Route path="/login" element={<Login />} />
 
       {/* 受保护的路由 - 需要登录 */}
-      <Route
-        path="/"
-        element={
-          <ProtectedRoute>
-            <Navigate to="/market" replace />
-          </ProtectedRoute>
-        }
-      />
+      <Route path="/" element={<RootRedirect />} />
       <Route
         path="/market"
         element={

@@ -12,6 +12,15 @@ export function Login() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  // 检查是否看过启动页
+  useEffect(() => {
+    const hasSeenSplash = localStorage.getItem('hasSeenSplash');
+    if (!hasSeenSplash) {
+      navigate('/splash', { replace: true });
+      return;
+    }
+  }, [navigate]);
+
   // 如果已登录，直接跳转到首页
   useEffect(() => {
     if (user) {
