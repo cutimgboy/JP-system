@@ -1,5 +1,10 @@
 import { useState, useEffect } from 'react';
-import { apiClient } from '../utils/api';
+import {
+  apiClient,
+  extractData,
+  extractMessage,
+  isSuccessResponse,
+} from '../utils/api';
 
 interface SystemBankCard {
   id: number;
@@ -30,16 +35,8 @@ export function BankCards() {
   const fetchBankCards = async () => {
     try {
       const response = await apiClient.get('/system-bank-card/list');
-      console.log('获取银行卡列表响应:', response);
-
-      // 处理嵌套的响应结构
-      const actualData = response.data || response;
-      if (actualData.code === 0) {
-        const cards = actualData.data || actualData || [];
-        setBankCards(Array.isArray(cards) ? cards : []);
-      } else {
-        setBankCards([]);
-      }
+      const cards = extractData<SystemBankCard[]>(response) || [];
+      setBankCards(Array.isArray(cards) ? cards : []);
     } catch (error) {
       console.error('获取银行卡列表失败:', error);
       setBankCards([]);
@@ -73,26 +70,22 @@ export function BankCards() {
   const handleSubmit = async () => {
     try {
       if (editingCard) {
-        // 更新
         const response = await apiClient.put(`/system-bank-card/${editingCard.id}`, formData);
-        const actualData = response.data.data || response.data;
-        if (actualData.code === 0 || response.data.code === 0) {
+        if (isSuccessResponse(response)) {
           alert('更新成功');
-          fetchBankCards();
+          void fetchBankCards();
           setShowModal(false);
         } else {
-          alert(actualData.msg || '更新失败');
+          alert(extractMessage(response, '更新失败'));
         }
       } else {
-        // 添加
         const response = await apiClient.post('/system-bank-card', formData);
-        const actualData = response.data.data || response.data;
-        if (actualData.code === 0 || response.data.code === 0) {
+        if (isSuccessResponse(response)) {
           alert('添加成功');
-          fetchBankCards();
+          void fetchBankCards();
           setShowModal(false);
         } else {
-          alert(actualData.msg || '添加失败');
+          alert(extractMessage(response, '添加失败'));
         }
       }
     } catch (error) {
@@ -107,12 +100,11 @@ export function BankCards() {
     }
     try {
       const response = await apiClient.put(`/system-bank-card/${id}/activate`);
-      const actualData = response.data.data || response.data;
-      if (actualData.code === 0 || response.data.code === 0) {
+      if (isSuccessResponse(response)) {
         alert('启用成功');
-        fetchBankCards();
+        void fetchBankCards();
       } else {
-        alert(actualData.msg || '启用失败');
+        alert(extractMessage(response, '启用失败'));
       }
     } catch (error) {
       console.error('启用失败:', error);
@@ -126,12 +118,11 @@ export function BankCards() {
     }
     try {
       const response = await apiClient.delete(`/system-bank-card/${id}`);
-      const actualData = response.data.data || response.data;
-      if (actualData.code === 0 || response.data.code === 0) {
+      if (isSuccessResponse(response)) {
         alert('删除成功');
-        fetchBankCards();
+        void fetchBankCards();
       } else {
-        alert(actualData.msg || '删除失败');
+        alert(extractMessage(response, '删除失败'));
       }
     } catch (error) {
       console.error('删除失败:', error);

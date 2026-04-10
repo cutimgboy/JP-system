@@ -1,4 +1,5 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ProductEntity } from '../../cfd/entities/product.entity';
@@ -14,6 +15,7 @@ export class MockQuoteService implements OnModuleInit {
   private updateInterval: NodeJS.Timeout | null = null;
 
   constructor(
+    private readonly configService: ConfigService,
     @InjectRepository(ProductEntity)
     private readonly productRepository: Repository<ProductEntity>,
   ) {}
@@ -22,6 +24,14 @@ export class MockQuoteService implements OnModuleInit {
    * 模块初始化时调用
    */
   async onModuleInit() {
+    const disableQuoteInit =
+      this.configService.get('DISABLE_QUOTE_INIT', 'false') === 'true';
+
+    if (disableQuoteInit) {
+      console.log('⚠️ MockQuoteService 自动初始化已禁用');
+      return;
+    }
+
     await this.initializePrices();
     console.log(`✅ MockQuoteService 已初始化，共 ${this.priceCache.size} 个产品`);
   }

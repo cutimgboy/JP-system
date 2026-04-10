@@ -7,41 +7,59 @@ import { RedisService } from '../redis/redis.service';
 import { StockRealtimePriceEntity } from './entities/stock-realtime-price.entity';
 import { StockPriceChangeEntity } from './entities/stock-price-change.entity';
 import { TradingSettingsEntity } from '../cfd/entities/trading-settings.entity';
+import { ProductEntity } from '../cfd/entities/product.entity';
 import { StockTickData } from './entities/stock-tick.entity';
 
 describe('QuoteService', () => {
   let service: QuoteService;
-  let redisService: RedisService;
   let tradingSettingsRepository: Repository<TradingSettingsEntity>;
-  let stockRealtimePriceRepository: Repository<StockRealtimePriceEntity>;
-  let stockPriceChangeRepository: Repository<StockPriceChangeEntity>;
 
   const mockRedisService = {
-    get: jest.fn(),
-    setex: jest.fn(),
-    getClient: jest.fn(() => ({
-      get: jest.fn(),
-      setex: jest.fn(),
-    })),
+    getStockQuote: jest.fn(),
+    getAllQuotes: jest.fn(),
+    batchSet: jest.fn(),
+    setAllQuotes: jest.fn(),
+    getCacheStats: jest.fn(),
+    cleanExpiredCache: jest.fn(),
   };
 
   const mockTradingSettingsRepository = {
+    find: jest.fn(),
     findOne: jest.fn(),
   };
 
   const mockStockRealtimePriceRepository = {
-    save: jest.fn(),
+    insert: jest.fn(),
   };
 
   const mockStockPriceChangeRepository = {
-    save: jest.fn(),
+    insert: jest.fn(),
+  };
+
+  const mockProductRepository = {
+    find: jest.fn(),
   };
 
   const mockConfigService = {
     get: jest.fn(),
   };
 
+  const mockTickData: StockTickData = {
+    code: 'NVDA.US',
+    price: '145.67',
+    volume: '1000000',
+    turnover: '145670000',
+    tick_time: '2024-01-01T10:30:00.123Z',
+    seq: '12345',
+    trade_direction: 1,
+  };
+
   beforeEach(async () => {
+    jest.clearAllMocks();
+    mockConfigService.get.mockImplementation((_key: string, defaultValue?: string) => defaultValue);
+    mockTradingSettingsRepository.find.mockResolvedValue([]);
+    mockProductRepository.find.mockResolvedValue([]);
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         QuoteService,
@@ -65,20 +83,36 @@ describe('QuoteService', () => {
           provide: getRepositoryToken(StockPriceChangeEntity),
           useValue: mockStockPriceChangeRepository,
         },
+        {
+          provide: getRepositoryToken(ProductEntity),
+          useValue: mockProductRepository,
+        },
       ],
     }).compile();
 
     service = module.get<QuoteService>(QuoteService);
-    redisService = module.get<RedisService>(RedisService);
     tradingSettingsRepository = module.get<Repository<TradingSettingsEntity>>(
       getRepositoryToken(TradingSettingsEntity),
     );
-    stockRealtimePriceRepository = module.get<Repository<StockRealtimePriceEntity>>(
-      getRepositoryToken(StockRealtimePriceEntity),
-    );
-    stockPriceChangeRepository = module.get<Repository<StockPriceChangeEntity>>(
-      getRepositoryToken(StockPriceChangeEntity),
-    );
+  });
+
+  afterEach(() => {
+    const timers = [
+      'allQuotesRefreshTimer',
+      'dbFlushTimer',
+      'heartbeatTimer',
+      'mockDataTimer',
+      'reconnectTimer',
+    ] as const;
+
+    timers.forEach((timerKey) => {
+      const timer = (service as any)[timerKey];
+      if (timer) {
+        clearTimeout(timer);
+        clearInterval(timer);
+        (service as any)[timerKey] = null;
+      }
+    });
   });
 
   it('should be defined', () => {
@@ -87,130 +121,48 @@ describe('QuoteService', () => {
 
   describe('价格计算逻辑测试', () => {
     it('应该正确计算买入价格和卖出价格', async () => {
-      const mockTradingSettings: TradingSettingsEntity = {
-        id: 1,
+      mockRedisService.getStockQuote.mockResolvedValue(null);
+      mockTradingSettingsRepository.findOne.mockResolvedValue({
         code: 'NVDA.US',
-        spread: 0.20,
-        askSpread: 0.20,
-      } as TradingSettingsEntity;
+        bidSpread: 0.2,
+        askSpread: 0.2,
+      } as TradingSettingsEntity);
 
-      const mockTickData: StockTickData = {
-        code: 'NVDA.US',
-        price: '145.67',
-        volume: '1000000',
-        turnover: '145670000',
-        tick_time: '2024-01-01T10:30:00.123Z',
-        seq: '12345',
-        trade_direction: 1,
-      };
-
-      // 模拟Redis缓存中没有旧价格
-      mockRedisService.get.mockResolvedValue(null);
-      
-      // 模拟trading_settings查询
-      mockTradingSettingsRepository.findOne.mockResolvedValue(mockTradingSettings);
-
-      // 模拟Redis操作
-      const mockRedisClient = {
-        setex: jest.fn(),
-      };
-      mockRedisService.getClient.mockReturnValue(mockRedisClient);
-
-      // 调用私有方法进行测试
       await (service as any).processPriceChange(mockTickData);
 
-      // 验证Redis缓存更新
-      expect(mockRedisClient.setex).toHaveBeenCalledWith(
-        'stock:quote:NVDA.US',
-        60,
-        expect.stringContaining('"buy_price":145.87')
+      const quoteOperation = mockRedisService.batchSet.mock.calls[0][0].find(
+        (operation: { key: string }) => operation.key === 'stock:quote:NVDA.US',
       );
-      expect(mockRedisClient.setex).toHaveBeenCalledWith(
-        'stock:quote:NVDA.US',
-        60,
-        expect.stringContaining('"sale_price":145.47')
-      );
+      const payload = JSON.parse(quoteOperation.value);
 
-      // 验证价格计算
-      const expectedBuyPrice = 145.67 + 0.20; // 145.87
-      const expectedSalePrice = 145.67 - 0.20; // 145.47
-
-      expect(mockRedisClient.setex).toHaveBeenCalledWith(
-        'stock:quote:NVDA.US',
-        60,
-        expect.stringContaining(`"buy_price":${expectedBuyPrice}`)
-      );
-      expect(mockRedisClient.setex).toHaveBeenCalledWith(
-        'stock:quote:NVDA.US',
-        60,
-        expect.stringContaining(`"sale_price":${expectedSalePrice}`)
-      );
+      expect(payload.buy_price).toBeCloseTo(145.87, 2);
+      expect(payload.sale_price).toBeCloseTo(145.47, 2);
     });
 
     it('应该在价格没有变化时跳过处理', async () => {
-      const mockTickData: StockTickData = {
+      mockRedisService.getStockQuote.mockResolvedValue({
         code: 'NVDA.US',
-        price: '145.67',
-        volume: '1000000',
-        turnover: '145670000',
-        tick_time: '2024-01-01T10:30:00.123Z',
-        seq: '12345',
-        trade_direction: 1,
-      };
+        realtime_price: 145.67,
+      });
 
-      // 模拟Redis缓存中有相同价格
-      mockRedisService.get.mockResolvedValue('145.67');
-
-      // 模拟Redis操作
-      const mockRedisClient = {
-        setex: jest.fn(),
-      };
-      mockRedisService.getClient.mockReturnValue(mockRedisClient);
-
-      // 调用私有方法进行测试
       await (service as any).processPriceChange(mockTickData);
 
-      // 验证没有调用Redis更新（因为价格没有变化）
-      expect(mockRedisClient.setex).not.toHaveBeenCalled();
+      expect(mockRedisService.batchSet).not.toHaveBeenCalled();
     });
 
     it('应该在没有价差设置时使用默认值', async () => {
-      const mockTickData: StockTickData = {
-        code: 'NVDA.US',
-        price: '145.67',
-        volume: '1000000',
-        turnover: '145670000',
-        tick_time: '2024-01-01T10:30:00.123Z',
-        seq: '12345',
-        trade_direction: 1,
-      };
-
-      // 模拟Redis缓存中没有旧价格
-      mockRedisService.get.mockResolvedValue(null);
-      
-      // 模拟trading_settings查询返回null
+      mockRedisService.getStockQuote.mockResolvedValue(null);
       mockTradingSettingsRepository.findOne.mockResolvedValue(null);
 
-      // 模拟Redis操作
-      const mockRedisClient = {
-        setex: jest.fn(),
-      };
-      mockRedisService.getClient.mockReturnValue(mockRedisClient);
-
-      // 调用私有方法进行测试
       await (service as any).processPriceChange(mockTickData);
 
-      // 验证Redis缓存更新（使用默认价差0）
-      expect(mockRedisClient.setex).toHaveBeenCalledWith(
-        'stock:quote:NVDA.US',
-        60,
-        expect.stringContaining('"buy_price":145.67')
+      const quoteOperation = mockRedisService.batchSet.mock.calls[0][0].find(
+        (operation: { key: string }) => operation.key === 'stock:quote:NVDA.US',
       );
-      expect(mockRedisClient.setex).toHaveBeenCalledWith(
-        'stock:quote:NVDA.US',
-        60,
-        expect.stringContaining('"sale_price":145.67')
-      );
+      const payload = JSON.parse(quoteOperation.value);
+
+      expect(payload.buy_price).toBe(145.67);
+      expect(payload.sale_price).toBe(145.67);
     });
   });
 
@@ -224,34 +176,21 @@ describe('QuoteService', () => {
         updated_at: '2024-01-01T10:30:00.123Z',
       };
 
-      const mockRedisClient = {
-        get: jest.fn().mockResolvedValue(JSON.stringify(mockRedisData)),
-      };
-      mockRedisService.getClient.mockReturnValue(mockRedisClient);
+      mockRedisService.getAllQuotes.mockResolvedValue(mockRedisData);
 
       const result = await service.getAllRealtimeQuotes();
 
       expect(result).toEqual(mockRedisData);
-      expect(mockRedisClient.get).toHaveBeenCalledWith('stock:quotes:all');
+      expect(mockRedisService.getAllQuotes).toHaveBeenCalled();
     });
 
     it('应该返回单个股票的实时行情', async () => {
-      const mockQuoteData = {
+      mockRedisService.getStockQuote.mockResolvedValue({
         code: 'NVDA.US',
         realtime_price: 145.67,
         buy_price: 145.87,
         sale_price: 145.47,
-        spread: 0.20,
-        askSpread: 0.20,
-        volume: 1000000,
-        tick_time: '2024-01-01T10:30:00.123Z',
-        updated_at: '2024-01-01T10:30:00.123Z',
-      };
-
-      const mockRedisClient = {
-        get: jest.fn().mockResolvedValue(JSON.stringify(mockQuoteData)),
-      };
-      mockRedisService.getClient.mockReturnValue(mockRedisClient);
+      });
 
       const result = await service.getRealtimeQuote('NVDA.US');
 
@@ -260,14 +199,11 @@ describe('QuoteService', () => {
         buy_price: 145.87,
         sale_price: 145.47,
       });
-      expect(mockRedisClient.get).toHaveBeenCalledWith('stock:quote:NVDA.US');
+      expect(mockRedisService.getStockQuote).toHaveBeenCalledWith('NVDA.US');
     });
 
     it('应该在缓存不存在时返回默认值', async () => {
-      const mockRedisClient = {
-        get: jest.fn().mockResolvedValue(null),
-      };
-      mockRedisService.getClient.mockReturnValue(mockRedisClient);
+      mockRedisService.getStockQuote.mockResolvedValue(null);
 
       const result = await service.getRealtimeQuote('NVDA.US');
 
@@ -277,5 +213,19 @@ describe('QuoteService', () => {
         sale_price: 0,
       });
     });
+  });
+
+  it('应该缓存查询到的交易设置', async () => {
+    mockTradingSettingsRepository.findOne.mockResolvedValue({
+      code: 'NVDA.US',
+      bidSpread: 0.3,
+      askSpread: 0.1,
+    } as TradingSettingsEntity);
+
+    const firstResult = await (service as any).getTradingSettings('NVDA.US');
+    const secondResult = await (service as any).getTradingSettings('NVDA.US');
+
+    expect(firstResult).toEqual(secondResult);
+    expect(tradingSettingsRepository.findOne).toHaveBeenCalledTimes(1);
   });
 });

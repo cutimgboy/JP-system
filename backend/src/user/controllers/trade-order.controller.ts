@@ -9,9 +9,11 @@ import {
   Request,
 } from '@nestjs/common';
 import { TradeOrderService, CreateOrderDto } from '../services/trade-order.service';
+import { AccountService } from '../services/account.service';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
 import { OrderStatus } from '../entities/trade-order.entity';
 import { AccountType } from '../entities/user-account.entity';
+import { RewardSettingService } from '../../reward/services/reward-setting.service';
 
 /**
  * 交易订单控制器
@@ -19,7 +21,11 @@ import { AccountType } from '../entities/user-account.entity';
 @Controller('trade')
 @UseGuards(JwtAuthGuard)
 export class TradeOrderController {
-  constructor(private readonly tradeOrderService: TradeOrderService) {}
+  constructor(
+    private readonly tradeOrderService: TradeOrderService,
+    private readonly accountService: AccountService,
+    private readonly rewardSettingService: RewardSettingService,
+  ) {}
 
   /**
    * 创建交易订单（开仓）
@@ -114,6 +120,57 @@ export class TradeOrderController {
       data: stats,
       code: 0,
       msg: '请求成功',
+    };
+  }
+
+  /**
+   * 获取持仓页摘要数据，减少前端高频轮询时的请求数量
+   */
+  @Get('dashboard')
+  async getDashboard(@Request() req, @Query('accountType') accountType?: string) {
+    const userId = req.user.id;
+    const currentType =
+      accountType === 'real' ? AccountType.REAL : AccountType.DEMO;
+    const otherType =
+      currentType === AccountType.REAL ? AccountType.DEMO : AccountType.REAL;
+
+    const [
+      stats,
+      currentBalance,
+      otherBalance,
+      rewardSetting,
+      openOrders,
+      historyOrders,
+    ] = await Promise.all([
+      this.tradeOrderService.getUserStats(userId, currentType),
+      this.accountService.getBalance(userId, currentType),
+      this.accountService.getBalance(userId, otherType),
+      this.rewardSettingService.getByAccountType(currentType),
+      this.tradeOrderService.getUserOpenOrders(userId, currentType),
+      this.tradeOrderService.getUserOrders(
+        userId,
+        OrderStatus.CLOSED,
+        50,
+        currentType,
+      ),
+    ]);
+
+    return {
+      stats,
+      balances: {
+        current: currentBalance,
+        demo:
+          currentType === AccountType.DEMO ? currentBalance : otherBalance,
+        real:
+          currentType === AccountType.REAL ? currentBalance : otherBalance,
+      },
+      reward: {
+        rewardAmount: rewardSetting?.rewardAmount || 0,
+        isActive: rewardSetting?.isActive || 0,
+      },
+      openOrders,
+      historyOrders,
+      serverTime: new Date().toISOString(),
     };
   }
 }

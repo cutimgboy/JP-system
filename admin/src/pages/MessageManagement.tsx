@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Plus, Edit2, Trash2, Save, X } from 'lucide-react';
-import { apiClient } from '../utils/api';
+import { apiClient, extractData } from '../utils/api';
 
 interface Message {
   id?: number;
@@ -33,7 +33,8 @@ export function MessageManagement() {
   const fetchData = async () => {
     try {
       const response = await apiClient.get('/api/admin/messages');
-      setMessages(response.data || []);
+      const messagesData = extractData<Message[]>(response) || [];
+      setMessages(Array.isArray(messagesData) ? messagesData : []);
     } catch (error) {
       console.error('获取数据失败:', error);
     }
@@ -51,7 +52,7 @@ export function MessageManagement() {
         type: 'info',
         sortOrder: 0,
       });
-      fetchData();
+      void fetchData();
     } catch (error) {
       console.error('添加失败:', error);
       alert('添加失败');
@@ -70,7 +71,7 @@ export function MessageManagement() {
       await apiClient.put(`/api/admin/messages/${editingId}`, editingItem);
       setEditingId(null);
       setEditingItem(null);
-      fetchData();
+      void fetchData();
     } catch (error) {
       console.error('保存失败:', error);
       alert('保存失败');
@@ -82,7 +83,7 @@ export function MessageManagement() {
 
     try {
       await apiClient.delete(`/api/admin/messages/${id}`);
-      fetchData();
+      void fetchData();
     } catch (error) {
       console.error('删除失败:', error);
       alert('删除失败');

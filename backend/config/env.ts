@@ -1,18 +1,18 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
-// 我发现打包到 docker 后是没有NODE_ENV这个变量的，可能需要自己增加，这边先反着判断
-const isProd = process.env.NODE_ENV !== 'development';
+const isProd = process.env.NODE_ENV === 'production';
 
-function parseEnv() {
+function resolveEnvFiles() {
   const localEnv = path.resolve('.env.dev');
   const prodEnv = path.resolve('.env.prod');
+  const candidates = isProd ? [prodEnv, localEnv] : [localEnv, prodEnv];
+  const envFilePath = candidates.filter(filePath => fs.existsSync(filePath));
 
-  if (!fs.existsSync(localEnv) && !fs.existsSync(prodEnv)) {
-    throw new Error('==========缺少环境配置文件==========');
-  }
-
-  const filePath = isProd && fs.existsSync(prodEnv) ? prodEnv : localEnv;
-  return { path: filePath };
+  return {
+    envFilePath,
+    ignoreEnvFile: envFilePath.length === 0,
+  };
 }
-export default parseEnv();
+
+export default resolveEnvFiles();

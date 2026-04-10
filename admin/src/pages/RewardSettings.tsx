@@ -1,6 +1,11 @@
 import { useState, useEffect } from 'react';
 import { Toast } from '../components/Toast';
-import { apiClient } from '../utils/api';
+import {
+  apiClient,
+  extractData,
+  extractMessage,
+  isSuccessResponse,
+} from '../utils/api';
 
 interface RewardSetting {
   id: number;
@@ -26,11 +31,8 @@ export function RewardSettings() {
     setLoading(true);
     try {
       const response = await apiClient.get('/reward/settings');
-      const actualData = response.data || response;
-      if (actualData.code === 0) {
-        const settingsData = actualData.data || actualData || [];
-        setSettings(Array.isArray(settingsData) ? settingsData : []);
-      }
+      const settingsData = extractData<RewardSetting[]>(response) || [];
+      setSettings(Array.isArray(settingsData) ? settingsData : []);
     } catch (error) {
       console.error('获取奖励设置失败:', error);
       setSettings([]);
@@ -61,13 +63,12 @@ export function RewardSettings() {
         isActive: editActive,
       });
 
-      const actualData = response.data.data || response.data;
-      if (actualData.code === 0 || response.data.code === 0) {
+      if (isSuccessResponse(response)) {
         setToast({ message: '更新成功', type: 'success' });
         setShowEditModal(false);
-        fetchSettings();
+        void fetchSettings();
       } else {
-        setToast({ message: actualData.msg || '更新失败', type: 'error' });
+        setToast({ message: extractMessage(response, '更新失败'), type: 'error' });
       }
     } catch (error) {
       console.error('更新失败:', error);

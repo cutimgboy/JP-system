@@ -31,14 +31,12 @@ export function TradingChart({ countdown, stockCode = 'AAPL.US', entryPrice, ent
 
     const sseUrl = `${API_BASE_URL}/api/quote/stream/${stockCode}`;
 
-    console.log(`正在连接 SSE: ${sseUrl}`);
     setConnectionStatus('connecting');
 
     const eventSource = new EventSource(sseUrl);
     eventSourceRef.current = eventSource;
 
     eventSource.onopen = () => {
-      console.log('SSE 连接已建立');
       setConnectionStatus('connected');
     };
 
@@ -48,19 +46,13 @@ export function TradingChart({ countdown, stockCode = 'AAPL.US', entryPrice, ent
         // 处理 NestJS SSE 的双重嵌套格式
         const data = parsed.data || parsed;
 
-        console.log('收到 SSE 数据:', data);
-
-        if (data.type === 'connected') {
-          console.log('SSE 连接确认:', data);
-        } else if (data.type === 'tick') {
+        if (data.type === 'tick') {
           // 接收到新的 tick 数据
           const newDataPoint: KLineData = {
             time: data.time,
             price: data.price,
             volume: data.volume,
           };
-
-          console.log('添加新数据点:', newDataPoint);
 
           setKLineData(prev => {
             const updated = [...prev, newDataPoint];
@@ -74,8 +66,6 @@ export function TradingChart({ countdown, stockCode = 'AAPL.US', entryPrice, ent
           if (onPriceUpdate) {
             onPriceUpdate(data.price, data.time);
           }
-        } else if (data.type === 'heartbeat') {
-          console.log('收到心跳:', data.timestamp);
         }
       } catch (error) {
         console.error('解析 SSE 数据失败:', error, event.data);
@@ -90,7 +80,7 @@ export function TradingChart({ countdown, stockCode = 'AAPL.US', entryPrice, ent
 
     // 清理函数
     return () => {
-      console.log('关闭 SSE 连接');
+      eventSourceRef.current = null;
       eventSource.close();
     };
   }, [stockCode]);

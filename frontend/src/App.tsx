@@ -1,28 +1,84 @@
+import { Suspense, lazy } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { ProtectedRoute } from './components/ProtectedRoute';
-import { Login } from './pages/auth/Login';
-import Splash from './pages/splash';
-import Trading from './pages/trading';
-import Market from './pages/market';
-import Community from './pages/community';
-import Positions from './pages/positions';
-import OrderDetail from './pages/positions/OrderDetail';
-import Profile from './pages/profile';
-import { PersonalInfo } from './pages/personal-info';
-import { MessageCenter } from './pages/message-center';
-import { ChangePassword } from './pages/change-password';
-import { ChangeLanguage } from './pages/change-language';
-import { InstallApp } from './pages/install-app';
-import { AboutUs } from './pages/about-us';
-import { Deposit } from './pages/deposit';
-import { DepositFunds } from './pages/deposit/funds';
-import { DepositUpload } from './pages/deposit/upload';
-import { DepositDetail } from './pages/deposit/detail';
-import { Withdraw } from './pages/withdraw';
-import { FundRecords } from './pages/fund-records';
-import { MyBank } from './pages/my-bank';
-import { AddBankCard } from './pages/my-bank/add';
-import { Promotion } from './pages/promotion';
+
+const Login = lazy(() =>
+  import('./pages/auth/Login').then((module) => ({ default: module.Login })),
+);
+const Splash = lazy(() => import('./pages/splash'));
+const Trading = lazy(() => import('./pages/trading'));
+const Market = lazy(() => import('./pages/market'));
+const Community = lazy(() => import('./pages/community'));
+const Positions = lazy(() => import('./pages/positions'));
+const OrderDetail = lazy(() => import('./pages/positions/OrderDetail'));
+const Profile = lazy(() => import('./pages/profile'));
+const PersonalInfo = lazy(() =>
+  import('./pages/personal-info').then((module) => ({
+    default: module.PersonalInfo,
+  })),
+);
+const MessageCenter = lazy(() =>
+  import('./pages/message-center').then((module) => ({
+    default: module.MessageCenter,
+  })),
+);
+const ChangePassword = lazy(() =>
+  import('./pages/change-password').then((module) => ({
+    default: module.ChangePassword,
+  })),
+);
+const ChangeLanguage = lazy(() =>
+  import('./pages/change-language').then((module) => ({
+    default: module.ChangeLanguage,
+  })),
+);
+const InstallApp = lazy(() =>
+  import('./pages/install-app').then((module) => ({
+    default: module.InstallApp,
+  })),
+);
+const AboutUs = lazy(() =>
+  import('./pages/about-us').then((module) => ({ default: module.AboutUs })),
+);
+const Deposit = lazy(() =>
+  import('./pages/deposit').then((module) => ({ default: module.Deposit })),
+);
+const DepositFunds = lazy(() =>
+  import('./pages/deposit/funds').then((module) => ({
+    default: module.DepositFunds,
+  })),
+);
+const DepositUpload = lazy(() =>
+  import('./pages/deposit/upload').then((module) => ({
+    default: module.DepositUpload,
+  })),
+);
+const DepositDetail = lazy(() =>
+  import('./pages/deposit/detail').then((module) => ({
+    default: module.DepositDetail,
+  })),
+);
+const Withdraw = lazy(() =>
+  import('./pages/withdraw').then((module) => ({ default: module.Withdraw })),
+);
+const FundRecords = lazy(() =>
+  import('./pages/fund-records').then((module) => ({
+    default: module.FundRecords,
+  })),
+);
+const MyBank = lazy(() =>
+  import('./pages/my-bank').then((module) => ({ default: module.MyBank })),
+);
+const AddBankCard = lazy(() =>
+  import('./pages/my-bank/add').then((module) => ({
+    default: module.AddBankCard,
+  })),
+);
+const Promotion = lazy(() =>
+  import('./pages/promotion').then((module) => ({
+    default: module.Promotion,
+  })),
+);
 
 function RootRedirect() {
   const hasSeenSplash = localStorage.getItem('hasSeenSplash');
@@ -39,189 +95,197 @@ function RootRedirect() {
   return <Navigate to="/market" replace />;
 }
 
+function PageLoader() {
+  return (
+    <div className="min-h-screen bg-[#09090b] flex items-center justify-center">
+      <div className="text-center">
+        <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#6c48f5]"></div>
+        <p className="mt-4 text-[#8a8a93]">页面加载中...</p>
+      </div>
+    </div>
+  );
+}
+
 function App() {
   return (
-    <Routes>
-      {/* 启动页 - 公开访问 */}
-      <Route path="/splash" element={<Splash />} />
+    <Suspense fallback={<PageLoader />}>
+      <Routes>
+        <Route path="/splash" element={<Splash />} />
+        <Route path="/login" element={<Login />} />
 
-      {/* 登录页面 - 公开访问 */}
-      <Route path="/login" element={<Login />} />
+        <Route path="/" element={<RootRedirect />} />
+        <Route
+          path="/market"
+          element={
+            <ProtectedRoute>
+              <Market />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/trading"
+          element={
+            <ProtectedRoute>
+              <Trading />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/community"
+          element={
+            <ProtectedRoute>
+              <Community />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/positions"
+          element={
+            <ProtectedRoute>
+              <Positions />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/positions/order/:orderId"
+          element={
+            <ProtectedRoute>
+              <OrderDetail />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/profile"
+          element={
+            <ProtectedRoute>
+              <Profile />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/personal-info"
+          element={
+            <ProtectedRoute>
+              <PersonalInfo />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/message-center"
+          element={
+            <ProtectedRoute>
+              <MessageCenter />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/change-password"
+          element={
+            <ProtectedRoute>
+              <ChangePassword />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/change-language"
+          element={
+            <ProtectedRoute>
+              <ChangeLanguage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/install-app"
+          element={
+            <ProtectedRoute>
+              <InstallApp />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/about-us"
+          element={
+            <ProtectedRoute>
+              <AboutUs />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/deposit"
+          element={
+            <ProtectedRoute>
+              <Deposit />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/deposit/funds"
+          element={
+            <ProtectedRoute>
+              <DepositFunds />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/deposit/upload"
+          element={
+            <ProtectedRoute>
+              <DepositUpload />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/deposit/detail"
+          element={
+            <ProtectedRoute>
+              <DepositDetail />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/withdraw"
+          element={
+            <ProtectedRoute>
+              <Withdraw />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/fund-records"
+          element={
+            <ProtectedRoute>
+              <FundRecords />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/my-bank"
+          element={
+            <ProtectedRoute>
+              <MyBank />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/my-bank/add"
+          element={
+            <ProtectedRoute>
+              <AddBankCard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/promotion"
+          element={
+            <ProtectedRoute>
+              <Promotion />
+            </ProtectedRoute>
+          }
+        />
 
-      {/* 受保护的路由 - 需要登录 */}
-      <Route path="/" element={<RootRedirect />} />
-      <Route
-        path="/market"
-        element={
-          <ProtectedRoute>
-            <Market />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/trading"
-        element={
-          <ProtectedRoute>
-            <Trading />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/community"
-        element={
-          <ProtectedRoute>
-            <Community />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/positions"
-        element={
-          <ProtectedRoute>
-            <Positions />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/positions/order/:orderId"
-        element={
-          <ProtectedRoute>
-            <OrderDetail />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/profile"
-        element={
-          <ProtectedRoute>
-            <Profile />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/personal-info"
-        element={
-          <ProtectedRoute>
-            <PersonalInfo />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/message-center"
-        element={
-          <ProtectedRoute>
-            <MessageCenter />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/change-password"
-        element={
-          <ProtectedRoute>
-            <ChangePassword />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/change-language"
-        element={
-          <ProtectedRoute>
-            <ChangeLanguage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/install-app"
-        element={
-          <ProtectedRoute>
-            <InstallApp />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/about-us"
-        element={
-          <ProtectedRoute>
-            <AboutUs />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/deposit"
-        element={
-          <ProtectedRoute>
-            <Deposit />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/deposit/funds"
-        element={
-          <ProtectedRoute>
-            <DepositFunds />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/deposit/upload"
-        element={
-          <ProtectedRoute>
-            <DepositUpload />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/deposit/detail"
-        element={
-          <ProtectedRoute>
-            <DepositDetail />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/withdraw"
-        element={
-          <ProtectedRoute>
-            <Withdraw />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/fund-records"
-        element={
-          <ProtectedRoute>
-            <FundRecords />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/my-bank"
-        element={
-          <ProtectedRoute>
-            <MyBank />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/my-bank/add"
-        element={
-          <ProtectedRoute>
-            <AddBankCard />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/promotion"
-        element={
-          <ProtectedRoute>
-            <Promotion />
-          </ProtectedRoute>
-        }
-      />
-
-      {/* 404 页面 */}
-      <Route path="*" element={<div>404 - Page Not Found</div>} />
-    </Routes>
+        <Route path="*" element={<div>404 - Page Not Found</div>} />
+      </Routes>
+    </Suspense>
   );
 }
 

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import { apiClient, extractData } from '../../utils/api';
+import { apiClient, extractData, extractMessage } from '../../utils/api';
 
 export function Login() {
   const navigate = useNavigate();
@@ -58,17 +58,18 @@ export function Login() {
     try {
       setLoading(true);
       const response = await apiClient.post('/auth/send-sms', { phone });
+      const smsData = extractData<{ code?: string | number }>(response);
 
       // 开发环境下显示验证码
-      if (import.meta.env.DEV && response.data?.code) {
-        console.log('验证码:', response.data.code);
-        alert(`验证码: ${response.data.code} (开发环境)`);
+      if (import.meta.env.DEV && smsData?.code) {
+        console.log('验证码:', smsData.code);
+        alert(`验证码: ${smsData.code} (开发环境)`);
       }
 
       setCountdown(60);
       setError('');
     } catch (err: any) {
-      setError(err.response?.data?.message || '发送验证码失败');
+      setError(extractMessage(err.response?.data, '发送验证码失败'));
     } finally {
       setLoading(false);
     }
@@ -92,14 +93,10 @@ export function Login() {
     try {
       setLoading(true);
 
-      console.log('发送登录请求:', { phone, code });
-
       const response = await apiClient.post('/auth/sms-login', {
         phone,
         code,
       });
-
-      console.log('登录响应:', response);
 
       // 使用 extractData 自动处理不同的数据嵌套格式
       const loginData = extractData(response);
@@ -114,15 +111,7 @@ export function Login() {
       }
     } catch (err: any) {
       console.error('登录错误:', err);
-      console.error('错误响应:', err.response);
-
-      // 显示后端返回的具体错误信息
-      const errorMessage = err.response?.data?.data?.message
-        || err.response?.data?.message
-        || err.message
-        || '登录失败';
-
-      setError(errorMessage);
+      setError(extractMessage(err.response?.data, err.message || '登录失败'));
     } finally {
       setLoading(false);
     }
@@ -138,7 +127,7 @@ export function Login() {
         </div>
 
         {/* 登录表单 */}
-        <div className="!bg-white/10 backdrop-blur-lg rounded-2xl p-8 shadow-2xl">
+        <div className="!bg-white/10 backdrop-blur-lg rounded-2xl p-6 sm:p-8 shadow-2xl">
           <form onSubmit={handleLogin}>
             {/* 手机号输入 */}
             <div className="mb-6">
@@ -160,20 +149,20 @@ export function Login() {
               <label className="block !text-white text-sm font-medium mb-2">
                 验证码
               </label>
-              <div className="flex gap-3">
+              <div className="flex items-stretch gap-3 min-w-0">
                 <input
                   type="text"
                   value={code}
                   onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
                   placeholder="请输入验证码"
-                  className="flex-1 px-4 py-3 !bg-white/10 !border !border-white/20 rounded-lg !text-white !placeholder-gray-400 focus:outline-none focus:!border-blue-500 focus:ring-2 focus:ring-blue-500/50 transition"
+                  className="w-0 min-w-0 flex-1 px-4 py-3 !bg-white/10 !border !border-white/20 rounded-lg !text-white !placeholder-gray-400 focus:outline-none focus:!border-blue-500 focus:ring-2 focus:ring-blue-500/50 transition"
                   maxLength={6}
                 />
                 <button
                   type="button"
                   onClick={handleSendCode}
                   disabled={countdown > 0 || loading}
-                  className={`px-4 py-3 rounded-lg font-medium transition whitespace-nowrap flex-shrink-0 ${
+                  className={`shrink-0 min-w-[96px] sm:min-w-[112px] px-3 sm:px-4 py-3 rounded-lg text-sm font-medium transition whitespace-nowrap ${
                     countdown > 0 || loading
                       ? '!bg-gray-500 !text-gray-300 cursor-not-allowed'
                       : '!bg-blue-500 !text-white hover:!bg-blue-600'

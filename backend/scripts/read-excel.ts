@@ -1,8 +1,8 @@
 import * as XLSX from 'xlsx';
-import * as path from 'path';
+import { resolveDataFile } from './utils/resolve-data-file';
 
 // 读取 Excel 文件
-const filePath = path.join(__dirname, '../CFD品种信息表.xlsx');
+const filePath = resolveDataFile('CFD品种信息表.xlsx');
 const workbook = XLSX.readFile(filePath);
 
 console.log('Sheet Names:', workbook.SheetNames);

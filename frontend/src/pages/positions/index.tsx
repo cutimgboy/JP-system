@@ -4,7 +4,11 @@ import { Toast } from '../../components/Toast';
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAccount } from '../../contexts/AccountContext';
-import apiClient, { extractData } from '../../utils/api';
+import apiClient, {
+  extractData,
+  extractMessage,
+  isSuccessResponse,
+} from '../../utils/api';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface Position {
@@ -33,6 +37,42 @@ interface HistoryRecord {
   closeTime: string;
 }
 
+interface BalanceSummary {
+  balance: number;
+  frozenBalance: number;
+  availableBalance: number;
+  totalProfit: number;
+  totalLoss: number;
+  netProfit: number;
+}
+
+interface DashboardSummary {
+  stats: {
+    totalOrders: number;
+    openOrders: number;
+    closedOrders: number;
+    winOrders: number;
+    lossOrders: number;
+    winRate: number;
+    totalProfit: number;
+    totalLoss: number;
+    netProfit: number;
+    todayProfitLoss: number;
+  };
+  balances: {
+    current: BalanceSummary;
+    demo: BalanceSummary;
+    real: BalanceSummary;
+  };
+  reward: {
+    rewardAmount: number;
+    isActive: number;
+  };
+  openOrders: Position[];
+  historyOrders: HistoryRecord[];
+  serverTime: string;
+}
+
 export default function PositionsPage() {
   const navigate = useNavigate();
   const { accountType, setAccountType } = useAccount();
@@ -55,157 +95,98 @@ export default function PositionsPage() {
 
   const tabs = ['全部', '今日', '交易中', '盈利', '亏损'];
 
-  // 获取持仓订单
-  const fetchPositions = async (showLoading = true) => {
-    try {
-      if (showLoading) setLoading(true);
-      const response = await apiClient.get('/trade/orders/open', {
-        params: { accountType }
-      });
-      const ordersData = extractData(response) || [];
-      setPositions(Array.isArray(ordersData) ? ordersData : []);
-    } catch (error) {
-      console.error('获取持仓失败:', error);
-      setPositions([]);
-    } finally {
-      if (showLoading) setLoading(false);
-    }
+  const applyDashboardData = (dashboardData: DashboardSummary) => {
+    setPositions(Array.isArray(dashboardData.openOrders) ? dashboardData.openOrders : []);
+    setHistoryRecords(
+      Array.isArray(dashboardData.historyOrders) ? dashboardData.historyOrders : [],
+    );
+    setTodayProfitLoss(Number(dashboardData.stats?.todayProfitLoss || 0));
+    setTodayTradeCount(Number(dashboardData.stats?.totalOrders || 0));
+    setTodayWinRate(Number(dashboardData.stats?.winRate || 0));
+    setAvailableBalance(
+      Number(dashboardData.balances?.current?.availableBalance || 0),
+    );
+    setDemoBalance(Number(dashboardData.balances?.demo?.availableBalance || 0));
+    setRealBalance(Number(dashboardData.balances?.real?.availableBalance || 0));
+    setRewardAmount(Number(dashboardData.reward?.rewardAmount || 0));
+    setRewardActive(Number(dashboardData.reward?.isActive || 0));
   };
 
-  // 获取历史订单
-  const fetchHistory = async (showLoading = true) => {
+  const fetchDashboard = async (showLoading = true) => {
     try {
-      if (showLoading) setLoading(true);
-      const response = await apiClient.get('/trade/orders', {
-        params: {
-          status: 'closed',
-          limit: 50,
-          accountType
-        }
+      if (showLoading) {
+        setLoading(true);
+      }
+
+      const response = await apiClient.get('/trade/dashboard', {
+        params: { accountType },
       });
-      const ordersData = extractData(response) || [];
-      setHistoryRecords(Array.isArray(ordersData) ? ordersData : []);
+      const dashboardData = extractData(response) as DashboardSummary | null;
+
+      if (!dashboardData) {
+        setPositions([]);
+        setHistoryRecords([]);
+        return;
+      }
+
+      applyDashboardData(dashboardData);
     } catch (error) {
-      console.error('获取历史记录失败:', error);
+      console.error('获取持仓摘要失败:', error);
+      setPositions([]);
       setHistoryRecords([]);
     } finally {
-      if (showLoading) setLoading(false);
-    }
-  };
-
-  // 获取交易统计
-  const fetchStats = async () => {
-    try {
-      const response = await apiClient.get('/trade/stats', {
-        params: { accountType }
-      });
-      const statsData = extractData(response) || {};
-      console.log('Stats data:', statsData); // 调试日志
-      setTodayProfitLoss(Number(statsData.todayProfitLoss || statsData.netProfit || 0));
-      setTodayTradeCount(Number(statsData.todayTradeCount || statsData.totalOrders || 0));
-      setTodayWinRate(Number(statsData.todayWinRate || statsData.winRate || 0));
-    } catch (error) {
-      console.error('获取统计失败:', error);
-    }
-  };
-
-  // 获取账户余额
-  const fetchBalance = async () => {
-    try {
-      // 获取当前账户余额
-      const response = await apiClient.get('/account/balance', {
-        params: { accountType }
-      });
-      const balanceData = extractData(response) || {};
-      console.log('Balance data:', balanceData); // 调试日志
-      const balance = Number(balanceData.balance || balanceData.availableBalance || 0);
-      setAvailableBalance(balance);
-
-      // 同时更新对应账户类型的余额
-      if (accountType === 'demo') {
-        setDemoBalance(balance);
-      } else {
-        setRealBalance(balance);
+      if (showLoading) {
+        setLoading(false);
       }
-
-      // 获取另一个账户的余额
-      const otherAccountType = accountType === 'demo' ? 'real' : 'demo';
-      const otherResponse = await apiClient.get('/account/balance', {
-        params: { accountType: otherAccountType }
-      });
-      const otherBalanceData = extractData(otherResponse) || {};
-      const otherBalance = Number(otherBalanceData.balance || otherBalanceData.availableBalance || 0);
-
-      if (otherAccountType === 'demo') {
-        setDemoBalance(otherBalance);
-      } else {
-        setRealBalance(otherBalance);
-      }
-    } catch (error) {
-      console.error('获取余额失败:', error);
     }
   };
 
-  // 获取奖励金额
-  const fetchReward = async () => {
-    try {
-      const response = await apiClient.get('/reward/amount', {
-        params: { accountType }
-      });
-      const rewardData = extractData(response) || {};
-      setRewardAmount(rewardData.rewardAmount || 0);
-      setRewardActive(rewardData.isActive || 0);
-    } catch (error) {
-      console.error('获取奖励失败:', error);
-    }
-  };
-
-  // 领取奖励
   const handleClaimReward = async () => {
     if (claiming) return;
 
     setClaiming(true);
     try {
       const response = await apiClient.post('/reward/claim', {
-        accountType
+        accountType,
       });
-
-      const actualData = response.data.data || response.data;
-      if (actualData.code === 0 || response.data.code === 0) {
+      if (isSuccessResponse(response)) {
         setToast({ message: '领取成功！奖励已发放到您的账户', type: 'success' });
         setTimeout(() => {
-          fetchReward();
-          fetchStats();
+          void fetchDashboard(false);
         }, 3500);
       } else {
-        setToast({ message: actualData.msg || response.data.msg || '领取失败', type: 'error' });
+        setToast({ message: extractMessage(response, '领取失败'), type: 'error' });
       }
     } catch (error: any) {
       console.error('领取奖励失败:', error);
-      const errorMsg = error.response?.data?.msg || '领取失败，请稍后重试';
+      const errorMsg = extractMessage(error.response?.data, '领取失败，请稍后重试');
       setToast({ message: errorMsg, type: 'error' });
     } finally {
       setClaiming(false);
     }
   };
 
-  // 初始化数据
   useEffect(() => {
-    fetchStats();
-    fetchBalance();
-    fetchReward();
-    fetchPositions();
-    fetchHistory();
+    void fetchDashboard();
 
-    const interval = setInterval(() => {
-      fetchStats();
-      fetchBalance();
-      fetchReward();
-      fetchPositions(false);
-      fetchHistory(false);
-    }, 5000);
+    const interval = window.setInterval(() => {
+      if (!document.hidden) {
+        void fetchDashboard(false);
+      }
+    }, 8000);
 
-    return () => clearInterval(interval);
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        void fetchDashboard(false);
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, [accountType]);
 
   // 点击外部关闭下拉菜单

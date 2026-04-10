@@ -10,7 +10,6 @@ import {
   SubscribeResponse,
   HeartbeatResponse,
   MessageCommandId,
-  DEFAULT_US_STOCKS
 } from './entities/stock-tick.entity';
 import { StockRealtimePriceEntity } from './entities/stock-realtime-price.entity';
 import { StockPriceChangeEntity } from './entities/stock-price-change.entity';
@@ -30,17 +29,17 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
   private reconnectTimer: NodeJS.Timeout | null = null;
   private heartbeatTimer: NodeJS.Timeout | null = null;
   private mockDataTimer: NodeJS.Timeout | null = null;
+  private dbFlushTimer: NodeJS.Timeout | null = null;
+  private allQuotesRefreshTimer: NodeJS.Timeout | null = null;
   private readonly reconnectInterval = 5000; // 5秒重连
   private readonly heartbeatInterval = 10000; // 10秒心跳（按照API要求）
-
-  // 模拟数据库 - 存储股票配置信息
-  private readonly stockDatabase: Map<string, { code: string; nameCn: string; nameEn: string; initialPrice: number }> = new Map([
-    ['NVDA.US', { code: 'NVDA.US', nameCn: '英伟达', nameEn: 'NVIDIA', initialPrice: 145.50 }],
-    ['MSFT.US', { code: 'MSFT.US', nameCn: '微软', nameEn: 'Microsoft', initialPrice: 425.30 }],
-    ['AAPL.US', { code: 'AAPL.US', nameCn: '苹果', nameEn: 'Apple', initialPrice: 258.09 }],
-    ['AMZN.US', { code: 'AMZN.US', nameCn: '亚马逊', nameEn: 'Amazon', initialPrice: 215.80 }],
-    ['GOOG.US', { code: 'GOOG.US', nameCn: '谷歌', nameEn: 'Google', initialPrice: 178.25 }],
-  ]);
+  private readonly allQuotesRefreshInterval = 1000;
+  private readonly dbFlushInterval = 1000;
+  private readonly dbBatchSize = 200;
+  private readonly maxBufferedDbRows = 5000;
+  private dbFlushInProgress = false;
+  private droppedDbRows = 0;
+  private lastDroppedRowsWarnAt = 0;
 
   // 订阅的股票列表 - 从数据库动态获取
   private subscribedSymbols: Set<string> = new Set();
@@ -50,6 +49,20 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
 
   // 产品列表缓存
   private productsCache: ProductEntity[] = [];
+  private tradingSettingsCache: Map<string, TradingSettingsEntity> = new Map();
+  private latestQuoteCache: Map<string, any> = new Map();
+
+  private maskSecret(secret: string | undefined): string {
+    if (!secret) {
+      return '[empty]';
+    }
+
+    if (secret.length <= 8) {
+      return `${secret.slice(0, 2)}***${secret.slice(-1)}`;
+    }
+
+    return `${secret.slice(0, 4)}***${secret.slice(-4)}`;
+  }
 
   /**
    * 获取目标股票列表（从数据库）
@@ -65,8 +78,12 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
   private sequenceId: number = 1;
   
   // 用于去重的最近收到的Tick数据缓存
-  private recentTickCache: Map<string, { tick: StockTickData, timestamp: number }> = new Map();
+  private recentTickCache: Map<string, number> = new Map();
   private readonly cacheExpiryTime = 1000; // 1秒内的重复数据将被过滤
+  private pendingTicks: Map<string, StockTickData> = new Map();
+  private processingTickCodes: Set<string> = new Set();
+  private realtimePriceBuffer: Array<Partial<StockRealtimePriceEntity>> = [];
+  private priceChangeBuffer: Array<Partial<StockPriceChangeEntity>> = [];
 
   // SSE 推送主题
   private tickSubject = new Subject<{ code: string; data: any }>();
@@ -99,8 +116,32 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  private async loadTradingSettingsCache(): Promise<void> {
+    try {
+      const settings = await this.tradingSettingsRepository.find();
+      this.tradingSettingsCache = new Map(
+        settings.map((item) => [item.code, item]),
+      );
+      this.logger.log(`加载了 ${this.tradingSettingsCache.size} 条交易配置`);
+    } catch (error) {
+      this.logger.error('加载交易配置失败:', error);
+      this.tradingSettingsCache.clear();
+    }
+  }
+
   async onModuleInit() {
     this.logger.log('QuoteService 初始化...');
+
+    const disableQuoteInit =
+      this.configService.get('DISABLE_QUOTE_INIT', 'false') === 'true';
+
+    if (disableQuoteInit) {
+      this.logger.warn('QuoteService 自动初始化已禁用');
+      return;
+    }
+
+    await this.loadTradingSettingsCache();
+    this.startDbFlushWorker();
 
     // 检查是否启用模拟模式
     const mockMode = this.configService.get('MOCK_QUOTE_DATA', 'false') === 'true';
@@ -118,6 +159,12 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
     this.logger.log('QuoteService 销毁，断开连接...');
     this.disconnect();
     this.stopMockDataGeneration();
+    this.stopDbFlushWorker();
+    if (this.allQuotesRefreshTimer) {
+      clearTimeout(this.allQuotesRefreshTimer);
+      this.allQuotesRefreshTimer = null;
+    }
+    await this.flushDatabaseBuffers(true);
   }
 
   /**
@@ -130,11 +177,11 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
     }
 
     const token = this.configService.get('QUOTE_WS_TOKEN', 'testtoken');
-    this.logger.log(`使用 Token: ${token}`);
+    this.logger.log(`使用 Token: ${this.maskSecret(token)}`);
     // 股票 API 地址 - 使用正确的 alltick.co 股票 WebSocket API
     const url = `wss://quote.alltick.co/quote-stock-b-ws-api?token=${token}`;
     
-    this.logger.log(`正在连接到行情服务器: ${url}`);
+    this.logger.log('正在连接到行情服务器: wss://quote.alltick.co/quote-stock-b-ws-api');
 
     this.ws = new WebSocket(url);
 
@@ -221,21 +268,47 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
     
     // 检查是否为重复数据
     const cached = this.recentTickCache.get(uniqueKey);
-    if (cached && (now - cached.timestamp) < this.cacheExpiryTime) {
+    if (cached && (now - cached) < this.cacheExpiryTime) {
       // 重复数据，跳过处理
       return;
     }
     
     // 缓存新的Tick数据
-    this.recentTickCache.set(uniqueKey, { tick: tickData, timestamp: now });
+    this.recentTickCache.set(uniqueKey, now);
     
     // 清理内存中的过期缓存数据
     this.cleanMemoryCache();
     
-    this.logger.debug(`收到新的 Tick 数据: ${tickData.code} - ${tickData.price}`);
-    
-    // 处理价格变化和缓存更新
-    this.processPriceChange(tickData);
+    // 同一股票代码仅保留最新一条待处理 tick，避免异步任务堆积
+    this.pendingTicks.set(tickData.code, tickData);
+    if (!this.processingTickCodes.has(tickData.code)) {
+      void this.processPendingTicks(tickData.code);
+    }
+  }
+
+  private async processPendingTicks(code: string): Promise<void> {
+    if (this.processingTickCodes.has(code)) {
+      return;
+    }
+
+    this.processingTickCodes.add(code);
+
+    try {
+      while (true) {
+        const tickData = this.pendingTicks.get(code);
+        if (!tickData) {
+          break;
+        }
+
+        this.pendingTicks.delete(code);
+        await this.processPriceChange(tickData);
+      }
+    } finally {
+      this.processingTickCodes.delete(code);
+      if (this.pendingTicks.has(code)) {
+        void this.processPendingTicks(code);
+      }
+    }
   }
 
   /**
@@ -244,7 +317,7 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
   private cleanMemoryCache(): void {
     const now = Date.now();
     for (const [key, value] of this.recentTickCache.entries()) {
-      if (now - value.timestamp > this.cacheExpiryTime) {
+      if (now - value > this.cacheExpiryTime) {
         this.recentTickCache.delete(key);
       }
     }
@@ -324,7 +397,6 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
           trace: `${uuid}-${timestamp}`,
           data: {},
         };
-        this.logger.log('发送心跳:', JSON.stringify(heartbeat, null, 2));
         this.send(heartbeat);
       }
     }, this.heartbeatInterval);
@@ -442,17 +514,19 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
     try {
       const code = tickData.code;
       const newPrice = parseFloat(tickData.price);
-      
-      // 获取Redis中的缓存价格
-      const cachedPrice = await this.redisService.getStockPrice(code);
+      const cachedQuote = await this.getCachedQuote(code);
+      const cachedPrice =
+        typeof cachedQuote?.realtime_price === 'number'
+          ? cachedQuote.realtime_price
+          : cachedQuote?.realtime_price
+            ? parseFloat(cachedQuote.realtime_price)
+            : null;
 
       // 检查价格是否真的变化了
       if (cachedPrice !== null && Math.abs(cachedPrice - newPrice) < 0.0001) {
         // 价格没有变化，跳过处理
         return;
       }
-
-      this.logger.log(`价格变化检测: ${code} ${cachedPrice} -> ${newPrice}`);
 
       // 获取价差设置
       const tradingSettings = await this.getTradingSettings(code);
@@ -462,8 +536,6 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
       const askSpread = parseFloat(tradingSettings?.askSpread?.toString() || '0');
       const buyPrice = newPrice + bidSpread;
       const salePrice = newPrice - askSpread;
-
-      this.logger.log(`价格计算 ${code}: 实时价格=${newPrice}, bidSpread=${bidSpread}, askSpread=${askSpread}, 买价=${buyPrice}, 卖价=${salePrice}`);
 
       // 更新Redis缓存
       const quoteData = {
@@ -478,19 +550,12 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
         updated_at: new Date().toISOString(),
       };
 
-      // 使用新的Redis缓存方法
-      await this.redisService.setStockQuote(code, quoteData);
-      await this.redisService.setStockPrice(code, newPrice);
-      await this.redisService.setStockSpread(code, {
+      await this.cacheQuoteData(code, quoteData, {
         bidSpread: tradingSettings?.bidSpread || 0,
         askSpread: tradingSettings?.askSpread || 0,
       });
-
-      // 异步保存到数据库（不等待完成）
-      this.saveToDatabase(tickData, cachedPrice);
-
-      // 更新所有股票汇总缓存
-      await this.updateAllQuotesCache();
+      this.scheduleDatabaseWrite(tickData, cachedPrice);
+      this.scheduleAllQuotesCacheRefresh();
 
       // 推送 SSE 事件
       this.tickSubject.next({
@@ -511,74 +576,214 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
    * 获取交易设置
    */
   private async getTradingSettings(code: string): Promise<TradingSettingsEntity | null> {
+    const cached = this.tradingSettingsCache.get(code);
+    if (cached) {
+      return cached;
+    }
+
     try {
-      return await this.tradingSettingsRepository.findOne({
+      const settings = await this.tradingSettingsRepository.findOne({
         where: { code },
       });
+      if (settings) {
+        this.tradingSettingsCache.set(code, settings);
+      }
+      return settings;
     } catch (error) {
       this.logger.error(`获取 ${code} 交易设置失败:`, error);
       return null;
     }
   }
 
+  private async getCachedQuote(code: string): Promise<any | null> {
+    const inMemory = this.latestQuoteCache.get(code);
+    if (inMemory) {
+      return inMemory;
+    }
+
+    const cachedQuote = await this.redisService.getStockQuote(code);
+    if (cachedQuote) {
+      this.latestQuoteCache.set(code, cachedQuote);
+    }
+
+    return cachedQuote;
+  }
+
+  private async cacheQuoteData(
+    code: string,
+    quoteData: any,
+    spreadData: { bidSpread: number; askSpread: number },
+  ): Promise<void> {
+    this.latestQuoteCache.set(code, quoteData);
+
+    await this.redisService.batchSet([
+      {
+        key: `stock:quote:${code}`,
+        value: JSON.stringify(quoteData),
+        ttl: 60,
+      },
+      {
+        key: `stock:price:${code}`,
+        value: quoteData.realtime_price.toString(),
+        ttl: 60,
+      },
+      {
+        key: `stock:spread:${code}`,
+        value: JSON.stringify(spreadData),
+        ttl: 300,
+      },
+    ]);
+  }
 
   /**
-   * 保存到数据库
+   * 将 tick 数据加入缓冲区，批量落库避免高频写入撑爆事件循环
    */
-  private async saveToDatabase(tickData: StockTickData, oldPrice: number | null): Promise<void> {
+  private scheduleDatabaseWrite(
+    tickData: StockTickData,
+    oldPrice: number | null,
+  ): void {
+    const newPrice = parseFloat(tickData.price);
+    const tickTime = this.parseTickTime(tickData.tick_time);
+    const volume = parseInt(tickData.volume) || 0;
+    const turnover = parseFloat(tickData.turnover) || 0;
+
+    this.realtimePriceBuffer.push({
+      code: tickData.code,
+      price: newPrice,
+      volume,
+      turnover,
+      tick_time: tickTime,
+    });
+
+    if (oldPrice !== null && Math.abs(oldPrice - newPrice) >= 0.0001) {
+      this.priceChangeBuffer.push({
+        code: tickData.code,
+        old_price: oldPrice,
+        new_price: newPrice,
+        price_change: newPrice - oldPrice,
+        change_rate: oldPrice !== 0 ? ((newPrice - oldPrice) / oldPrice) * 100 : 0,
+        volume,
+        tick_time: tickTime,
+      });
+    }
+
+    this.trimDatabaseBuffers();
+  }
+
+  private parseTickTime(tickTimeRaw: string): Date {
     try {
-      const newPrice = parseFloat(tickData.price);
-      
-      // 解析时间戳，如果无效则使用当前时间
-      let tickTime: Date;
-      try {
-        tickTime = new Date(tickData.tick_time);
-        if (isNaN(tickTime.getTime())) {
-          tickTime = new Date();
+      const tickTime = new Date(tickTimeRaw);
+      if (isNaN(tickTime.getTime())) {
+        return new Date();
+      }
+      return tickTime;
+    } catch {
+      return new Date();
+    }
+  }
+
+  private trimDatabaseBuffers(): void {
+    const overflowRealtime = this.realtimePriceBuffer.length - this.maxBufferedDbRows;
+    if (overflowRealtime > 0) {
+      this.realtimePriceBuffer.splice(0, overflowRealtime);
+      this.droppedDbRows += overflowRealtime;
+    }
+
+    const overflowChanges = this.priceChangeBuffer.length - this.maxBufferedDbRows;
+    if (overflowChanges > 0) {
+      this.priceChangeBuffer.splice(0, overflowChanges);
+      this.droppedDbRows += overflowChanges;
+    }
+
+    const now = Date.now();
+    if (this.droppedDbRows > 0 && now - this.lastDroppedRowsWarnAt >= 60000) {
+      this.logger.warn(`数据库写入缓冲区已满，累计丢弃 ${this.droppedDbRows} 条历史行情数据`);
+      this.droppedDbRows = 0;
+      this.lastDroppedRowsWarnAt = now;
+    }
+  }
+
+  private startDbFlushWorker(): void {
+    if (this.dbFlushTimer) {
+      return;
+    }
+
+    this.dbFlushTimer = setInterval(() => {
+      void this.flushDatabaseBuffers();
+    }, this.dbFlushInterval);
+  }
+
+  private stopDbFlushWorker(): void {
+    if (this.dbFlushTimer) {
+      clearInterval(this.dbFlushTimer);
+      this.dbFlushTimer = null;
+    }
+  }
+
+  private async flushDatabaseBuffers(force: boolean = false): Promise<void> {
+    if (this.dbFlushInProgress) {
+      return;
+    }
+
+    if (this.realtimePriceBuffer.length === 0 && this.priceChangeBuffer.length === 0) {
+      return;
+    }
+
+    this.dbFlushInProgress = true;
+
+    try {
+      do {
+        const realtimeBatch = this.realtimePriceBuffer.splice(0, this.dbBatchSize);
+        if (realtimeBatch.length > 0) {
+          await this.stockRealtimePriceRepository.insert(realtimeBatch);
         }
-      } catch (error) {
-        this.logger.warn(`无效的时间戳 ${tickData.tick_time}，使用当前时间`);
-        tickTime = new Date();
-      }
 
-      // 保存实时价格
-      const realtimePrice = new StockRealtimePriceEntity();
-      realtimePrice.code = tickData.code;
-      realtimePrice.price = newPrice;
-      realtimePrice.volume = parseInt(tickData.volume);
-      realtimePrice.turnover = parseFloat(tickData.turnover);
-      realtimePrice.tick_time = tickTime;
-      
-      await this.stockRealtimePriceRepository.save(realtimePrice);
-
-      // 如果价格有变化，记录价格变动
-      if (oldPrice !== null && Math.abs(oldPrice - newPrice) >= 0.0001) {
-        const priceChange = new StockPriceChangeEntity();
-        priceChange.code = tickData.code;
-        priceChange.old_price = oldPrice;
-        priceChange.new_price = newPrice;
-        priceChange.price_change = newPrice - oldPrice;
-        priceChange.change_rate = oldPrice !== 0 ? ((newPrice - oldPrice) / oldPrice) * 100 : 0;
-        priceChange.volume = parseInt(tickData.volume);
-        priceChange.tick_time = tickTime;
-        
-        await this.stockPriceChangeRepository.save(priceChange);
-      }
-
-      this.logger.debug(`已保存 ${tickData.code} 数据到数据库`);
+        const changeBatch = this.priceChangeBuffer.splice(0, this.dbBatchSize);
+        if (changeBatch.length > 0) {
+          await this.stockPriceChangeRepository.insert(changeBatch);
+        }
+      } while (
+        force &&
+        (this.realtimePriceBuffer.length > 0 || this.priceChangeBuffer.length > 0)
+      );
     } catch (error) {
-      this.logger.error(`保存 ${tickData.code} 数据到数据库失败:`, error);
+      this.logger.error('批量保存行情数据失败:', error);
+    } finally {
+      this.dbFlushInProgress = false;
     }
   }
 
   /**
-   * 更新所有股票汇总缓存
+   * 节流更新所有股票汇总缓存，避免每条 tick 都全量扫描
    */
-  private async updateAllQuotesCache(): Promise<void> {
+  private scheduleAllQuotesCacheRefresh(): void {
+    if (this.allQuotesRefreshTimer) {
+      return;
+    }
+
+    this.allQuotesRefreshTimer = setTimeout(() => {
+      this.allQuotesRefreshTimer = null;
+      void this.refreshAllQuotesCache();
+    }, this.allQuotesRefreshInterval);
+  }
+
+  private async refreshAllQuotesCache(): Promise<void> {
     try {
-      // 使用新的批量获取方法
       const targetSymbols = await this.getTargetSymbols();
-      const quotes = await this.redisService.getBatchStockQuotes(targetSymbols);
+      const quotes = targetSymbols
+        .map((code) => {
+          const quote = this.latestQuoteCache.get(code);
+          if (!quote) {
+            return null;
+          }
+
+          return {
+            code: quote.code,
+            buy_price: quote.buy_price,
+            sale_price: quote.sale_price,
+          };
+        })
+        .filter((quote): quote is { code: string; buy_price: number; sale_price: number } => Boolean(quote));
 
       const allQuotesData = {
         codeList: quotes,
@@ -602,6 +807,19 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
       if (cachedData) {
         return cachedData;
       }
+
+      if (this.latestQuoteCache.size > 0) {
+        const codeList = Array.from(this.latestQuoteCache.values()).map((quote) => ({
+          code: quote.code,
+          buy_price: quote.buy_price,
+          sale_price: quote.sale_price,
+        }));
+
+        return {
+          codeList,
+          updated_at: new Date().toISOString(),
+        };
+      }
       
       // 如果缓存不存在，返回空数据
       return {
@@ -619,7 +837,7 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
    */
   async getRealtimeQuote(code: string): Promise<any> {
     try {
-      const cachedData = await this.redisService.getStockQuote(code);
+      const cachedData = await this.getCachedQuote(code);
       
       if (cachedData) {
         return {
@@ -677,9 +895,6 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
       const salePrice = price - askSpread;
       const spread = buyPrice - salePrice;
 
-      this.logger.log(`测试价格计算 ${code}: 实时价格=${price}, bidSpread=${bidSpread}, askSpread=${askSpread}`);
-      this.logger.log(`计算结果: 买价=${buyPrice}, 卖价=${salePrice}, 价差=${spread}`);
-
       return {
         code,
         realtime_price: price,
@@ -733,6 +948,7 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
       await this.updateMockQuoteCache(code, initialPrice);
     }
 
+    this.scheduleAllQuotesCacheRefresh();
     this.logger.log(`已初始化 ${targetSymbols.length} 个产品的模拟数据`);
 
     // 每秒生成一次模拟数据
@@ -789,6 +1005,8 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
         },
       });
     }
+
+    this.scheduleAllQuotesCacheRefresh();
   }
 
   /**
@@ -818,15 +1036,10 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
         updated_at: new Date().toISOString(),
       };
 
-      await this.redisService.setStockQuote(code, quoteData);
-      await this.redisService.setStockPrice(code, price);
-      await this.redisService.setStockSpread(code, {
+      await this.cacheQuoteData(code, quoteData, {
         bidSpread: tradingSettings?.bidSpread || 0,
         askSpread: tradingSettings?.askSpread || 0,
       });
-
-      // 更新所有股票汇总缓存
-      await this.updateAllQuotesCache();
     } catch (error) {
       this.logger.error(`更新模拟数据缓存失败 ${code}:`, error);
     }
@@ -865,6 +1078,9 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
 
       // 定期发送心跳（每30秒）
       const heartbeatInterval = setInterval(() => {
+        if (observer.closed) {
+          return;
+        }
         observer.next({
           data: { type: 'heartbeat', timestamp: new Date().toISOString() },
         } as any);

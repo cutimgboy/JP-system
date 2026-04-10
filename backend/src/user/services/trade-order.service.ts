@@ -38,6 +38,7 @@ export class CreateOrderDto {
 @Injectable()
 export class TradeOrderService {
   private readonly logger = new Logger(TradeOrderService.name);
+  private autoCloseJobRunning = false;
 
   constructor(
     @InjectRepository(TradeOrderEntity)
@@ -46,6 +47,76 @@ export class TradeOrderService {
     private redisService: RedisService,
     private dataSource: DataSource,
   ) {}
+
+  private getUserAccountRepository(): Repository<UserAccountEntity> {
+    return this.dataSource.getRepository(UserAccountEntity);
+  }
+
+  private async findOwnedAccountById(
+    userId: number,
+    accountId: number,
+  ): Promise<UserAccountEntity> {
+    const account = await this.getUserAccountRepository().findOne({
+      where: { id: accountId, userId },
+    });
+
+    if (!account) {
+      throw new BadRequestException('账户不存在或无权访问');
+    }
+
+    return account;
+  }
+
+  private async findOwnedAccountByType(
+    userId: number,
+    accountType: AccountType,
+  ): Promise<UserAccountEntity> {
+    const account = await this.getUserAccountRepository().findOne({
+      where: { userId, accountType },
+    });
+
+    if (!account) {
+      throw new BadRequestException('账户不存在或无权访问');
+    }
+
+    return account;
+  }
+
+  private async resolveOrderAccountType(
+    userId: number,
+    dto: CreateOrderDto,
+  ): Promise<AccountType> {
+    if (dto.accountId) {
+      const account = await this.findOwnedAccountById(userId, dto.accountId);
+      return account.accountType;
+    }
+
+    if (dto.accountType) {
+      const account = await this.findOwnedAccountByType(userId, dto.accountType);
+      return account.accountType;
+    }
+
+    return AccountType.DEMO;
+  }
+
+  private async ensureNoOpenOrder(
+    userId: number,
+    accountType: AccountType,
+  ): Promise<void> {
+    const existingOrder = await this.orderRepository.findOne({
+      where: {
+        userId,
+        accountType,
+        status: OrderStatus.OPEN,
+      },
+    });
+
+    if (existingOrder) {
+      throw new BadRequestException(
+        '您已有进行中的交易，请等待当前交易完成后再创建新订单',
+      );
+    }
+  }
 
   /**
    * 创建交易订单（开仓）
@@ -64,108 +135,8 @@ export class TradeOrderService {
       throw new BadRequestException('交易时长必须在30秒到300秒之间');
     }
 
-    // 安全验证：从数据库获取真实的账户信息，不信任前端传值
-    let accountType: AccountType;
-
-    // 检查用户是否已有进行中的订单（同一账户类型）
-    if (dto.accountId) {
-      const account = await this.dataSource
-        .getRepository(UserAccountEntity)
-        .findOne({
-          where: { id: dto.accountId, userId },
-        });
-
-      if (!account) {
-        throw new BadRequestException('账户不存在或无权访问');
-      }
-
-      accountType = account.accountType;
-
-      // 检查该账户类型是否有进行中的订单
-      const existingOrder = await this.orderRepository.findOne({
-        where: {
-          userId,
-          accountType,
-          status: OrderStatus.OPEN,
-        },
-      });
-
-      if (existingOrder) {
-        throw new BadRequestException('您已有进行中的交易，请等待当前交易完成后再创建新订单');
-      }
-    } else if (dto.accountType) {
-      const account = await this.dataSource
-        .getRepository(UserAccountEntity)
-        .findOne({
-          where: { userId, accountType: dto.accountType },
-        });
-
-      if (!account) {
-        throw new BadRequestException('账户不存在或无权访问');
-      }
-
-      accountType = account.accountType;
-
-      // 检查该账户类型是否有进行中的订单
-      const existingOrder = await this.orderRepository.findOne({
-        where: {
-          userId,
-          accountType,
-          status: OrderStatus.OPEN,
-        },
-      });
-
-      if (existingOrder) {
-        throw new BadRequestException('您已有进行中的交易，请等待当前交易完成后再创建新订单');
-      }
-    } else {
-      // 默认使用 demo 账户
-      accountType = AccountType.DEMO;
-
-      // 检查 demo 账户是否有进行中的订单
-      const existingOrder = await this.orderRepository.findOne({
-        where: {
-          userId,
-          accountType: AccountType.DEMO,
-          status: OrderStatus.OPEN,
-        },
-      });
-
-      if (existingOrder) {
-        throw new BadRequestException('您已有进行中的交易，请等待当前交易完成后再创建新订单');
-      }
-    }
-
-    if (dto.accountId) {
-      // 如果传了 accountId，验证账户所有权并获取账户类型
-      const account = await this.dataSource
-        .getRepository(UserAccountEntity)
-        .findOne({
-          where: { id: dto.accountId, userId },
-        });
-
-      if (!account) {
-        throw new BadRequestException('账户不存在或无权访问');
-      }
-
-      accountType = account.accountType;
-    } else if (dto.accountType) {
-      // 如果只传了 accountType（向后兼容），验证用户是否拥有该类型账户
-      const account = await this.dataSource
-        .getRepository(UserAccountEntity)
-        .findOne({
-          where: { userId, accountType: dto.accountType },
-        });
-
-      if (!account) {
-        throw new BadRequestException('账户不存在或无权访问');
-      }
-
-      accountType = account.accountType;
-    } else {
-      // 默认使用 demo 账户
-      accountType = AccountType.DEMO;
-    }
+    const accountType = await this.resolveOrderAccountType(userId, dto);
+    await this.ensureNoOpenOrder(userId, accountType);
 
     // 获取当前价格
     const currentPrice = await this.getCurrentPrice(dto.stockCode);
@@ -398,30 +369,40 @@ export class TradeOrderService {
    */
   @Cron(CronExpression.EVERY_SECOND)
   async autoCloseExpiredOrders(): Promise<void> {
-    const now = new Date();
-
-    // 查找所有到期的订单
-    const expiredOrders = await this.orderRepository
-      .createQueryBuilder('order')
-      .where('order.status = :status', { status: OrderStatus.OPEN })
-      .andWhere('order.expectedCloseTime <= :now', { now })
-      .getMany();
-
-    if (expiredOrders.length === 0) {
+    if (this.autoCloseJobRunning) {
       return;
     }
 
-    this.logger.log(`发现 ${expiredOrders.length} 个到期订单，开始自动平仓`);
+    this.autoCloseJobRunning = true;
 
-    // 逐个平仓
-    for (const order of expiredOrders) {
-      try {
-        await this.closeOrder(order.id);
-      } catch (error) {
-        this.logger.error(
-          `自动平仓失败: 订单ID=${order.id}, 错误=${error.message}`,
-        );
+    try {
+      const now = new Date();
+
+      // 查找所有到期的订单
+      const expiredOrders = await this.orderRepository
+        .createQueryBuilder('order')
+        .where('order.status = :status', { status: OrderStatus.OPEN })
+        .andWhere('order.expectedCloseTime <= :now', { now })
+        .getMany();
+
+      if (expiredOrders.length === 0) {
+        return;
       }
+
+      this.logger.log(`发现 ${expiredOrders.length} 个到期订单，开始自动平仓`);
+
+      // 逐个平仓
+      for (const order of expiredOrders) {
+        try {
+          await this.closeOrder(order.id);
+        } catch (error) {
+          this.logger.error(
+            `自动平仓失败: 订单ID=${order.id}, 错误=${error.message}`,
+          );
+        }
+      }
+    } finally {
+      this.autoCloseJobRunning = false;
     }
   }
 

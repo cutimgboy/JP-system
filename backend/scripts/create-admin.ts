@@ -3,10 +3,18 @@ import { DataSource } from 'typeorm';
 import { UserEntity } from '../src/user/entities/user.entity';
 import { UserAccountEntity, AccountType } from '../src/user/entities/user-account.entity';
 import * as dotenv from 'dotenv';
+import * as fs from 'fs';
 import * as path from 'path';
 
-// 加载环境变量
-dotenv.config({ path: path.join(__dirname, '../.env.dev') });
+const envFileCandidates = [
+  path.join(__dirname, '../.env.prod'),
+  path.join(__dirname, '../.env.dev'),
+];
+const envFilePath = envFileCandidates.find(filePath => fs.existsSync(filePath));
+
+if (envFilePath) {
+  dotenv.config({ path: envFilePath });
+}
 
 /**
  * 创建管理员账户脚本

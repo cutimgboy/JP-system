@@ -2,12 +2,12 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from '../src/app.module';
 import { DataSource } from 'typeorm';
 import * as XLSX from 'xlsx';
-import * as path from 'path';
 import { ProductEntity } from '../src/cfd/entities/product.entity';
+import { resolveDataFile } from './utils/resolve-data-file';
 
 async function bootstrap() {
-  // 禁用模拟数据生成，避免脚本运行时启动定时任务
-  process.env.MOCK_QUOTE_DATA = 'false';
+  // 禁用行情服务初始化，避免导入脚本连接外部行情源或启动定时任务
+  process.env.DISABLE_QUOTE_INIT = 'true';
 
   const app = await NestFactory.createApplicationContext(AppModule);
   const dataSource = app.get(DataSource);
@@ -16,7 +16,7 @@ async function bootstrap() {
     console.log('开始导入产品数据...');
 
     // 读取 Excel 文件
-    const filePath = path.join(__dirname, '../CFD品种信息表.xlsx');
+    const filePath = resolveDataFile('CFD品种信息表.xlsx');
     const workbook = XLSX.readFile(filePath);
 
     // 读取"品种交易设置" sheet

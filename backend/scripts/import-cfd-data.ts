@@ -2,13 +2,13 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from '../src/app.module';
 import { CfdService } from '../src/cfd/cfd.service';
 import * as XLSX from 'xlsx';
-import * as path from 'path';
+import { resolveDataFile } from './utils/resolve-data-file';
 
 async function importData() {
   console.log('🚀 开始导入 CFD 数据...\n');
 
-  // 禁用模拟数据生成，避免脚本运行时启动定时任务
-  process.env.MOCK_QUOTE_DATA = 'false';
+  // 禁用行情服务初始化，避免导入脚本连接外部行情源或启动定时任务
+  process.env.DISABLE_QUOTE_INIT = 'true';
 
   // 创建 NestJS 应用上下文
   const app = await NestFactory.createApplicationContext(AppModule);
@@ -16,7 +16,7 @@ async function importData() {
 
   try {
     // 读取 Excel 文件
-    const filePath = path.resolve(__dirname, '../CFD品种信息表.xlsx');
+    const filePath = resolveDataFile('CFD品种信息表.xlsx');
     const workbook = XLSX.readFile(filePath);
 
     // 1. 导入品种交易设置

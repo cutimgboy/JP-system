@@ -4,8 +4,8 @@ import { DataSource } from 'typeorm';
 import { ProductEntity } from '../src/cfd/entities/product.entity';
 
 async function bootstrap() {
-  // 禁用模拟数据生成，避免脚本运行时启动定时任务
-  process.env.MOCK_QUOTE_DATA = 'false';
+  // 禁用行情服务初始化，避免导入脚本连接外部行情源或启动定时任务
+  process.env.DISABLE_QUOTE_INIT = 'true';
 
   const app = await NestFactory.createApplicationContext(AppModule);
   const dataSource = app.get(DataSource);

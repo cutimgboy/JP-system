@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { apiClient } from '../utils/api';
+import { apiClient, extractData, extractMessage } from '../utils/api';
 
 export function Login() {
   const navigate = useNavigate();
@@ -19,15 +19,21 @@ export function Login() {
         username,
         password,
       });
+      const loginData = extractData<{ access_token: string }>(response);
 
       // 保存 token
-      localStorage.setItem('admin_token', response.data.access_token);
+      if (!loginData?.access_token) {
+        throw new Error('登录响应缺少 access_token');
+      }
+      localStorage.setItem('admin_token', loginData.access_token);
 
       // 跳转到后台首页
       navigate('/');
     } catch (err: any) {
       console.error('登录失败:', err);
-      setError(err.response?.data?.message || '登录失败，请检查用户名和密码');
+      setError(
+        extractMessage(err.response?.data, '登录失败，请检查用户名和密码'),
+      );
     } finally {
       setLoading(false);
     }

@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { RewardModule } from '../reward/reward.module';
 
 import { UserEntity } from './entities/user.entity';
 import { UserAccountEntity } from './entities/user-account.entity';
@@ -24,6 +25,7 @@ import { FacebookStrategy } from './strategies/facebook.strategy';
 @Module({
   imports: [
     TypeOrmModule.forFeature([UserEntity, UserAccountEntity, TradeOrderEntity]),
+    RewardModule,
     PassportModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { apiClient } from '../utils/api';
+import { apiClient, extractData } from '../utils/api';
 
 interface Order {
   id: number;
@@ -52,7 +52,10 @@ export function OrderManagement() {
       const response = await apiClient.get('/admin/orders/stats', {
         params: { accountType: accountTypeFilter === 'all' ? undefined : accountTypeFilter }
       });
-      setStats(response.data.data || response.data);
+      const statsData = extractData<OrderStats>(response);
+      if (statsData) {
+        setStats(statsData);
+      }
     } catch (error) {
       console.error('获取统计失败:', error);
     }
@@ -70,9 +73,12 @@ export function OrderManagement() {
           search: search || undefined,
         }
       });
-      const result = response.data.data || response.data;
-      setOrders(result.orders || []);
-      setTotalPages(result.totalPages || 1);
+      const result = extractData<{
+        orders: Order[];
+        totalPages: number;
+      }>(response);
+      setOrders(result?.orders || []);
+      setTotalPages(result?.totalPages || 1);
     } catch (error) {
       console.error('获取订单失败:', error);
       setOrders([]);

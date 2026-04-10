@@ -1,6 +1,11 @@
 import { useState, useEffect } from 'react';
 import { Toast } from '../components/Toast';
-import { apiClient } from '../utils/api';
+import {
+  apiClient,
+  extractData,
+  extractMessage,
+  isSuccessResponse,
+} from '../utils/api';
 
 interface DepositRecord {
   id: number;
@@ -44,15 +49,8 @@ export function DepositReview() {
     try {
       const params = activeTab !== undefined ? { status: activeTab } : {};
       const response = await apiClient.get('/deposit/all', { params });
-      console.log('获取入金记录响应:', response);
-
-      const actualData = response.data || response;
-      if (actualData.code === 0) {
-        const records = actualData.data || actualData || [];
-        setDeposits(Array.isArray(records) ? records : []);
-      } else {
-        setDeposits([]);
-      }
+      const records = extractData<DepositRecord[]>(response) || [];
+      setDeposits(Array.isArray(records) ? records : []);
     } catch (error) {
       console.error('获取入金记录失败:', error);
       setDeposits([]);
@@ -106,16 +104,15 @@ export function DepositReview() {
         remark: remark || undefined,
       });
 
-      const actualData = response.data.data || response.data;
-      if (actualData.code === 0 || response.data.code === 0) {
+      if (isSuccessResponse(response)) {
         setToast({
           message: reviewAction === 1 ? '审核通过，已充值到账' : '已拒绝',
           type: 'success'
         });
         setShowReviewModal(false);
-        fetchDeposits();
+        void fetchDeposits();
       } else {
-        setToast({ message: actualData.msg || '操作失败', type: 'error' });
+        setToast({ message: extractMessage(response, '操作失败'), type: 'error' });
       }
     } catch (error) {
       console.error('审核失败:', error);

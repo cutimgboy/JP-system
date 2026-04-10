@@ -34,4 +34,25 @@ export default defineConfig({
   optimizeDeps: {
     include: ['react-vant'],
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes('node_modules')) {
+            return;
+          }
+
+          if (id.includes('react-vant')) {
+            return 'ui-react-vant';
+          }
+
+          if (id.includes('framer-motion')) {
+            return 'motion';
+          }
+
+          return 'vendor';
+        },
+      },
+    },
+  },
 });

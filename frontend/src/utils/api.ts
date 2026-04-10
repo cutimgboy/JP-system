@@ -49,53 +49,69 @@ apiClient.interceptors.response.use(
 
 /**
  * 从响应中提取实际数据
- * 后端返回格式: { data: { data: [...], code: 0, msg: '...' } }
- * 或三层嵌套: { data: { data: { data: {...}, code: 0, msg: '...' }, code: 0, msg: '...' } }
+ * 当前后端标准返回格式: { data: ..., code: 0, msg: '请求成功' }
+ * 这里保留对旧版嵌套结构的兼容，方便渐进收敛。
  */
-export function extractData(response: any) {
+export function extractData<T = any>(response: any): T | null {
   if (!response?.data) {
     return null;
   }
 
-  // level1 = { data: {...}, code: 0, msg: '...' }
-  const level1 = response.data;
+  let current = response.data;
 
-  // 如果第一层直接是数组,返回它
-  if (Array.isArray(level1)) {
-    return level1;
+  for (let depth = 0; depth < 3; depth += 1) {
+    if (Array.isArray(current)) {
+      return current as T;
+    }
+
+    if (!current || typeof current !== 'object') {
+      return current;
+    }
+
+    if (!('data' in current)) {
+      return current;
+    }
+
+    current = current.data;
   }
 
-  // 如果第一层不是对象,直接返回
-  if (!level1 || typeof level1 !== 'object') {
-    return level1;
+  return current as T;
+}
+
+export function extractMessage(input: any, fallback = '操作失败') {
+  if (!input || typeof input !== 'object') {
+    return fallback;
   }
 
-  // 检查第一层的 data 字段
-  const level2 = level1.data;
-
-  // 如果没有 data 字段,返回第一层
-  if (level2 === undefined) {
-    return level1;
+  if (typeof input.msg === 'string' && input.msg) {
+    return input.msg;
   }
 
-  // 如果第二层是数组,返回它
-  if (Array.isArray(level2)) {
-    return level2;
+  if (typeof input.message === 'string' && input.message) {
+    return input.message;
   }
 
-  // 如果第二层不是对象,直接返回
-  if (!level2 || typeof level2 !== 'object') {
-    return level2;
+  if ('data' in input) {
+    return extractMessage(input.data, fallback);
   }
 
-  // 检查第二层的 data 字段 (三层嵌套)
-  const level3 = level2.data;
-  if (level3 !== undefined) {
-    return level3;
+  return fallback;
+}
+
+export function isSuccessResponse(input: any): boolean {
+  if (!input || typeof input !== 'object') {
+    return true;
   }
 
-  // 返回第二层
-  return level2;
+  if (typeof input.code === 'number') {
+    return input.code === 0;
+  }
+
+  if ('data' in input) {
+    return isSuccessResponse(input.data);
+  }
+
+  return true;
 }
 
 export { apiClient };

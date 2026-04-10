@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Plus, Edit2, Trash2, Save, X } from 'lucide-react';
 import { Toast } from '../components/Toast';
-import { apiClient } from '../utils/api';
+import { apiClient, extractData } from '../utils/api';
 
 interface LeaderboardItem {
   id?: number;
@@ -52,14 +52,15 @@ export function CommunityManagement() {
         apiClient.get('/api/community/settings'),
       ]);
 
-      setLeaderboard(leaderboardRes.data || []);
+      const leaderboardData = extractData<LeaderboardItem[]>(leaderboardRes) || [];
+      setLeaderboard(Array.isArray(leaderboardData) ? leaderboardData : []);
 
-      const settingsData = settingsRes.data || {};
+      const settingsData = extractData<Partial<CommunitySettings>>(settingsRes) || {};
       setSettings({
         date: settingsData.date || new Date().toISOString().split('T')[0],
-        participants: parseInt(settingsData.participants || '0'),
+        participants: parseInt(String(settingsData.participants || '0')),
         baseDate: settingsData.baseDate || '2024-01-01',
-        baseParticipants: parseInt(settingsData.baseParticipants || '1039284'),
+        baseParticipants: parseInt(String(settingsData.baseParticipants || '1039284')),
       });
     } catch (error) {
       console.error('获取数据失败:', error);
@@ -70,7 +71,7 @@ export function CommunityManagement() {
     try {
       await apiClient.put('/api/admin/community/settings', settings);
       setToast({ message: '设置保存成功', type: 'success' });
-      fetchData(); // 刷新数据
+      void fetchData();
     } catch (error) {
       console.error('保存设置失败:', error);
       setToast({ message: '保存设置失败', type: 'error' });
@@ -90,7 +91,7 @@ export function CommunityManagement() {
         rank: 1,
       });
       setToast({ message: '添加成功', type: 'success' });
-      fetchData();
+      void fetchData();
     } catch (error) {
       console.error('添加失败:', error);
       setToast({ message: '添加失败', type: 'error' });
@@ -110,7 +111,7 @@ export function CommunityManagement() {
       setEditingId(null);
       setEditingItem(null);
       setToast({ message: '保存成功', type: 'success' });
-      fetchData();
+      void fetchData();
     } catch (error) {
       console.error('保存失败:', error);
       setToast({ message: '保存失败', type: 'error' });
@@ -123,7 +124,7 @@ export function CommunityManagement() {
     try {
       await apiClient.delete(`/api/admin/community/leaderboard/${id}`);
       setToast({ message: '删除成功', type: 'success' });
-      fetchData();
+      void fetchData();
     } catch (error) {
       console.error('删除失败:', error);
       setToast({ message: '删除失败', type: 'error' });
