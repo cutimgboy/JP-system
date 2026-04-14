@@ -2,13 +2,10 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
-  Battery,
   Eye,
   EyeOff,
   Mail,
-  Signal,
   Smartphone,
-  Wifi,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { apiClient, extractData, extractMessage } from '../../utils/api';
@@ -47,19 +44,10 @@ function ScreenShell({
 }) {
   return (
     <div className="min-h-screen bg-[#09090b] text-white">
-      <div className="relative mx-auto min-h-screen w-full max-w-md overflow-hidden bg-[#09090b] px-5 pb-32 pt-3">
+      <div className="relative mx-auto min-h-screen w-full max-w-md overflow-hidden bg-[#09090b] px-5 pb-32 pt-6">
         <div className="pointer-events-none absolute left-1/2 top-0 h-56 w-56 -translate-x-1/2 rounded-full bg-[#6c48f5]/18 blur-[90px]" />
         <div className="pointer-events-none absolute inset-x-0 top-0 h-48 bg-gradient-to-b from-white/[0.02] to-transparent" />
-        <div className="relative flex items-center justify-between text-xs text-white">
-          <span>12:00</span>
-          <div className="flex items-center gap-1">
-            <Signal className="h-4 w-4" />
-            <Wifi className="h-4 w-4" />
-            <Battery className="h-4 w-4" />
-          </div>
-        </div>
-
-        <div className="relative mt-5">
+        <div className="relative mt-1">
           <button
             type="button"
             onClick={onBack}
