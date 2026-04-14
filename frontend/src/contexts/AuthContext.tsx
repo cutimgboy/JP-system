@@ -3,10 +3,13 @@ import { apiClient, extractData } from '../utils/api';
 
 interface User {
   id: number;
-  phone: string;
+  phone: string | null;
+  email?: string | null;
   nickname?: string;
   avatar?: string;
-  status: number;
+  status?: number;
+  hasPassword?: boolean;
+  requiresPasswordSetup?: boolean;
 }
 
 interface AuthContextType {
@@ -33,8 +36,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (storedToken && storedUser) {
         try {
+          const parsedUser = normalizeUser(JSON.parse(storedUser));
           setToken(storedToken);
-          setUser(JSON.parse(storedUser));
+          setUser(parsedUser);
 
           // 验证 token 是否有效，并刷新用户信息
           await refreshUserInfo(storedToken);
@@ -54,6 +58,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     initAuth();
   }, []);
 
+  const normalizeUser = (value: User): User => ({
+    ...value,
+    hasPassword: typeof value.hasPassword === 'boolean' ? value.hasPassword : undefined,
+    requiresPasswordSetup:
+      typeof value.requiresPasswordSetup === 'boolean'
+        ? value.requiresPasswordSetup
+        : false,
+  });
+
   // 刷新用户信息
   const refreshUserInfo = async (authToken?: string) => {
     try {
@@ -68,8 +81,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       const userData = extractData(response);
       if (userData) {
-        setUser(userData);
-        localStorage.setItem('user', JSON.stringify(userData));
+        const normalizedUser = normalizeUser(userData);
+        setUser(normalizedUser);
+        localStorage.setItem('user', JSON.stringify(normalizedUser));
       }
     } catch (error) {
       console.error('刷新用户信息失败:', error);
@@ -79,10 +93,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // 登录
   const login = (newToken: string, newUser: User) => {
+    const normalizedUser = normalizeUser(newUser);
     setToken(newToken);
-    setUser(newUser);
+    setUser(normalizedUser);
     localStorage.setItem('token', newToken);
-    localStorage.setItem('user', JSON.stringify(newUser));
+    localStorage.setItem('user', JSON.stringify(normalizedUser));
   };
 
   // 登出

@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { UserEntity } from '../entities/user.entity';
+import * as bcrypt from 'bcrypt';
 
 @Injectable()
 export class UserService {
@@ -105,6 +106,35 @@ export class UserService {
   async update(id: number, data: Partial<UserEntity>): Promise<UserEntity | null> {
     await this.userRepository.update(id, data);
     return await this.findById(id);
+  }
+
+  /**
+   * 设置登录密码
+   */
+  async setupPassword(id: number, password: string): Promise<UserEntity | null> {
+    const hashedPassword = await bcrypt.hash(password, 10);
+    await this.userRepository.update(id, { password: hashedPassword });
+    return await this.findById(id);
+  }
+
+  /**
+   * 校验用户密码
+   */
+  async verifyPassword(user: UserEntity, password: string): Promise<boolean> {
+    if (!user.password) {
+      return false;
+    }
+
+    return bcrypt.compare(password, user.password);
+  }
+
+  /**
+   * 修改登录密码
+   */
+  async changePassword(id: number, newPassword: string): Promise<UserEntity | null> {
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    await this.userRepository.update(id, { password: hashedPassword });
+    return this.findById(id);
   }
 
   /**

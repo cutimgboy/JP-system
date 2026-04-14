@@ -8,6 +8,8 @@ import { SendSmsDto } from './dto/send-sms.dto';
 import { SmsLoginDto } from './dto/sms-login.dto';
 import { SendEmailDto } from './dto/send-email.dto';
 import { EmailLoginDto } from './dto/email-login.dto';
+import { CheckPhoneLoginMethodDto } from './dto/check-phone-login-method.dto';
+import { PhonePasswordLoginDto } from './dto/phone-password-login.dto';
 import { Public } from './decorators/public.decorator';
 
 @ApiTags('认证')
@@ -32,12 +34,36 @@ export class AuthController {
   }
 
   @Public()
+  @Post('check-phone-login-method')
+  @ApiOperation({ summary: '检查手机号登录方式' })
+  @ApiResponse({ status: 200, description: '检查成功' })
+  async checkPhoneLoginMethod(@Body() dto: CheckPhoneLoginMethodDto) {
+    const result = await this.authService.checkPhoneLoginMethod(dto.phone);
+    return {
+      message: '检查成功',
+      data: result,
+    };
+  }
+
+  @Public()
   @Post('login')
   @ApiOperation({ summary: '用户名密码登录' })
   @ApiResponse({ status: 200, description: '登录成功' })
   async login(@Body() body: { username: string; password: string }) {
     const result = await this.authService.login(body.username, body.password);
     return result;
+  }
+
+  @Public()
+  @Post('phone-password-login')
+  @ApiOperation({ summary: '手机号密码登录' })
+  @ApiResponse({ status: 200, description: '登录成功' })
+  async phonePasswordLogin(@Body() dto: PhonePasswordLoginDto) {
+    const result = await this.authService.phonePasswordLogin(dto.phone, dto.password);
+    return {
+      message: '登录成功',
+      data: result,
+    };
   }
 
   @Public()

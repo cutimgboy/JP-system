@@ -1,4 +1,4 @@
-import { Navigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
 interface ProtectedRouteProps {
@@ -7,6 +7,7 @@ interface ProtectedRouteProps {
 
 export function ProtectedRoute({ children }: ProtectedRouteProps) {
   const { user, loading } = useAuth();
+  const location = useLocation();
 
   // 加载中显示 loading
   if (loading) {
@@ -23,6 +24,14 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
   // 未登录跳转到登录页
   if (!user) {
     return <Navigate to="/login" replace />;
+  }
+
+  if (user.requiresPasswordSetup && location.pathname !== '/setup-password') {
+    return <Navigate to="/setup-password" replace />;
+  }
+
+  if (!user.requiresPasswordSetup && location.pathname === '/setup-password') {
+    return <Navigate to="/" replace />;
   }
 
   // 已登录显示内容

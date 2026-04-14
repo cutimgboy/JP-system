@@ -11,7 +11,11 @@ const Market = lazy(() => import('./pages/market'));
 const Community = lazy(() => import('./pages/community'));
 const Positions = lazy(() => import('./pages/positions'));
 const OrderDetail = lazy(() => import('./pages/positions/OrderDetail'));
-const Profile = lazy(() => import('./pages/profile'));
+const Profile = lazy(() =>
+  import('./pages/profile/index').then((module) => ({
+    default: module.default,
+  })),
+);
 const PersonalInfo = lazy(() =>
   import('./pages/personal-info').then((module) => ({
     default: module.PersonalInfo,
@@ -25,6 +29,11 @@ const MessageCenter = lazy(() =>
 const ChangePassword = lazy(() =>
   import('./pages/change-password').then((module) => ({
     default: module.ChangePassword,
+  })),
+);
+const SetupPassword = lazy(() =>
+  import('./pages/setup-password').then((module) => ({
+    default: module.SetupPassword,
   })),
 );
 const ChangeLanguage = lazy(() =>
@@ -83,6 +92,17 @@ const Promotion = lazy(() =>
 function RootRedirect() {
   const hasSeenSplash = localStorage.getItem('hasSeenSplash');
   const token = localStorage.getItem('token');
+  const storedUser = localStorage.getItem('user');
+
+  let requiresPasswordSetup = false;
+  if (storedUser) {
+    try {
+      const parsedUser = JSON.parse(storedUser);
+      requiresPasswordSetup = Boolean(parsedUser?.requiresPasswordSetup);
+    } catch (error) {
+      requiresPasswordSetup = false;
+    }
+  }
 
   if (!hasSeenSplash) {
     return <Navigate to="/splash" replace />;
@@ -90,6 +110,10 @@ function RootRedirect() {
 
   if (!token) {
     return <Navigate to="/login" replace />;
+  }
+
+  if (requiresPasswordSetup) {
+    return <Navigate to="/setup-password" replace />;
   }
 
   return <Navigate to="/market" replace />;
@@ -112,6 +136,14 @@ function App() {
       <Routes>
         <Route path="/splash" element={<Splash />} />
         <Route path="/login" element={<Login />} />
+        <Route
+          path="/setup-password"
+          element={
+            <ProtectedRoute>
+              <SetupPassword />
+            </ProtectedRoute>
+          }
+        />
 
         <Route path="/" element={<RootRedirect />} />
         <Route

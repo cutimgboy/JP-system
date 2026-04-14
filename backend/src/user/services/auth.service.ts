@@ -57,6 +57,62 @@ export class AuthService {
   }
 
   /**
+   * 检查手机号登录方式
+   * 已设置密码则走密码登录，否则走验证码登录。
+   */
+  async checkPhoneLoginMethod(phone: string) {
+    const user = await this.userService.findByPhone(phone);
+    const hasPassword = Boolean(user?.password);
+
+    return {
+      phone,
+      userExists: Boolean(user),
+      hasPassword,
+      loginMethod: hasPassword ? 'password' : 'sms',
+    };
+  }
+
+  /**
+   * 手机号密码登录
+   * @param phone 手机号
+   * @param password 密码
+   */
+  async phonePasswordLogin(phone: string, password: string) {
+    const user = await this.userService.findByPhone(phone);
+    if (!user) {
+      throw new UnauthorizedException('手机号或密码错误');
+    }
+
+    if (!user.password) {
+      throw new UnauthorizedException('该手机号未设置登录密码，请使用验证码登录');
+    }
+
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+    if (!isPasswordValid) {
+      throw new UnauthorizedException('手机号或密码错误');
+    }
+
+    const isValid = await this.userService.validateUserStatus(user);
+    if (!isValid) {
+      throw new UnauthorizedException('用户已被禁用');
+    }
+
+    const token = await this.generateToken(user);
+
+    return {
+      token,
+      userInfo: {
+        id: user.id,
+        phone: user.phone,
+        nickname: user.nickname,
+        avatar: user.avatar,
+        hasPassword: true,
+        requiresPasswordSetup: false,
+      },
+    };
+  }
+
+  /**
    * 短信验证码登录
    * @param phone 手机号
    * @param code 验证码
@@ -87,6 +143,8 @@ export class AuthService {
         phone: user.phone,
         nickname: user.nickname,
         avatar: user.avatar,
+        hasPassword: Boolean(user.password),
+        requiresPasswordSetup: !user.password,
       },
     };
   }
@@ -133,6 +191,8 @@ export class AuthService {
         email: user.email,
         nickname: user.nickname,
         avatar: user.avatar,
+        hasPassword: Boolean(user.password),
+        requiresPasswordSetup: !user.password,
       },
     };
   }
