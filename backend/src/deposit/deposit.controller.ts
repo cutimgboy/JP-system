@@ -5,6 +5,8 @@ import { CurrentUser } from '../user/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../user/guards/jwt-auth.guard';
 import { RolesGuard } from '../user/guards/roles.guard';
 import { Roles } from '../user/decorators/roles.decorator';
+import { CreateDepositDto } from './dto/create-deposit.dto';
+import { ReviewDepositDto } from './dto/review-deposit.dto';
 
 @ApiTags('入金记录')
 @Controller('deposit')
@@ -18,16 +20,7 @@ export class DepositController {
   @ApiResponse({ status: 200, description: '创建成功' })
   async createDeposit(
     @CurrentUser() user,
-    @Body() data: {
-      amount: number;
-      userBankName: string;
-      userAccountName: string;
-      userAccountNumber: string;
-      systemBankName: string;
-      systemAccountName: string;
-      systemAccountNumber: string;
-      receiptImages?: string[];
-    },
+    @Body() data: CreateDepositDto,
   ) {
     try {
       const deposit = await this.depositService.create({
@@ -73,9 +66,13 @@ export class DepositController {
   @Roles('admin')
   @ApiOperation({ summary: '获取所有入金记录（后台管理）' })
   @ApiResponse({ status: 200, description: '获取成功' })
-  async getAllDeposits(@Query('status') status?: number) {
+  async getAllDeposits(
+    @Query('status') status?: number,
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+  ) {
     try {
-      const deposits = await this.depositService.findAll(status);
+      const deposits = await this.depositService.findAll(status, page, limit);
       return {
         data: deposits,
         code: 0,
@@ -125,10 +122,7 @@ export class DepositController {
   async reviewDeposit(
     @Param('id') id: number,
     @CurrentUser() user,
-    @Body() data: {
-      status: number;
-      remark?: string;
-    },
+    @Body() data: ReviewDepositDto,
   ) {
     try {
       const deposit = await this.depositService.findById(id);

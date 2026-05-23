@@ -46,7 +46,8 @@ export class TradeOrderController {
    */
   @Post('order/:id/close')
   async closeOrder(@Request() req, @Param('id') orderId: number) {
-    const order = await this.tradeOrderService.closeOrder(orderId);
+    const userId = req.user.id;
+    const order = await this.tradeOrderService.closeOrder(orderId, userId);
     return {
       data: order,
       code: 0,

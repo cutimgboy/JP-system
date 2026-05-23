@@ -1,4 +1,15 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { Plus, Check, Pencil, Trash2 } from 'lucide-react';
+import { Toast } from '../components/Toast';
+import {
+  Button,
+  ConfirmDialog,
+  DataTable,
+  Modal,
+  PageHeader,
+  StatusBadge,
+  fieldClass,
+} from '../components/AdminUI';
 import {
   apiClient,
   extractData,
@@ -16,23 +27,40 @@ interface SystemBankCard {
   status: number;
 }
 
+type BankCardForm = {
+  bankName: string;
+  accountName: string;
+  accountNumber: string;
+  swiftCode: string;
+};
+
+const emptyForm: BankCardForm = {
+  bankName: '',
+  accountName: '',
+  accountNumber: '',
+  swiftCode: '',
+};
+
 export function BankCards() {
   const [bankCards, setBankCards] = useState<SystemBankCard[]>([]);
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [editingCard, setEditingCard] = useState<SystemBankCard | null>(null);
-  const [formData, setFormData] = useState({
-    bankName: '',
-    accountName: '',
-    accountNumber: '',
-    swiftCode: '',
-  });
+  const [confirmTarget, setConfirmTarget] = useState<
+    { type: 'activate' | 'delete'; card: SystemBankCard } | null
+  >(null);
+  const [formData, setFormData] = useState<BankCardForm>(emptyForm);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'warning' } | null>(null);
 
   useEffect(() => {
-    fetchBankCards();
+    void fetchBankCards();
   }, []);
 
+  const activeCards = useMemo(() => bankCards.filter((card) => card.status === 1), [bankCards]);
+
   const fetchBankCards = async () => {
+    setLoading(true);
     try {
       const response = await apiClient.get('/system-bank-card/list');
       const cards = extractData<SystemBankCard[]>(response) || [];
@@ -40,23 +68,19 @@ export function BankCards() {
     } catch (error) {
       console.error('获取银行卡列表失败:', error);
       setBankCards([]);
+      setToast({ message: '获取银行卡列表失败', type: 'error' });
     } finally {
       setLoading(false);
     }
   };
 
-  const handleAdd = () => {
+  const openCreate = () => {
     setEditingCard(null);
-    setFormData({
-      bankName: '',
-      accountName: '',
-      accountNumber: '',
-      swiftCode: '',
-    });
+    setFormData(emptyForm);
     setShowModal(true);
   };
 
-  const handleEdit = (card: SystemBankCard) => {
+  const openEdit = (card: SystemBankCard) => {
     setEditingCard(card);
     setFormData({
       bankName: card.bankName,
@@ -68,237 +92,241 @@ export function BankCards() {
   };
 
   const handleSubmit = async () => {
+    if (!formData.bankName || !formData.accountName || !formData.accountNumber) {
+      setToast({ message: '请填写完整的银行卡信息', type: 'warning' });
+      return;
+    }
+
+    setSubmitting(true);
     try {
-      if (editingCard) {
-        const response = await apiClient.put(`/system-bank-card/${editingCard.id}`, formData);
-        if (isSuccessResponse(response)) {
-          alert('更新成功');
-          void fetchBankCards();
-          setShowModal(false);
-        } else {
-          alert(extractMessage(response, '更新失败'));
-        }
+      const payload = {
+        ...formData,
+        swiftCode: formData.swiftCode || undefined,
+      };
+
+      const response = editingCard
+        ? await apiClient.put(`/system-bank-card/${editingCard.id}`, payload)
+        : await apiClient.post('/system-bank-card', payload);
+
+      if (isSuccessResponse(response)) {
+        setToast({ message: editingCard ? '更新成功' : '添加成功', type: 'success' });
+        setShowModal(false);
+        void fetchBankCards();
       } else {
-        const response = await apiClient.post('/system-bank-card', formData);
-        if (isSuccessResponse(response)) {
-          alert('添加成功');
-          void fetchBankCards();
-          setShowModal(false);
-        } else {
-          alert(extractMessage(response, '添加失败'));
-        }
+        setToast({
+          message: extractMessage(response, editingCard ? '更新失败' : '添加失败'),
+          type: 'error',
+        });
       }
     } catch (error) {
       console.error('操作失败:', error);
-      alert('操作失败');
+      setToast({ message: '操作失败', type: 'error' });
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  const handleActivate = async (id: number) => {
-    if (!confirm('确定要启用这张银行卡吗？启用后其他银行卡将自动禁用。')) {
-      return;
-    }
-    try {
-      const response = await apiClient.put(`/system-bank-card/${id}/activate`);
-      if (isSuccessResponse(response)) {
-        alert('启用成功');
-        void fetchBankCards();
-      } else {
-        alert(extractMessage(response, '启用失败'));
-      }
-    } catch (error) {
-      console.error('启用失败:', error);
-      alert('启用失败');
-    }
-  };
+  const handleConfirm = async () => {
+    if (!confirmTarget) return;
 
-  const handleDelete = async (id: number) => {
-    if (!confirm('确定要删除这张银行卡吗？')) {
-      return;
-    }
     try {
-      const response = await apiClient.delete(`/system-bank-card/${id}`);
+      const response =
+        confirmTarget.type === 'activate'
+          ? await apiClient.put(`/system-bank-card/${confirmTarget.card.id}/activate`)
+          : await apiClient.delete(`/system-bank-card/${confirmTarget.card.id}`);
+
       if (isSuccessResponse(response)) {
-        alert('删除成功');
+        setToast({
+          message:
+            confirmTarget.type === 'activate' ? '启用成功' : '删除成功',
+          type: 'success',
+        });
+        setConfirmTarget(null);
         void fetchBankCards();
       } else {
-        alert(extractMessage(response, '删除失败'));
+        setToast({
+          message: extractMessage(
+            response,
+            confirmTarget.type === 'activate' ? '启用失败' : '删除失败',
+          ),
+          type: 'error',
+        });
       }
     } catch (error) {
-      console.error('删除失败:', error);
-      alert('删除失败');
+      console.error('操作失败:', error);
+      setToast({ message: '操作失败', type: 'error' });
     }
   };
 
   return (
-    <div className="p-6">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-800">收款银行卡管理</h1>
-        <p className="text-gray-600 mt-1">管理系统收款银行卡信息，同一时间只能启用一张</p>
+    <div className="space-y-4">
+      <PageHeader
+        title="收款银行卡管理"
+        description="维护系统收款账户，同一时间只保留一张启用状态"
+        actions={
+          <>
+            <Button variant="primary" onClick={openCreate}>
+              <Plus className="h-4 w-4" />
+              添加银行卡
+            </Button>
+          </>
+        }
+      />
+
+      <div className="grid gap-3 md:grid-cols-3">
+        <div className="rounded-md border border-slate-200 bg-white p-4">
+          <div className="text-xs text-slate-500">总记录</div>
+          <div className="mt-2 text-2xl font-semibold text-slate-950">{bankCards.length}</div>
+        </div>
+        <div className="rounded-md border border-slate-200 bg-white p-4">
+          <div className="text-xs text-slate-500">启用中</div>
+          <div className="mt-2 text-2xl font-semibold text-emerald-700">{activeCards.length}</div>
+        </div>
+        <div className="rounded-md border border-slate-200 bg-white p-4">
+          <div className="text-xs text-slate-500">当前状态</div>
+          <div className="mt-2 text-2xl font-semibold text-slate-950">
+            {activeCards[0]?.bankName || '-'}
+          </div>
+        </div>
       </div>
 
-      <div className="bg-white rounded-lg shadow">
-        <div className="p-6 border-b border-gray-200">
-          <button
-            onClick={handleAdd}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors"
-          >
-            + 添加银行卡
-          </button>
-        </div>
-
-        {loading ? (
-          <div className="p-6 text-center text-gray-500">加载中...</div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">银行名称</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">账户号码</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">账户名称</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">SWIFT代码</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">状态</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">操作</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {bankCards.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="px-6 py-4 text-center text-gray-500">
-                      暂无数据
-                    </td>
-                  </tr>
-                ) : (
-                  bankCards.map((card) => (
-                    <tr key={card.id}>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{card.id}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{card.bankName}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{card.accountNumber}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{card.accountName}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{card.swiftCode || '-'}</td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        {card.isActive === 1 ? (
-                          <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
-                            已启用
-                          </span>
-                        ) : (
-                          <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">
-                            未启用
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        {card.isActive === 0 && (
-                          <button
-                            onClick={() => handleActivate(card.id)}
-                            className="text-green-600 hover:text-green-900 mr-3"
-                          >
-                            启用
-                          </button>
-                        )}
-                        <button
-                          onClick={() => handleEdit(card)}
-                          className="text-blue-600 hover:text-blue-900 mr-3"
-                        >
-                          编辑
-                        </button>
-                        <button
-                          onClick={() => handleDelete(card.id)}
-                          className="text-red-600 hover:text-red-900"
-                        >
-                          删除
-                        </button>
-                      </td>
-                    </tr>
-                  ))
+      <DataTable
+        loading={loading}
+        rowKey={(row) => row.id}
+        rows={bankCards}
+        emptyText="暂无系统收款银行卡"
+        columns={[
+          {
+            key: 'id',
+            title: 'ID',
+            render: (card) => card.id,
+          },
+          {
+            key: 'bank',
+            title: '银行',
+            render: (card) => (
+              <div>
+                <div className="font-medium text-slate-950">{card.bankName}</div>
+                <div className="text-xs text-slate-500">SWIFT: {card.swiftCode || '-'}</div>
+              </div>
+            ),
+          },
+          {
+            key: 'account',
+            title: '账户',
+            render: (card) => (
+              <div>
+                <div>{card.accountName}</div>
+                <div className="text-xs text-slate-500">{card.accountNumber}</div>
+              </div>
+            ),
+          },
+          {
+            key: 'status',
+            title: '状态',
+            render: (card) => (
+              <StatusBadge tone={card.isActive === 1 ? 'green' : 'slate'}>
+                {card.isActive === 1 ? '已启用' : '未启用'}
+              </StatusBadge>
+            ),
+          },
+          {
+            key: 'actions',
+            title: '操作',
+            className: 'w-56',
+            render: (card) => (
+              <div className="flex flex-wrap gap-2">
+                {card.isActive === 0 && (
+                  <Button
+                    variant="success"
+                    onClick={() => setConfirmTarget({ type: 'activate', card })}
+                  >
+                    <Check className="h-4 w-4" />
+                    启用
+                  </Button>
                 )}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+                <Button variant="secondary" onClick={() => openEdit(card)}>
+                  <Pencil className="h-4 w-4" />
+                  编辑
+                </Button>
+                <Button
+                  variant="danger"
+                  onClick={() => setConfirmTarget({ type: 'delete', card })}
+                >
+                  <Trash2 className="h-4 w-4" />
+                  删除
+                </Button>
+              </div>
+            ),
+          },
+        ]}
+      />
 
-      {/* Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
-            <h2 className="text-xl font-bold mb-4">
-              {editingCard ? '编辑银行卡' : '添加银行卡'}
-            </h2>
-
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  银行名称 *
-                </label>
-                <input
-                  type="text"
-                  value={formData.bankName}
-                  onChange={(e) => setFormData({ ...formData, bankName: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="请输入银行名称"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  账户名称 *
-                </label>
-                <input
-                  type="text"
-                  value={formData.accountName}
-                  onChange={(e) => setFormData({ ...formData, accountName: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="请输入账户名称"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  账户号码 *
-                </label>
-                <input
-                  type="text"
-                  value={formData.accountNumber}
-                  onChange={(e) => setFormData({ ...formData, accountNumber: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="请输入账户号码"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  SWIFT代码（选填）
-                </label>
-                <input
-                  type="text"
-                  value={formData.swiftCode}
-                  onChange={(e) => setFormData({ ...formData, swiftCode: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="请输入SWIFT代码"
-                />
-              </div>
-            </div>
-
-            <div className="flex gap-3 mt-6">
-              <button
-                onClick={() => setShowModal(false)}
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-              >
+        <Modal
+          title={editingCard ? '编辑银行卡' : '添加银行卡'}
+          onClose={() => setShowModal(false)}
+          footer={
+            <>
+              <Button onClick={() => setShowModal(false)} disabled={submitting}>
                 取消
-              </button>
-              <button
-                onClick={handleSubmit}
-                disabled={!formData.bankName || !formData.accountName || !formData.accountNumber}
-                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
-              >
-                确定
-              </button>
-            </div>
+              </Button>
+              <Button variant="primary" onClick={handleSubmit} disabled={submitting}>
+                {submitting ? '保存中...' : '保存'}
+              </Button>
+            </>
+          }
+        >
+          <div className="grid gap-4">
+            <input
+              className={fieldClass}
+              value={formData.bankName}
+              onChange={(event) => setFormData({ ...formData, bankName: event.target.value })}
+              placeholder="银行名称"
+            />
+            <input
+              className={fieldClass}
+              value={formData.accountName}
+              onChange={(event) => setFormData({ ...formData, accountName: event.target.value })}
+              placeholder="账户名称"
+            />
+            <input
+              className={fieldClass}
+              value={formData.accountNumber}
+              onChange={(event) => setFormData({ ...formData, accountNumber: event.target.value })}
+              placeholder="账户号码"
+            />
+            <input
+              className={fieldClass}
+              value={formData.swiftCode}
+              onChange={(event) => setFormData({ ...formData, swiftCode: event.target.value })}
+              placeholder="SWIFT 代码（选填）"
+            />
           </div>
-        </div>
+        </Modal>
+      )}
+
+      {confirmTarget && (
+        <ConfirmDialog
+          title={confirmTarget.type === 'activate' ? '启用银行卡' : '删除银行卡'}
+          danger={confirmTarget.type === 'delete'}
+          message={
+            confirmTarget.type === 'activate'
+              ? `确认启用「${confirmTarget.card.bankName}」？启用后其他银行卡会自动失效。`
+              : `确认删除「${confirmTarget.card.bankName}」？此操作会隐藏该银行卡。`
+          }
+          confirmText={confirmTarget.type === 'activate' ? '确认启用' : '确认删除'}
+          onCancel={() => setConfirmTarget(null)}
+          onConfirm={handleConfirm}
+        />
+      )}
+
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
       )}
     </div>
   );

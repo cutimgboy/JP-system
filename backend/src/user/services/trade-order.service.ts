@@ -4,6 +4,8 @@ import {
   NotFoundException,
   Logger,
 } from '@nestjs/common';
+import { Type } from 'class-transformer';
+import { IsEnum, IsNumber, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 import {
@@ -18,17 +20,52 @@ import { AccountService } from './account.service';
 import { RedisService } from '../../redis/redis.service';
 import { Cron, CronExpression } from '@nestjs/schedule';
 
+const MAX_USER_ORDER_LIMIT = 100;
+const MAX_ADMIN_ORDER_LIMIT = 100;
+const AUTO_CLOSE_BATCH_SIZE = 100;
+
 /**
  * 创建订单DTO
  */
 export class CreateOrderDto {
+  @IsString()
+  @MaxLength(20)
   stockCode: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
   stockName?: string;
+
+  @IsEnum(TradeType)
   tradeType: TradeType;
+
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
   investmentAmount: number;
+
+  @Type(() => Number)
+  @IsNumber()
+  @Min(30)
+  @Max(300)
   durationSeconds: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  @Max(1000)
   profitRate?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
   accountId?: number; // 改为使用 accountId
+
+  @IsOptional()
+  @IsEnum(AccountType)
   accountType?: AccountType; // 保留用于向后兼容，但会被验证
 }
 
@@ -176,10 +213,16 @@ export class TradeOrderService {
   /**
    * 平仓订单
    */
-  async closeOrder(orderId: number): Promise<TradeOrderEntity> {
-    const order = await this.orderRepository.findOne({
-      where: { id: orderId },
-    });
+  async closeOrder(orderId: number, userId: number): Promise<TradeOrderEntity> {
+    return this.closeOrderInternal(orderId, userId);
+  }
+
+  private async closeOrderInternal(
+    orderId: number,
+    userId?: number,
+  ): Promise<TradeOrderEntity> {
+    const where = userId ? { id: orderId, userId } : { id: orderId };
+    const order = await this.orderRepository.findOne({ where });
 
     if (!order) {
       throw new NotFoundException('订单不存在');
@@ -259,12 +302,13 @@ export class TradeOrderService {
     limit: number = 50,
     accountType: AccountType = AccountType.DEMO,
   ): Promise<TradeOrderEntity[]> {
+    const safeLimit = Math.min(Math.max(Number(limit) || 50, 1), MAX_USER_ORDER_LIMIT);
     const query = this.orderRepository
       .createQueryBuilder('order')
       .where('order.userId = :userId', { userId })
       .andWhere('order.accountType = :accountType', { accountType })
       .orderBy('order.createdAt', 'DESC')
-      .take(limit);
+      .take(safeLimit);
 
     if (status) {
       query.andWhere('order.status = :status', { status });
@@ -319,35 +363,62 @@ export class TradeOrderService {
     netProfit: number;
     todayProfitLoss: number;
   }> {
-    const orders = await this.orderRepository.find({
-      where: { userId, accountType },
-    });
-
-    const totalOrders = orders.length;
-    const openOrders = orders.filter((o) => o.status === OrderStatus.OPEN).length;
-    const closedOrders = orders.filter((o) => o.status === OrderStatus.CLOSED).length;
-    const winOrders = orders.filter((o) => o.result === OrderResult.WIN).length;
-    const lossOrders = orders.filter((o) => o.result === OrderResult.LOSS).length;
-    const winRate = closedOrders > 0 ? (winOrders / closedOrders) * 100 : 0;
-
-    const totalProfit = orders
-      .filter((o) => o.result === OrderResult.WIN)
-      .reduce((sum, o) => sum + Number(o.profitLoss), 0);
-
-    const totalLoss = Math.abs(
-      orders
-        .filter((o) => o.result === OrderResult.LOSS)
-        .reduce((sum, o) => sum + Number(o.profitLoss), 0),
-    );
-
-    const netProfit = totalProfit - totalLoss;
-
-    // 计算今日盈亏
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const todayProfitLoss = orders
-      .filter((o) => o.status === OrderStatus.CLOSED && new Date(o.closeTime) >= today)
-      .reduce((sum, o) => sum + Number(o.profitLoss), 0);
+
+    const raw = await this.orderRepository
+      .createQueryBuilder('order')
+      .select('COUNT(*)', 'totalOrders')
+      .addSelect(
+        'SUM(CASE WHEN order.status = :openStatus THEN 1 ELSE 0 END)',
+        'openOrders',
+      )
+      .addSelect(
+        'SUM(CASE WHEN order.status = :closedStatus THEN 1 ELSE 0 END)',
+        'closedOrders',
+      )
+      .addSelect(
+        'SUM(CASE WHEN order.result = :winResult THEN 1 ELSE 0 END)',
+        'winOrders',
+      )
+      .addSelect(
+        'SUM(CASE WHEN order.result = :lossResult THEN 1 ELSE 0 END)',
+        'lossOrders',
+      )
+      .addSelect(
+        'SUM(CASE WHEN order.result = :winResult THEN order.profitLoss ELSE 0 END)',
+        'totalProfit',
+      )
+      .addSelect(
+        'SUM(CASE WHEN order.result = :lossResult THEN order.profitLoss ELSE 0 END)',
+        'totalLoss',
+      )
+      .addSelect(
+        'SUM(CASE WHEN order.status = :closedStatus AND order.closeTime >= :today THEN order.profitLoss ELSE 0 END)',
+        'todayProfitLoss',
+      )
+      .where('order.userId = :userId', { userId })
+      .andWhere('order.accountType = :accountType', { accountType })
+      .setParameters({
+        openStatus: OrderStatus.OPEN,
+        closedStatus: OrderStatus.CLOSED,
+        winResult: OrderResult.WIN,
+        lossResult: OrderResult.LOSS,
+        today,
+      })
+      .getRawOne();
+
+    const totalOrders = Number(raw?.totalOrders || 0);
+    const openOrders = Number(raw?.openOrders || 0);
+    const closedOrders = Number(raw?.closedOrders || 0);
+    const winOrders = Number(raw?.winOrders || 0);
+    const lossOrders = Number(raw?.lossOrders || 0);
+    const winRate = closedOrders > 0 ? (winOrders / closedOrders) * 100 : 0;
+    const totalProfit = Number(raw?.totalProfit || 0);
+    const totalLoss = Math.abs(Number(raw?.totalLoss || 0));
+
+    const netProfit = totalProfit - totalLoss;
+    const todayProfitLoss = Number(raw?.todayProfitLoss || 0);
 
     return {
       totalOrders,
@@ -383,6 +454,8 @@ export class TradeOrderService {
         .createQueryBuilder('order')
         .where('order.status = :status', { status: OrderStatus.OPEN })
         .andWhere('order.expectedCloseTime <= :now', { now })
+        .orderBy('order.expectedCloseTime', 'ASC')
+        .take(AUTO_CLOSE_BATCH_SIZE)
         .getMany();
 
       if (expiredOrders.length === 0) {
@@ -394,7 +467,7 @@ export class TradeOrderService {
       // 逐个平仓
       for (const order of expiredOrders) {
         try {
-          await this.closeOrder(order.id);
+          await this.closeOrderInternal(order.id);
         } catch (error) {
           this.logger.error(
             `自动平仓失败: 订单ID=${order.id}, 错误=${error.message}`,
@@ -422,6 +495,8 @@ export class TradeOrderService {
     limit: number;
     totalPages: number;
   }> {
+    const safePage = Math.max(Number(page) || 1, 1);
+    const safeLimit = Math.min(Math.max(Number(limit) || 20, 1), MAX_ADMIN_ORDER_LIMIT);
     const query = this.orderRepository
       .createQueryBuilder('order')
       .leftJoinAndSelect('order.user', 'user');
@@ -450,23 +525,23 @@ export class TradeOrderService {
     const total = await query.getCount();
     const orders = await query
       .orderBy('order.createdAt', 'DESC')
-      .skip((page - 1) * limit)
-      .take(limit)
+      .skip((safePage - 1) * safeLimit)
+      .take(safeLimit)
       .getMany();
 
     return {
       orders,
       total,
-      page,
-      limit,
-      totalPages: Math.ceil(total / limit),
+      page: safePage,
+      limit: safeLimit,
+      totalPages: Math.max(Math.ceil(total / safeLimit), 1),
     };
   }
 
   /**
    * 管理员：获取全局统计
    */
-  async getGlobalStats(accountType: AccountType = AccountType.REAL): Promise<{
+  async getGlobalStats(accountType?: AccountType): Promise<{
     totalOrders: number;
     openOrders: number;
     winOrders: number;
@@ -474,32 +549,48 @@ export class TradeOrderService {
     totalProfit: number;
     totalLoss: number;
   }> {
-    const orders = await this.orderRepository.find({
-      where: { accountType },
-    });
+    const query = this.orderRepository
+      .createQueryBuilder('order')
+      .select('COUNT(*)', 'totalOrders')
+      .addSelect(
+        'SUM(CASE WHEN order.status = :openStatus THEN 1 ELSE 0 END)',
+        'openOrders',
+      )
+      .addSelect(
+        'SUM(CASE WHEN order.result = :winResult THEN 1 ELSE 0 END)',
+        'winOrders',
+      )
+      .addSelect(
+        'SUM(CASE WHEN order.result = :lossResult THEN 1 ELSE 0 END)',
+        'lossOrders',
+      )
+      .addSelect(
+        'SUM(CASE WHEN order.result = :winResult THEN order.profitLoss ELSE 0 END)',
+        'totalProfit',
+      )
+      .addSelect(
+        'SUM(CASE WHEN order.result = :lossResult THEN order.profitLoss ELSE 0 END)',
+        'totalLoss',
+      )
+      .setParameters({
+        openStatus: OrderStatus.OPEN,
+        winResult: OrderResult.WIN,
+        lossResult: OrderResult.LOSS,
+      });
 
-    const totalOrders = orders.length;
-    const openOrders = orders.filter((o) => o.status === OrderStatus.OPEN).length;
-    const winOrders = orders.filter((o) => o.result === OrderResult.WIN).length;
-    const lossOrders = orders.filter((o) => o.result === OrderResult.LOSS).length;
+    if (accountType) {
+      query.andWhere('order.accountType = :accountType', { accountType });
+    }
 
-    const totalProfit = orders
-      .filter((o) => o.result === OrderResult.WIN)
-      .reduce((sum, o) => sum + Number(o.profitLoss), 0);
-
-    const totalLoss = Math.abs(
-      orders
-        .filter((o) => o.result === OrderResult.LOSS)
-        .reduce((sum, o) => sum + Number(o.profitLoss), 0),
-    );
+    const raw = await query.getRawOne();
 
     return {
-      totalOrders,
-      openOrders,
-      winOrders,
-      lossOrders,
-      totalProfit,
-      totalLoss,
+      totalOrders: Number(raw?.totalOrders || 0),
+      openOrders: Number(raw?.openOrders || 0),
+      winOrders: Number(raw?.winOrders || 0),
+      lossOrders: Number(raw?.lossOrders || 0),
+      totalProfit: Number(raw?.totalProfit || 0),
+      totalLoss: Math.abs(Number(raw?.totalLoss || 0)),
     };
   }
 

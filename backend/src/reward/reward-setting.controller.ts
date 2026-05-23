@@ -13,6 +13,10 @@ import { RewardSettingService } from './services/reward-setting.service';
 import { JwtAuthGuard } from '../user/guards/jwt-auth.guard';
 import { RolesGuard } from '../user/guards/roles.guard';
 import { Roles } from '../user/decorators/roles.decorator';
+import {
+  ClaimRewardDto,
+  UpdateRewardSettingDto,
+} from './dto/reward-setting.dto';
 
 /**
  * 奖励设置控制器
@@ -61,7 +65,7 @@ export class RewardSettingController {
   @Roles('admin')
   async updateSetting(
     @Param('id') id: number,
-    @Body() data: { rewardAmount?: number; isActive?: number },
+    @Body() data: UpdateRewardSettingDto,
   ) {
     const success = await this.rewardSettingService.update(id, data);
     if (success) {
@@ -84,7 +88,7 @@ export class RewardSettingController {
   @Post('claim')
   async claimReward(
     @Request() req,
-    @Body() body: { accountType: 'demo' | 'real' },
+    @Body() body: ClaimRewardDto,
   ) {
     const userId = req.user.id;
     const result = await this.rewardSettingService.claimReward(userId, body.accountType);

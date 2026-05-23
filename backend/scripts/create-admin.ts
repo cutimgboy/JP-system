@@ -16,12 +16,16 @@ if (envFilePath) {
   dotenv.config({ path: envFilePath });
 }
 
-/**
- * 创建管理员账户脚本
- * 用户名: admin
- * 密码: Admin@123456
- */
 async function createAdmin() {
+  const adminUsername = process.env.ADMIN_USERNAME || 'admin';
+  const adminPassword = process.env.ADMIN_PASSWORD;
+  const adminPhone = process.env.ADMIN_PHONE || null;
+  const adminEmail = process.env.ADMIN_EMAIL || null;
+
+  if (!adminPassword || adminPassword.length < 12) {
+    throw new Error('请通过 ADMIN_PASSWORD 配置至少 12 位的管理员初始密码');
+  }
+
   // 创建数据库连接
   const dataSource = new DataSource({
     type: 'mysql',
@@ -43,27 +47,26 @@ async function createAdmin() {
 
     // 检查管理员是否已存在
     const existingAdmin = await userRepository.findOne({
-      where: { username: 'admin' },
+      where: { username: adminUsername },
     });
 
     if (existingAdmin) {
       console.log('管理员账户已存在');
-      console.log('用户名: admin');
+      console.log(`用户名: ${adminUsername}`);
       console.log('如需重置密码，请先删除现有管理员账户');
       await dataSource.destroy();
       return;
     }
 
     // 生成密码哈希
-    const password = 'Admin@123456';
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const hashedPassword = await bcrypt.hash(adminPassword, 10);
 
     // 创建管理员用户
     const admin = new UserEntity();
-    admin.username = 'admin';
+    admin.username = adminUsername;
     admin.password = hashedPassword;
-    admin.phone = '13800138000';
-    admin.email = 'admin@jp-system.com';
+    admin.phone = adminPhone;
+    admin.email = adminEmail;
     admin.role = 'admin';
     admin.status = 1;
 
@@ -91,10 +94,8 @@ async function createAdmin() {
     console.log('\n=================================');
     console.log('管理员账户创建成功！');
     console.log('=================================');
-    console.log('用户名: admin');
-    console.log('密码: Admin@123456');
-    console.log('=================================');
-    console.log('请妥善保管管理员账户信息');
+    console.log(`用户名: ${adminUsername}`);
+    console.log('密码已从 ADMIN_PASSWORD 读取，不会输出到日志');
     console.log('=================================\n');
 
     await dataSource.destroy();

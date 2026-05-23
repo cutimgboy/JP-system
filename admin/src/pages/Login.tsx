@@ -1,13 +1,15 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { apiClient, extractData, extractMessage } from '../utils/api';
 
 export function Login() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const redirectPath = new URLSearchParams(location.search).get('redirect') || '/';
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -28,7 +30,7 @@ export function Login() {
       localStorage.setItem('admin_token', loginData.access_token);
 
       // 跳转到后台首页
-      navigate('/');
+      navigate(redirectPath, { replace: true });
     } catch (err: any) {
       console.error('登录失败:', err);
       setError(
@@ -40,15 +42,15 @@ export function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center p-4">
-      <div className="bg-white rounded-lg shadow-2xl w-full max-w-md p-8">
+    <div className="flex min-h-screen items-center justify-center bg-slate-100 p-4">
+      <div className="w-full max-w-md rounded-md border border-slate-200 bg-white p-8 shadow-sm">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-800 mb-2">JP 后台管理系统</h1>
-          <p className="text-gray-600">管理员登录</p>
+          <h1 className="mb-2 text-2xl font-semibold text-slate-950">JP 后台管理系统</h1>
+          <p className="text-sm text-slate-500">管理员登录</p>
         </div>
 
         {error && (
-          <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded-lg text-sm">
+          <div className="mb-4 rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
             {error}
           </div>
         )}
@@ -62,7 +64,7 @@ export function Login() {
               type="text"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
+              className="w-full rounded-md border border-slate-300 px-4 py-3 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
               placeholder="请输入用户名"
               required
               disabled={loading}
@@ -77,7 +79,7 @@ export function Login() {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
+              className="w-full rounded-md border border-slate-300 px-4 py-3 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
               placeholder="请输入密码"
               required
               disabled={loading}
@@ -87,7 +89,7 @@ export function Login() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg transition-colors shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full rounded-md bg-blue-600 py-3 font-semibold text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {loading ? '登录中...' : '登录'}
           </button>

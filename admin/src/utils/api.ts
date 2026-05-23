@@ -40,7 +40,8 @@ apiClient.interceptors.response.use(
   (error) => {
     if (error.response?.status === 401) {
       localStorage.removeItem('admin_token');
-      window.location.href = '/login';
+      const redirect = encodeURIComponent(window.location.pathname + window.location.search);
+      window.location.href = `/login?redirect=${redirect}`;
     }
     return Promise.reject(error);
   }

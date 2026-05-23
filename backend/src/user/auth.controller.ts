@@ -10,6 +10,7 @@ import { SendEmailDto } from './dto/send-email.dto';
 import { EmailLoginDto } from './dto/email-login.dto';
 import { CheckPhoneLoginMethodDto } from './dto/check-phone-login-method.dto';
 import { PhonePasswordLoginDto } from './dto/phone-password-login.dto';
+import { AdminLoginDto } from './dto/admin-login.dto';
 import { Public } from './decorators/public.decorator';
 
 @ApiTags('认证')
@@ -26,10 +27,9 @@ export class AuthController {
   @ApiOperation({ summary: '发送短信验证码' })
   @ApiResponse({ status: 200, description: '发送成功' })
   async sendSms(@Body() sendSmsDto: SendSmsDto) {
-    const code = await this.smsService.sendSms(sendSmsDto.phone);
+    await this.smsService.sendSms(sendSmsDto.phone);
     return {
       message: '验证码已发送',
-      code: code
     };
   }
 
@@ -49,7 +49,7 @@ export class AuthController {
   @Post('login')
   @ApiOperation({ summary: '用户名密码登录' })
   @ApiResponse({ status: 200, description: '登录成功' })
-  async login(@Body() body: { username: string; password: string }) {
+  async login(@Body() body: AdminLoginDto) {
     const result = await this.authService.login(body.username, body.password);
     return result;
   }

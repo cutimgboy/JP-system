@@ -53,6 +53,9 @@ export enum OrderResult {
 @Index(['userId', 'accountType', 'status'])
 @Index(['userId', 'accountType', 'createdAt'])
 @Index(['stockCode', 'status'])
+@Index(['status', 'expectedCloseTime'])
+@Index(['accountType', 'createdAt'])
+@Index(['accountType', 'status', 'createdAt'])
 export class TradeOrderEntity {
   @PrimaryGeneratedColumn()
   id: number;
