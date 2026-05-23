@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { KLineChart, type KLineData } from './KLineChart';
-import { API_BASE_URL } from '../../../utils/api';
+import { API_BASE_URL, apiClient, extractData } from '../../../utils/api';
 
 interface TradingChartProps {
   countdown?: number; // 倒计时时间（秒）
@@ -17,6 +17,27 @@ export function TradingChart({ countdown, stockCode = 'AAPL.US', entryPrice, ent
   const [currentPrice, setCurrentPrice] = useState(0);
   const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting');
   const eventSourceRef = useRef<EventSource | null>(null);
+  const pendingPointsRef = useRef<KLineData[]>([]);
+  const flushTimerRef = useRef<number | null>(null);
+  const latestPointRef = useRef<KLineData | null>(null);
+
+  const flushPendingPoints = () => {
+    const pending = pendingPointsRef.current;
+    if (pending.length === 0) {
+      return;
+    }
+
+    pendingPointsRef.current = [];
+    const latestPoint = pending[pending.length - 1];
+    latestPointRef.current = latestPoint;
+
+    setKLineData(prev => {
+      const updated = [...prev, ...pending];
+      return updated.length > 20 * 60 ? updated.slice(-20 * 60) : updated;
+    });
+    setCurrentPrice(latestPoint.price);
+    onPriceUpdate?.(latestPoint.price, latestPoint.time);
+  };
 
   // SSE 连接实时数据
   useEffect(() => {
@@ -25,9 +46,37 @@ export function TradingChart({ countdown, stockCode = 'AAPL.US', entryPrice, ent
       return;
     }
 
+    let cancelled = false;
+
     // 切换股票时清空旧数据
     setKLineData([]);
     setCurrentPrice(0);
+    pendingPointsRef.current = [];
+    latestPointRef.current = null;
+
+    const loadSnapshot = async () => {
+      try {
+        const response = await apiClient.get(`/api/quote/kline/${stockCode}`, {
+          params: { interval: '1s', limit: 300 },
+        });
+        const payload = extractData<{ data?: KLineData[] }>(response);
+        const snapshot = Array.isArray(payload?.data) ? payload.data : [];
+
+        if (cancelled || snapshot.length === 0) {
+          return;
+        }
+
+        const latestPoint = snapshot[snapshot.length - 1];
+        latestPointRef.current = latestPoint;
+        setKLineData(snapshot);
+        setCurrentPrice(latestPoint.price);
+        onPriceUpdate?.(latestPoint.price, latestPoint.time);
+      } catch (error) {
+        console.error('加载K线快照失败:', error);
+      }
+    };
+
+    void loadSnapshot();
 
     const sseUrl = `${API_BASE_URL}/api/quote/stream/${stockCode}`;
 
@@ -54,17 +103,17 @@ export function TradingChart({ countdown, stockCode = 'AAPL.US', entryPrice, ent
             volume: data.volume,
           };
 
-          setKLineData(prev => {
-            const updated = [...prev, newDataPoint];
-            // 保持最多20分钟的数据（1200个点）
-            return updated.length > 20 * 60 ? updated.slice(-20 * 60) : updated;
-          });
+          const latestPoint = latestPointRef.current;
+          if (latestPoint && newDataPoint.time < latestPoint.time) {
+            return;
+          }
 
-          setCurrentPrice(data.price);
-
-          // 通知父组件价格和时间更新
-          if (onPriceUpdate) {
-            onPriceUpdate(data.price, data.time);
+          pendingPointsRef.current.push(newDataPoint);
+          if (flushTimerRef.current === null) {
+            flushTimerRef.current = window.setTimeout(() => {
+              flushTimerRef.current = null;
+              flushPendingPoints();
+            }, 200);
           }
         }
       } catch (error) {
@@ -80,8 +129,14 @@ export function TradingChart({ countdown, stockCode = 'AAPL.US', entryPrice, ent
 
     // 清理函数
     return () => {
+      cancelled = true;
       eventSourceRef.current = null;
       eventSource.close();
+      if (flushTimerRef.current !== null) {
+        window.clearTimeout(flushTimerRef.current);
+        flushTimerRef.current = null;
+      }
+      pendingPointsRef.current = [];
     };
   }, [stockCode]);
   return (

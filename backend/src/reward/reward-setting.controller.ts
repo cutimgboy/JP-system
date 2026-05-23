@@ -11,6 +11,8 @@ import {
 } from '@nestjs/common';
 import { RewardSettingService } from './services/reward-setting.service';
 import { JwtAuthGuard } from '../user/guards/jwt-auth.guard';
+import { RolesGuard } from '../user/guards/roles.guard';
+import { Roles } from '../user/decorators/roles.decorator';
 
 /**
  * 奖励设置控制器
@@ -40,6 +42,8 @@ export class RewardSettingController {
    * 获取所有奖励设置（管理端）
    */
   @Get('settings')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
   async getAllSettings() {
     const settings = await this.rewardSettingService.findAll();
     return {
@@ -53,6 +57,8 @@ export class RewardSettingController {
    * 更新奖励设置（管理端）
    */
   @Put('settings/:id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
   async updateSetting(
     @Param('id') id: number,
     @Body() data: { rewardAmount?: number; isActive?: number },

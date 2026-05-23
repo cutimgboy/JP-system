@@ -2,6 +2,8 @@ import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards } from '@nes
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { SystemBankCardService } from './services/system-bank-card.service';
 import { JwtAuthGuard } from '../user/guards/jwt-auth.guard';
+import { RolesGuard } from '../user/guards/roles.guard';
+import { Roles } from '../user/decorators/roles.decorator';
 
 @ApiTags('系统收款银行卡')
 @Controller('system-bank-card')
@@ -11,6 +13,8 @@ export class SystemBankCardController {
   constructor(private readonly systemBankCardService: SystemBankCardService) {}
 
   @Get('list')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
   @ApiOperation({ summary: '获取所有系统银行卡' })
   @ApiResponse({ status: 200, description: '获取成功' })
   async getSystemBankCards() {
@@ -51,6 +55,8 @@ export class SystemBankCardController {
   }
 
   @Get(':id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
   @ApiOperation({ summary: '获取系统银行卡详情' })
   @ApiResponse({ status: 200, description: '获取成功' })
   async getSystemBankCard(@Param('id') id: number) {
@@ -78,6 +84,8 @@ export class SystemBankCardController {
   }
 
   @Post()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
   @ApiOperation({ summary: '添加系统银行卡' })
   @ApiResponse({ status: 200, description: '添加成功' })
   async createSystemBankCard(
@@ -105,6 +113,8 @@ export class SystemBankCardController {
   }
 
   @Put(':id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
   @ApiOperation({ summary: '更新系统银行卡' })
   @ApiResponse({ status: 200, description: '更新成功' })
   async updateSystemBankCard(
@@ -141,6 +151,8 @@ export class SystemBankCardController {
   }
 
   @Put(':id/activate')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
   @ApiOperation({ summary: '启用系统银行卡' })
   @ApiResponse({ status: 200, description: '启用成功' })
   async activateSystemBankCard(@Param('id') id: number) {
@@ -169,6 +181,8 @@ export class SystemBankCardController {
   }
 
   @Delete(':id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
   @ApiOperation({ summary: '删除系统银行卡' })
   @ApiResponse({ status: 200, description: '删除成功' })
   async deleteSystemBankCard(@Param('id') id: number) {

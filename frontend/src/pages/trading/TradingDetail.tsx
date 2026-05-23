@@ -9,6 +9,7 @@ import { TimeSelector } from './components/TimeSelector';
 import { AlertDialog } from '../../components/AlertDialog';
 import { apiClient, extractData } from '../../utils/api';
 import { useAccount } from '../../contexts/AccountContext';
+import { AnimatePresence, motion } from 'framer-motion';
 
 interface TradingDetailProps {
   onBack: () => void;
@@ -41,6 +42,12 @@ export function TradingDetail({
   const [targetTime, setTargetTime] = useState<number | null>(null); // 目标时间（秒）
   const [latestPrice, setLatestPrice] = useState<number>(0); // 最新价格
   const [latestTime, setLatestTime] = useState<number>(0); // 最新时间
+  const [guideStep, setGuideStep] = useState(() => {
+    if (initialOrderId || localStorage.getItem('tradeGuideCompleted') === 'true') {
+      return -1;
+    }
+    return 0;
+  });
 
   // 当 initialStock 变化时更新 selectedStock
   useEffect(() => {
@@ -72,6 +79,7 @@ export function TradingDetail({
 
         // 如果有进行中的订单，自动恢复第一个
         if (openOrders && openOrders.length > 0) {
+          setGuideStep(-1);
           const activeOrder = openOrders[0];
           loadOrderAndRestoreState(activeOrder.id);
         }
@@ -82,6 +90,17 @@ export function TradingDetail({
 
     checkAndRestoreActiveOrder();
   }, [accountId, accountType, initialOrderId]);
+
+  useEffect(() => {
+    const handleStartGuide = () => {
+      if (tradeStatus === 'idle') {
+        setGuideStep(0);
+      }
+    };
+
+    window.addEventListener('start-trade-guide', handleStartGuide);
+    return () => window.removeEventListener('start-trade-guide', handleStartGuide);
+  }, [tradeStatus]);
 
   // 加载订单详情并恢复交易状态
   const loadOrderAndRestoreState = async (orderId: number) => {
@@ -150,6 +169,9 @@ export function TradingDetail({
   const handleConfirmTime = () => {
     setSelectedTime(tempSelectedTime);
     setShowTimeSelector(false);
+    if (guideStep === 1) {
+      setGuideStep(2);
+    }
   };
 
   const handleBullTrade = async () => {
@@ -214,6 +236,9 @@ export function TradingDetail({
       setEntryTime(latestTime || Date.now() / 1000);
       // 设置目标时间
       setTargetTime((latestTime || Date.now() / 1000) + seconds);
+      if (guideStep === 3) {
+        setGuideStep(4);
+      }
       fetchBalance(); // 刷新余额
     } catch (error: any) {
       console.error('创建订单失败:', error);
@@ -287,6 +312,9 @@ export function TradingDetail({
       setEntryTime(latestTime || Date.now() / 1000);
       // 设置目标时间
       setTargetTime((latestTime || Date.now() / 1000) + seconds);
+      if (guideStep === 3) {
+        setGuideStep(4);
+      }
       fetchBalance(); // 刷新余额
     } catch (error: any) {
       console.error('创建订单失败:', error);
@@ -344,7 +372,7 @@ export function TradingDetail({
             }, 1000);
           }
         }
-      }, 100); // 每100ms更新一次，确保更准确
+      }, 250); // 降低刷新频率，减少交易页整体重渲染压力
 
       return () => clearInterval(timer);
     }
@@ -396,6 +424,8 @@ export function TradingDetail({
         onBullTrade={handleBullTrade}
         onBearTrade={handleBearTrade}
         onResetTrade={handleResetTrade}
+        guideStep={guideStep}
+        onGuideStepChange={setGuideStep}
       />
 
       <CoinIntroduction stockCode={selectedStock} />
@@ -417,6 +447,110 @@ export function TradingDetail({
         message={alertDialog.message}
         onClose={() => setAlertDialog({ isOpen: false, title: '', message: '' })}
       />
+
+      <AnimatePresence>
+        {[1, 2, 3].includes(guideStep) && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[35] bg-black/60 backdrop-blur-sm"
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {guideStep === 0 && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-8 backdrop-blur-sm"
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 12 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 12 }}
+              className="flex w-full max-w-[320px] flex-col items-center rounded-[24px] bg-white p-6 text-center shadow-2xl"
+            >
+              <div className="relative mb-6 flex h-[88px] w-[88px] items-center justify-center">
+                <div className="absolute inset-0 rounded-[24px] bg-gradient-to-br from-[#10b981] to-[#6c48f5] opacity-25 blur-xl" />
+                <div className="relative flex h-full w-full items-center justify-center overflow-hidden rounded-[24px] border border-[#10b981]/30 bg-[#1c1c24] shadow-[inset_0_1px_1px_rgba(255,255,255,0.2),0_10px_30px_rgba(0,0,0,0.3)]">
+                  <svg width="42" height="42" viewBox="0 0 24 24" fill="none" className="drop-shadow-[0_0_12px_rgba(16,185,129,0.8)]">
+                    <path d="M3 17L9 11L13 15L21 7" stroke="url(#guideTrendGrad)" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" />
+                    <path d="M15 7H21V13" stroke="url(#guideTrendGrad)" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" />
+                    <defs>
+                      <linearGradient id="guideTrendGrad" x1="3" y1="17" x2="21" y2="7" gradientUnits="userSpaceOnUse">
+                        <stop stopColor="#6c48f5" />
+                        <stop offset="1" stopColor="#10b981" />
+                      </linearGradient>
+                    </defs>
+                  </svg>
+                </div>
+              </div>
+              <h3 className="mb-2 text-[18px] font-bold text-black">欢迎来到交易世界</h3>
+              <p className="mb-6 text-center text-[16px] font-bold leading-relaxed text-black/80">
+                30 秒带你体验一笔交易<br />准备好了么？
+              </p>
+              <button
+                onClick={() => setGuideStep(1)}
+                className="h-[48px] w-full rounded-[12px] bg-[#10b981] text-[16px] font-bold text-white shadow-[0_4px_12px_rgba(16,185,129,0.3)] transition-colors hover:bg-[#059669]"
+              >
+                开始引导
+              </button>
+              <button
+                onClick={() => {
+                  localStorage.setItem('tradeGuideCompleted', 'true');
+                  setGuideStep(-1);
+                }}
+                className="mt-3 text-[13px] text-black/45"
+              >
+                暂时跳过
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {guideStep === 4 && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[80] flex items-center justify-center bg-black/80 p-6 backdrop-blur-md"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="flex w-full max-w-[320px] flex-col items-center rounded-[24px] border border-white/10 bg-[#1c1c24] p-6 text-center shadow-[0_20px_60px_rgba(0,0,0,0.8)]"
+            >
+              <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-[#10b981]/20">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#10b981] shadow-[0_0_20px_rgba(16,185,129,0.5)]">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                    <path d="M20 6L9 17L4 12" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </div>
+              </div>
+              <h3 className="mb-3 text-[20px] font-bold text-white">下单成功</h3>
+              <p className="mb-8 text-[15px] leading-relaxed text-white/70">
+                恭喜你，完成了第一笔交易。<br />
+                现在只需等待到期结算，中途涨跌不用管。
+              </p>
+              <button
+                onClick={() => {
+                  localStorage.setItem('tradeGuideCompleted', 'true');
+                  setGuideStep(-1);
+                }}
+                className="h-[52px] w-full rounded-full bg-white text-[16px] font-bold text-black shadow-[0_4px_15px_rgba(255,255,255,0.2)] transition-colors hover:bg-gray-200"
+              >
+                知道了
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

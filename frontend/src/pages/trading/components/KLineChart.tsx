@@ -4,6 +4,10 @@ export interface KLineData {
   time: number; // 时间戳（秒）
   price: number; // 价格
   volume?: number; // 成交量（可选）
+  open?: number;
+  high?: number;
+  low?: number;
+  close?: number;
 }
 
 interface KLineChartProps {
@@ -31,9 +35,9 @@ export function KLineChart({
 }: KLineChartProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const [animationFrame, setAnimationFrame] = useState(0);
+  const [animationTick, setAnimationTick] = useState(0);
   const [canvasSize, setCanvasSize] = useState({ width: width, height: height });
-  const [currentRealTime, setCurrentRealTime] = useState(() => Date.now() / 1000);
+  const currentRealTimeRef = useRef(Date.now() / 1000);
 
   // 缩放和拖动状态
   const [scale, setScale] = useState(1); // 缩放级别，1 = 默认
@@ -216,12 +220,17 @@ export function KLineChart({
     };
   }, []);
 
-  // 动画循环 - 更新实际时间用于逐步绘制
+  // 动画循环 - 降频刷新，避免 React 每帧重渲染整个 canvas
   useEffect(() => {
     let animationId: number;
+    let lastRenderAt = 0;
     const animate = () => {
-      setAnimationFrame(prev => prev + 1);
-      setCurrentRealTime(Date.now() / 1000); // 更新实际时间
+      const now = performance.now();
+      currentRealTimeRef.current = Date.now() / 1000;
+      if (now - lastRenderAt >= 100) {
+        lastRenderAt = now;
+        setAnimationTick(prev => prev + 1);
+      }
       animationId = requestAnimationFrame(animate);
     };
     animationId = requestAnimationFrame(animate);
@@ -453,14 +462,14 @@ export function KLineChart({
         // 计算从倒数第二个点到最后一个点的绘制进度
         // 如果最后一个点的时间是20秒，当前实际时间是20.5秒，那么应该绘制到50%的位置
         const segmentDuration = lastPoint.time - secondLastPoint.time;
-        const timeSinceLastPoint = currentRealTime - lastPoint.time;
+        const timeSinceLastPoint = currentRealTimeRef.current - lastPoint.time;
         
         // 计算绘制进度：0 表示还没开始绘制，1 表示完全绘制完成
         // 如果当前时间已经超过最后一个点的时间，则完全绘制
         let drawProgress = 1;
         if (timeSinceLastPoint < 0) {
           // 当前时间还没到最后一个点的时间，计算进度
-          const timeSinceSecondLast = currentRealTime - secondLastPoint.time;
+          const timeSinceSecondLast = currentRealTimeRef.current - secondLastPoint.time;
           if (timeSinceSecondLast >= 0 && segmentDuration > 0) {
             drawProgress = Math.min(1, Math.max(0, timeSinceSecondLast / segmentDuration));
           } else {
@@ -588,7 +597,7 @@ export function KLineChart({
       );
 
       // 绘制呼吸动画的橙色点
-      const animateTime = animationFrame / 60; // 假设 60fps
+      const animateTime = animationTick / 10;
       const pulse = Math.sin(animateTime * Math.PI) * 0.3 + 0.7;
       
       // 外层光晕
@@ -842,7 +851,7 @@ export function KLineChart({
       const profitText = `${isProfit ? '+' : ''}${Math.floor(profitValue)}`;
       ctx.fillText(profitText, logicalWidth - chartPadding.right, labelY + labelHeight / 2);
     }
-  }, [data, canvasSize, currentPrice, countdownTime, animationFrame, currentRealTime, scale, offset, profitLoss, showProfit]);
+  }, [data, canvasSize, currentPrice, countdownTime, animationTick, scale, offset, profitLoss, showProfit, entryPrice, entryTime]);
 
   return (
     <div ref={containerRef} className="w-full h-full relative">

@@ -30,22 +30,7 @@ export class MigrationService implements OnModuleInit {
           sqls: ['ALTER TABLE users AUTO_INCREMENT = 80000000'],
           description: '修改用户ID起始值为80000000',
         },
-        {
-          name: '002-clear-all-test-data',
-          sqls: [
-            'SET FOREIGN_KEY_CHECKS = 0',
-            'TRUNCATE TABLE trade_orders',
-            'TRUNCATE TABLE user_accounts',
-            'TRUNCATE TABLE bank_cards',
-            'TRUNCATE TABLE deposit_records',
-            'TRUNCATE TABLE reward_claims',
-            'TRUNCATE TABLE messages',
-            'TRUNCATE TABLE users',
-            'SET FOREIGN_KEY_CHECKS = 1',
-            'ALTER TABLE users AUTO_INCREMENT = 80000000',
-          ],
-          description: '清除所有测试数据并重置用户ID起始值',
-        },
+        // Destructive data-reset operations must live in explicit scripts, never startup migrations.
       ];
 
       // 执行未执行的迁移

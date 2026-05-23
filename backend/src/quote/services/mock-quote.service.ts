@@ -107,18 +107,10 @@ export class MockQuoteService implements OnModuleInit {
   /**
    * 获取单个产品的实时行情
    */
-  async getRealtimeQuote(tradeCode: string) {
-    const priceData = this.priceCache.get(tradeCode);
+  private buildQuote(product: ProductEntity) {
+    const priceData = this.priceCache.get(product.tradeCode);
 
     if (!priceData) {
-      return null;
-    }
-
-    const product = await this.productRepository.findOne({
-      where: { tradeCode, isActive: true }
-    });
-
-    if (!product) {
       return null;
     }
 
@@ -153,6 +145,24 @@ export class MockQuoteService implements OnModuleInit {
     };
   }
 
+  async getRealtimeQuote(tradeCode: string) {
+    const priceData = this.priceCache.get(tradeCode);
+
+    if (!priceData) {
+      return null;
+    }
+
+    const product = await this.productRepository.findOne({
+      where: { tradeCode, isActive: true }
+    });
+
+    if (!product) {
+      return null;
+    }
+
+    return this.buildQuote(product);
+  }
+
   /**
    * 获取多个产品的实时行情
    */
@@ -172,7 +182,7 @@ export class MockQuoteService implements OnModuleInit {
 
     const quotes: any[] = [];
     for (const product of products) {
-      const quote = await this.getRealtimeQuote(product.tradeCode);
+      const quote = this.buildQuote(product);
       if (quote) {
         quotes.push(quote);
       }
@@ -192,7 +202,7 @@ export class MockQuoteService implements OnModuleInit {
 
     const quotes: any[] = [];
     for (const product of products) {
-      const quote = await this.getRealtimeQuote(product.tradeCode);
+      const quote = this.buildQuote(product);
       if (quote) {
         quotes.push(quote);
       }

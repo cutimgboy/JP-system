@@ -3,6 +3,8 @@ import { MessageService } from './services/message.service';
 import { CreateMessageDto } from './dto/create-message.dto';
 import { UpdateMessageDto } from './dto/update-message.dto';
 import { JwtAuthGuard } from '../user/guards/jwt-auth.guard';
+import { RolesGuard } from '../user/guards/roles.guard';
+import { Roles } from '../user/decorators/roles.decorator';
 
 @Controller('api/messages')
 export class MessageController {
@@ -18,7 +20,8 @@ export class MessageController {
 }
 
 @Controller('api/admin/messages')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles('admin')
 export class AdminMessageController {
   constructor(private readonly messageService: MessageService) {}
 
@@ -41,6 +44,15 @@ export class AdminMessageController {
   /**
    * 更新消息
    */
+  @Put('sort-order')
+  async updateSortOrder(@Body() items: { id: number; sortOrder: number }[]) {
+    await this.messageService.updateSortOrder(items);
+    return { success: true };
+  }
+
+  /**
+   * 更新消息
+   */
   @Put(':id')
   async updateMessage(
     @Param('id') id: string,
@@ -55,15 +67,6 @@ export class AdminMessageController {
   @Delete(':id')
   async deleteMessage(@Param('id') id: string) {
     await this.messageService.remove(+id);
-    return { success: true };
-  }
-
-  /**
-   * 批量更新排序
-   */
-  @Put('sort-order')
-  async updateSortOrder(@Body() items: { id: number; sortOrder: number }[]) {
-    await this.messageService.updateSortOrder(items);
     return { success: true };
   }
 }

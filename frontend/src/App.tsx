@@ -1,5 +1,5 @@
 import { Suspense, lazy } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useParams } from 'react-router-dom';
 import { ProtectedRoute } from './components/ProtectedRoute';
 
 const Login = lazy(() =>
@@ -70,6 +70,16 @@ const DepositDetail = lazy(() =>
 const Withdraw = lazy(() =>
   import('./pages/withdraw').then((module) => ({ default: module.Withdraw })),
 );
+const WithdrawAmount = lazy(() =>
+  import('./pages/withdraw/amount').then((module) => ({
+    default: module.WithdrawAmount,
+  })),
+);
+const WithdrawIdentity = lazy(() =>
+  import('./pages/withdraw/identity').then((module) => ({
+    default: module.WithdrawIdentity,
+  })),
+);
 const FundRecords = lazy(() =>
   import('./pages/fund-records').then((module) => ({
     default: module.FundRecords,
@@ -128,6 +138,11 @@ function PageLoader() {
       </div>
     </div>
   );
+}
+
+function OrderDetailCompatRedirect() {
+  const { id } = useParams();
+  return <Navigate to={`/positions/order/${id || ''}`} replace />;
 }
 
 function App() {
@@ -283,6 +298,30 @@ function App() {
           }
         />
         <Route
+          path="/withdraw/select-bank"
+          element={
+            <ProtectedRoute>
+              <Withdraw />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/withdraw/amount"
+          element={
+            <ProtectedRoute>
+              <WithdrawAmount />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/withdraw/identity"
+          element={
+            <ProtectedRoute>
+              <WithdrawIdentity />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/fund-records"
           element={
             <ProtectedRoute>
@@ -314,6 +353,16 @@ function App() {
             </ProtectedRoute>
           }
         />
+        <Route path="/order-detail/:id" element={<OrderDetailCompatRedirect />} />
+        <Route path="/funds-record" element={<Navigate to="/fund-records" replace />} />
+        <Route path="/my-banks" element={<Navigate to="/my-bank" replace />} />
+        <Route path="/deposit/add-card" element={<Navigate to="/my-bank/add" replace />} />
+        <Route path="/about" element={<Navigate to="/about-us" replace />} />
+        <Route path="/activity" element={<Navigate to="/promotion" replace />} />
+        <Route path="/profile/info" element={<Navigate to="/personal-info" replace />} />
+        <Route path="/profile/language" element={<Navigate to="/change-language" replace />} />
+        <Route path="/profile/install" element={<Navigate to="/install-app" replace />} />
+        <Route path="/profile/password" element={<Navigate to="/change-password" replace />} />
 
         <Route path="*" element={<div>404 - Page Not Found</div>} />
       </Routes>

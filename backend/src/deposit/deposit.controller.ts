@@ -3,6 +3,8 @@ import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagg
 import { DepositService } from './services/deposit.service';
 import { CurrentUser } from '../user/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../user/guards/jwt-auth.guard';
+import { RolesGuard } from '../user/guards/roles.guard';
+import { Roles } from '../user/decorators/roles.decorator';
 
 @ApiTags('入金记录')
 @Controller('deposit')
@@ -67,6 +69,8 @@ export class DepositController {
   }
 
   @Get('all')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
   @ApiOperation({ summary: '获取所有入金记录（后台管理）' })
   @ApiResponse({ status: 200, description: '获取成功' })
   async getAllDeposits(@Query('status') status?: number) {
@@ -89,10 +93,10 @@ export class DepositController {
   @Get(':id')
   @ApiOperation({ summary: '获取入金记录详情' })
   @ApiResponse({ status: 200, description: '获取成功' })
-  async getDeposit(@Param('id') id: number) {
+  async getDeposit(@Param('id') id: number, @CurrentUser() user) {
     try {
       const deposit = await this.depositService.findById(id);
-      if (!deposit) {
+      if (!deposit || (user.role !== 'admin' && deposit.userId !== user.id)) {
         return {
           data: null,
           code: 1,
@@ -114,6 +118,8 @@ export class DepositController {
   }
 
   @Put(':id/review')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
   @ApiOperation({ summary: '审核入金记录' })
   @ApiResponse({ status: 200, description: '审核成功' })
   async reviewDeposit(

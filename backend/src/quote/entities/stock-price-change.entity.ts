@@ -7,6 +7,8 @@ import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, Index } from 
 @Entity('stock_price_change')
 @Index(['code', 'createdAt'])
 @Index(['createdAt'])
+@Index(['code', 'tick_time'])
+@Index(['tick_time'])
 export class StockPriceChangeEntity {
   @PrimaryGeneratedColumn()
   id: number;

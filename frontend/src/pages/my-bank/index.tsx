@@ -1,9 +1,9 @@
-import { ArrowLeft, Battery, Wifi, Signal, Building2, Plus, Trash2 } from 'lucide-react';
-import { BottomNav } from '../../components/BottomNav';
+import { useEffect, useState } from 'react';
+import { ChevronLeft, Landmark, Plus, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { useState, useEffect } from 'react';
-import { apiClient, extractData } from '../../utils/api';
+import { AnimatePresence, motion } from 'framer-motion';
 import { Toast } from '../../components/Toast';
+import { apiClient, extractData } from '../../utils/api';
 
 interface BankCard {
   id: number;
@@ -18,189 +18,169 @@ export function MyBank() {
   const navigate = useNavigate();
   const [bankCards, setBankCards] = useState<BankCard[]>([]);
   const [loading, setLoading] = useState(true);
-  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'warning' } | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
-
-  useEffect(() => {
-    fetchBankCards();
-  }, []);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'warning' } | null>(null);
 
   const fetchBankCards = async () => {
     try {
-      const response: any = await apiClient.get('/bank-card/list');
-      console.log('银行卡列表响应:', response);
-      let cards = extractData(response) || [];
-      if (!Array.isArray(cards)) {
-        console.warn('银行卡列表不是数组,使用空数组');
-        cards = [];
-      }
-      setBankCards(cards);
+      setLoading(true);
+      const response = await apiClient.get('/bank-card/list');
+      const cards = extractData<BankCard[]>(response);
+      setBankCards(Array.isArray(cards) ? cards : []);
     } catch (error) {
       console.error('获取银行卡列表失败:', error);
+      setBankCards([]);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleDelete = async (id: number) => {
+  useEffect(() => {
+    void fetchBankCards();
+  }, []);
+
+  const handleDelete = async () => {
+    if (!deleteConfirm) return;
     try {
-      const response: any = await apiClient.delete(`/bank-card/${id}`);
-      const result = extractData(response);
-      if (result !== null) {
-        setToast({ message: '删除成功', type: 'success' });
-        setDeleteConfirm(null);
-        // 刷新列表
-        fetchBankCards();
-      } else {
-        setToast({ message: '删除失败', type: 'error' });
-      }
+      await apiClient.delete(`/bank-card/${deleteConfirm}`);
+      setToast({ message: '删除成功', type: 'success' });
+      setDeleteConfirm(null);
+      void fetchBankCards();
     } catch (error) {
       console.error('删除银行卡失败:', error);
       setToast({ message: '删除失败，请重试', type: 'error' });
     }
   };
 
-  const maskAccountNumber = (accountNumber: string) => {
-    if (accountNumber.length <= 8) {
-      return accountNumber;
-    }
-    const start = accountNumber.slice(0, 4);
-    const end = accountNumber.slice(-4);
-    return `${start} **** **** ${end}`;
-  };
+  const getLast4 = (accountNumber: string) => accountNumber.slice(-4).padStart(4, '0');
 
   return (
-    <div className="min-h-screen bg-[#1a1f2e] pb-16">
-      {/* Toast Notification */}
-      {toast && (
-        <Toast
-          message={toast.message}
-          type={toast.type}
-          onClose={() => setToast(null)}
-        />
-      )}
+    <div className="min-h-screen bg-[#09090b] text-white">
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
-      {/* Delete Confirmation Modal */}
-      {deleteConfirm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4">
-          <div className="bg-[#1f2633] rounded-xl p-6 max-w-sm w-full border border-gray-700/50">
-            <h3 className="text-white text-lg font-medium mb-3">确认删除</h3>
-            <p className="text-gray-400 text-sm mb-6">确定要删除这张银行卡吗？删除后无法恢复。</p>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setDeleteConfirm(null)}
-                className="flex-1 py-2.5 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition-colors"
-              >
-                取消
-              </button>
-              <button
-                onClick={() => handleDelete(deleteConfirm)}
-                className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
-              >
-                确认删除
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Status Bar */}
-      <div className="bg-[#141820] px-4 pt-3 pb-2">
-        <div className="flex items-center justify-between text-xs">
-          <div className="text-white">12:00</div>
-          <div className="flex items-center gap-1 text-white">
-            <Signal className="w-4 h-4" />
-            <Wifi className="w-4 h-4" />
-            <Battery className="w-4 h-4" />
-          </div>
-        </div>
+      <div className="sticky top-0 z-20 flex h-[60px] items-center justify-between border-b border-white/5 bg-[#09090b]/90 px-4 backdrop-blur-md">
+        <button
+          onClick={() => navigate(-1)}
+          className="-ml-2 flex h-10 w-10 items-center justify-center rounded-full transition-colors hover:bg-white/10"
+        >
+          <ChevronLeft size={24} />
+        </button>
+        <h1 className="absolute left-1/2 -translate-x-1/2 text-[18px] font-medium">我的银行</h1>
+        <div className="w-10" />
       </div>
 
-      {/* Navigation Header */}
-      <div className="bg-[#141820] px-4 py-4 border-b border-gray-700/50">
-        <div className="flex items-center justify-center relative">
-          <button
-            onClick={() => navigate('/profile')}
-            className="absolute left-0 w-9 h-9 flex items-center justify-center hover:bg-gray-700/30 rounded-full transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5 text-gray-300" />
-          </button>
-          <h1 className="text-white text-base font-medium">我的银行</h1>
+      <div className="px-5 pb-[120px] pt-6">
+        <div className="mb-6 flex items-center justify-between">
+          <h2 className="text-[20px] font-bold tracking-tight">已添加的银行卡</h2>
+          <span className="text-[13px] text-[#8a8a93]">{bankCards.length} 张</span>
         </div>
-      </div>
 
-      {/* Content */}
-      <div className="px-4 pt-6">
         {loading ? (
-          <div className="text-center text-gray-400 py-12">加载中...</div>
+          <div className="py-16 text-center text-[#8a8a93]">加载中...</div>
         ) : bankCards.length === 0 ? (
-          <div className="text-center text-gray-400 py-12">
-            <Building2 className="w-16 h-16 mx-auto mb-4 text-gray-600" />
-            <p>还没有添加银行卡</p>
-            <p className="text-sm mt-2">点击下方按钮添加您的银行卡</p>
+          <div className="flex flex-col items-center justify-center rounded-[22px] border border-dashed border-white/10 bg-[#14141c] px-6 py-12 text-center">
+            <Landmark size={48} className="mb-4 text-white/20" />
+            <p className="text-[15px] font-medium text-white">暂无银行卡</p>
+            <p className="mt-2 text-[13px] text-[#8a8a93]">添加银行卡后可用于入金和提取资金</p>
           </div>
         ) : (
-          /* Bank Cards List */
-          <div className="space-y-4 mb-6">
-            {bankCards.map((card) => (
-              <div
-                key={card.id}
-                className="bg-[#1f2633] rounded-xl p-4 border border-gray-700/50"
-              >
-                <div className="flex items-start gap-3">
-                  <div className="w-12 h-12 bg-[#141820] rounded-lg flex items-center justify-center flex-shrink-0">
-                    <Building2 className="w-6 h-6 text-blue-400" />
-                  </div>
+          <div className="space-y-4">
+            <AnimatePresence>
+              {bankCards.map((bank, index) => {
+                const accent =
+                  index % 3 === 0
+                    ? 'from-[#ef4444]/20 border-[#ef4444]/20'
+                    : index % 3 === 1
+                      ? 'from-[#3b82f6]/20 border-[#3b82f6]/20'
+                      : 'from-[#10b981]/20 border-[#10b981]/20';
 
-                  <div className="flex-1 min-w-0">
-                    <div className="text-white font-medium mb-1">{card.bankName}</div>
-                    <div className="text-gray-400 text-sm mb-1">{card.accountName}</div>
-                    <div className="text-gray-400 text-sm font-mono">
-                      {maskAccountNumber(card.accountNumber)}
-                    </div>
-                    {card.swiftCode && (
-                      <div className="text-gray-500 text-xs mt-1">
-                        SWIFT: {card.swiftCode}
-                      </div>
-                    )}
-                  </div>
-
-                  <button
-                    onClick={() => setDeleteConfirm(card.id)}
-                    className="p-2 hover:bg-red-500/10 rounded-lg transition-colors"
+                return (
+                  <motion.div
+                    key={bank.id}
+                    layout
+                    initial={{ opacity: 0, scale: 0.96 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, height: 0, marginTop: 0, marginBottom: 0, overflow: 'hidden' }}
+                    className={`relative overflow-hidden rounded-[20px] border bg-[#14141c] bg-gradient-to-br ${accent} to-transparent p-5`}
                   >
-                    <Trash2 className="w-5 h-5 text-red-400" />
-                  </button>
-                </div>
-              </div>
-            ))}
+                    <div className="mb-6 flex items-start justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 backdrop-blur-md">
+                          <Landmark size={20} className="text-white" />
+                        </div>
+                        <div>
+                          <div className="mb-0.5 text-[16px] font-bold text-white">{bank.bankName}</div>
+                          <div className="text-[12px] text-white/60">持卡人: {bank.accountName}</div>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => setDeleteConfirm(bank.id)}
+                        className="flex h-8 w-8 items-center justify-center rounded-full bg-black/20 text-white/70 transition-colors hover:bg-black/40 hover:text-[#ef4444]"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+
+                    <div className="font-mono text-[20px] font-medium tracking-[0.2em] text-white/90">
+                      **** **** **** {getLast4(bank.accountNumber)}
+                    </div>
+                    {bank.swiftCode ? (
+                      <div className="mt-3 text-[11px] text-white/45">SWIFT: {bank.swiftCode}</div>
+                    ) : null}
+                  </motion.div>
+                );
+              })}
+            </AnimatePresence>
           </div>
         )}
-
-        {/* Add Bank Card Button */}
-        <button
-          onClick={() => navigate('/my-bank/add')}
-          className="w-full bg-[#1f2633] rounded-xl p-6 border-2 border-dashed border-gray-700/50 hover:border-blue-500/50 transition-colors"
-        >
-          <div className="flex flex-col items-center gap-3">
-            <div className="w-16 h-16 bg-blue-500/10 rounded-full flex items-center justify-center">
-              <Plus className="w-8 h-8 text-blue-400" />
-            </div>
-            <span className="text-white font-medium">添加银行卡</span>
-            <span className="text-gray-400 text-sm">绑定新的银行卡</span>
-          </div>
-        </button>
-
-        {/* Info */}
-        <div className="mt-6 bg-[#1f2633] rounded-xl p-4 border border-gray-700/50">
-          <p className="text-gray-400 text-xs leading-relaxed">
-            提示：为了您的资金安全，请确保银行卡信息与实名认证信息一致。如需修改或删除银行卡，请联系客服。
-          </p>
-        </div>
       </div>
 
-      {/* Bottom Navigation */}
-      <BottomNav />
+      <div className="fixed bottom-0 left-0 right-0 bg-gradient-to-t from-[#09090b] via-[#09090b]/95 to-transparent p-5 pt-10">
+        <button
+          onClick={() => navigate('/my-bank/add')}
+          className="flex h-[52px] w-full items-center justify-center gap-2 rounded-[16px] bg-gradient-to-r from-[#6c48f5] to-[#8c6bff] text-[16px] font-medium text-white shadow-[0_4px_16px_rgba(108,72,245,0.3)] transition-all hover:opacity-90"
+        >
+          <Plus size={20} />
+          添加银行卡
+        </button>
+      </div>
+
+      <AnimatePresence>
+        {deleteConfirm && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-6 backdrop-blur-sm"
+          >
+            <motion.div
+              initial={{ scale: 0.92, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.92, opacity: 0 }}
+              className="w-full max-w-[320px] rounded-[24px] border border-white/10 bg-[#1a1a24] p-6 shadow-2xl"
+            >
+              <h3 className="mb-2 text-center text-[18px] font-bold">删除银行卡</h3>
+              <p className="mb-6 text-center text-[14px] leading-relaxed text-[#8a8a93]">
+                确定要删除这张银行卡吗？删除后将无法用于资金提取。
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setDeleteConfirm(null)}
+                  className="h-[48px] flex-1 rounded-[16px] bg-[#2a2a36] font-medium text-white transition-colors hover:bg-[#3a3a46]"
+                >
+                  取消
+                </button>
+                <button
+                  onClick={handleDelete}
+                  className="h-[48px] flex-1 rounded-[16px] bg-[#ef4444] font-medium text-white shadow-[0_4px_12px_rgba(239,68,68,0.3)] transition-colors hover:bg-[#dc2626]"
+                >
+                  确认删除
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

@@ -4,6 +4,8 @@ import { CommunitySettingsService } from './services/community-settings.service'
 import { CreateLeaderboardDto } from './dto/create-leaderboard.dto';
 import { UpdateLeaderboardDto } from './dto/update-leaderboard.dto';
 import { JwtAuthGuard } from '../user/guards/jwt-auth.guard';
+import { RolesGuard } from '../user/guards/roles.guard';
+import { Roles } from '../user/decorators/roles.decorator';
 
 @Controller('api/community')
 export class CommunityController {
@@ -30,7 +32,8 @@ export class CommunityController {
 }
 
 @Controller('api/admin/community')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles('admin')
 export class AdminCommunityController {
   constructor(
     private readonly leaderboardService: LeaderboardService,
@@ -54,6 +57,15 @@ export class AdminCommunityController {
   }
 
   /**
+   * 批量更新排序
+   */
+  @Put('leaderboard/sort-order')
+  async updateSortOrder(@Body() items: { id: number; sortOrder: number }[]) {
+    await this.leaderboardService.updateSortOrder(items);
+    return { success: true };
+  }
+
+  /**
    * 更新排行榜记录
    */
   @Put('leaderboard/:id')
@@ -70,15 +82,6 @@ export class AdminCommunityController {
   @Delete('leaderboard/:id')
   async deleteLeaderboard(@Param('id') id: string) {
     await this.leaderboardService.remove(+id);
-    return { success: true };
-  }
-
-  /**
-   * 批量更新排序
-   */
-  @Put('leaderboard/sort-order')
-  async updateSortOrder(@Body() items: { id: number; sortOrder: number }[]) {
-    await this.leaderboardService.updateSortOrder(items);
     return { success: true };
   }
 

@@ -12,6 +12,8 @@ interface TradingControlsProps {
   onBullTrade: () => void;
   onBearTrade: () => void;
   onResetTrade: () => void;
+  guideStep?: number;
+  onGuideStepChange?: (step: number) => void;
 }
 
 export function TradingControls({
@@ -28,6 +30,8 @@ export function TradingControls({
   onBullTrade,
   onBearTrade,
   onResetTrade,
+  guideStep = -1,
+  onGuideStepChange,
 }: TradingControlsProps) {
   // 格式化数字显示
   const formatNumber = (num: number) => {
@@ -45,27 +49,55 @@ export function TradingControls({
   };
 
   return (
-    <div className="fixed bottom-[92px] w-full px-4 z-40">
+    <div className={`fixed bottom-[92px] w-full px-4 ${[1, 2, 3].includes(guideStep) ? 'z-[60]' : 'z-40'}`}>
       <div className="bg-[#14141c]/95 backdrop-blur-xl rounded-[24px] p-4 border border-white/10 shadow-[0_-10px_40px_rgba(0,0,0,0.5)]">
         {/* Inputs */}
-        <div className="flex gap-3 mb-3">
+        <div className="flex gap-3 mb-3 relative">
+          {guideStep === 1 && (
+            <GuideBubble className="left-0 w-[52%]" onClick={() => onGuideStepChange?.(1)}>
+              点击设置到期时间
+              <span className="block text-[12px] font-normal text-white/60">到期时间决定多久之后判断输赢</span>
+            </GuideBubble>
+          )}
+          {guideStep === 2 && (
+            <GuideBubble className="right-0 w-[55%]" onClick={() => onGuideStepChange?.(3)}>
+              输入投资金额
+              <span className="block text-[12px] font-normal text-white/60">投资金额决定这一单的收益空间</span>
+            </GuideBubble>
+          )}
           <div
-            onClick={onTimeClick}
+            onClick={() => {
+              if (guideStep === 1) {
+                onTimeClick();
+                return;
+              }
+              if (guideStep < 0) {
+                onTimeClick();
+              }
+            }}
             className={`flex-1 bg-[#1a1a24] rounded-[16px] h-[48px] flex items-center justify-between px-4 border border-white/5 transition-colors ${
               tradeStatus !== 'idle'
                 ? 'opacity-50 cursor-not-allowed'
-                : 'cursor-pointer focus-within:border-[#6c48f5]/50'
+                : guideStep === 1
+                  ? 'relative z-[65] cursor-pointer bg-white text-black shadow-[0_0_20px_rgba(255,255,255,0.4),0_0_0_2px_white]'
+                  : guideStep > 0
+                    ? 'opacity-40 pointer-events-none'
+                    : 'cursor-pointer focus-within:border-[#6c48f5]/50'
             }`}
           >
-            <span className="text-[#8a8a93] text-[13px]">时间</span>
-            <span className="text-white font-bold text-[16px]">{formatTimeDisplay(selectedTime)}</span>
+            <span className={`text-[13px] ${guideStep === 1 ? 'text-black/60' : 'text-[#8a8a93]'}`}>时间</span>
+            <span className={`font-bold text-[16px] ${guideStep === 1 ? 'text-black' : 'text-white'}`}>{formatTimeDisplay(selectedTime)}</span>
           </div>
           <div className={`flex-[1.2] bg-[#1a1a24] rounded-[16px] h-[48px] flex items-center justify-between px-4 border border-white/5 transition-colors ${
             tradeStatus !== 'idle'
               ? 'opacity-50 cursor-not-allowed'
-              : 'focus-within:border-[#6c48f5]/50'
+              : guideStep === 2
+                ? 'relative z-[65] bg-white shadow-[0_0_20px_rgba(255,255,255,0.4),0_0_0_2px_white]'
+                : guideStep > 0
+                  ? 'opacity-40 pointer-events-none'
+                  : 'focus-within:border-[#6c48f5]/50'
           }`}>
-            <span className="text-[#8a8a93] text-[13px]">投资</span>
+            <span className={`text-[13px] ${guideStep === 2 ? 'text-black/60' : 'text-[#8a8a93]'}`}>投资</span>
             <input
               type="text"
               inputMode="numeric"
@@ -77,8 +109,20 @@ export function TradingControls({
                   onInvestmentChange(value);
                 }
               }}
+              onFocus={() => {
+                if (guideStep === 2) {
+                  onGuideStepChange?.(2);
+                }
+              }}
+              onBlur={() => {
+                if (guideStep === 2 && investmentAmount) {
+                  onGuideStepChange?.(3);
+                }
+              }}
               disabled={tradeStatus !== 'idle'}
-              className="bg-transparent text-right text-white font-bold text-[16px] w-[80px] outline-none font-mono disabled:cursor-not-allowed"
+              className={`bg-transparent text-right font-bold text-[16px] w-[80px] outline-none font-mono disabled:cursor-not-allowed ${
+                guideStep === 2 ? 'text-black' : 'text-white'
+              }`}
               placeholder="100000"
             />
           </div>
@@ -86,9 +130,17 @@ export function TradingControls({
 
         {tradeStatus === 'idle' ? (
           // Buy/Sell Buttons - Default State
-          <div className="flex gap-3 mb-3">
+          <div className={`flex gap-3 mb-3 relative ${guideStep === 3 ? 'z-[65]' : guideStep > 0 ? 'opacity-40 pointer-events-none' : ''}`}>
+            {guideStep === 3 && (
+              <GuideBubble className="left-1/2 w-[80%] -translate-x-1/2" onClick={() => undefined}>
+                选择看涨看跌方向
+                <span className="block text-[12px] font-normal text-white/60">方向决定到期时价格往哪边算你赢</span>
+              </GuideBubble>
+            )}
             <button
-              className="flex-1 bg-[#ef4444] hover:bg-[#dc2626] transition-colors rounded-[16px] h-[52px] flex items-center justify-center gap-2 shadow-[0_4px_12px_rgba(239,68,68,0.2)]"
+              className={`flex-1 bg-[#ef4444] hover:bg-[#dc2626] transition-colors rounded-[16px] h-[52px] flex items-center justify-center gap-2 shadow-[0_4px_12px_rgba(239,68,68,0.2)] ${
+                guideStep === 3 ? 'shadow-[0_0_20px_rgba(239,68,68,0.6),0_0_0_2px_white]' : ''
+              }`}
               onClick={onBullTrade}
             >
               <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -98,7 +150,9 @@ export function TradingControls({
               <span className="text-white font-bold text-[16px] tracking-widest">看涨</span>
             </button>
             <button
-              className="flex-1 bg-[#10b981] hover:bg-[#059669] transition-colors rounded-[16px] h-[52px] flex items-center justify-center gap-2 shadow-[0_4px_12px_rgba(16,185,129,0.2)]"
+              className={`flex-1 bg-[#10b981] hover:bg-[#059669] transition-colors rounded-[16px] h-[52px] flex items-center justify-center gap-2 shadow-[0_4px_12px_rgba(16,185,129,0.2)] ${
+                guideStep === 3 ? 'shadow-[0_0_20px_rgba(16,185,129,0.6),0_0_0_2px_white]' : ''
+              }`}
               onClick={onBearTrade}
             >
               <span className="text-white font-bold text-[16px] tracking-widest">看跌</span>
@@ -153,7 +207,7 @@ export function TradingControls({
         )}
 
         {/* Footer Info */}
-        <div className="flex justify-between items-center px-1">
+        <div className={`flex justify-between items-center px-1 ${guideStep > 0 ? 'opacity-40 pointer-events-none' : ''}`}>
           <div className="text-[12px]">
             <span className="text-[#8a8a93]">投资收益 </span>
             <span className={`font-bold font-mono ${expectedProfit >= 0 ? 'text-[#10b981]' : 'text-[#ef4444]'}`}>
@@ -176,5 +230,31 @@ export function TradingControls({
         </div>
       </div>
     </div>
+  );
+}
+
+function GuideBubble({
+  children,
+  className,
+  onClick,
+}: {
+  children: React.ReactNode;
+  className?: string;
+  onClick?: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`absolute bottom-[calc(100%+16px)] z-[80] rounded-2xl border border-white/10 bg-[#1c1c24]/95 px-4 py-3 text-left text-[14px] font-bold leading-relaxed text-white shadow-[0_10px_30px_rgba(0,0,0,0.5)] backdrop-blur-md ${className || ''}`}
+    >
+      <div className="flex items-center gap-3">
+        <span className="relative flex h-8 w-8 shrink-0 items-center justify-center">
+          <span className="absolute h-full w-full animate-ping rounded-full bg-white/20" />
+          <span className="relative flex h-7 w-7 items-center justify-center rounded-full bg-white text-black">⌁</span>
+        </span>
+        <span>{children}</span>
+      </div>
+    </button>
   );
 }

@@ -1,3 +1,5 @@
+import { Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn } from 'typeorm';
+
 /**
  * 股票 Tick 数据实体
  * 表示单笔交易的详细信息
@@ -157,4 +159,41 @@ export enum MessageCommandId {
   
   /** Tick数据推送 */
   TICK_PUSH = 22998,
+}
+
+/**
+ * 股票原始 Tick 入库实体
+ * 保留原始成交流水，供 K 线重建和问题回放使用。
+ */
+@Entity('stock_ticks')
+@Index('uk_stock_ticks_code_seq', ['code', 'seq'], { unique: true })
+@Index('idx_stock_ticks_code_tick_time', ['code', 'tick_time'])
+@Index('idx_stock_ticks_tick_time', ['tick_time'])
+export class StockTickEntity {
+  @PrimaryGeneratedColumn({ type: 'bigint', unsigned: true })
+  id: string;
+
+  @Column({ type: 'varchar', length: 20, comment: '股票代码' })
+  code: string;
+
+  @Column({ type: 'varchar', length: 64, comment: '行情源序列号' })
+  seq: string;
+
+  @Column({ type: 'timestamp', comment: 'tick时间戳' })
+  tick_time: Date;
+
+  @Column({ type: 'decimal', precision: 18, scale: 6, comment: '成交价格' })
+  price: number;
+
+  @Column({ type: 'bigint', default: 0, comment: '成交量' })
+  volume: number;
+
+  @Column({ type: 'decimal', precision: 20, scale: 2, default: 0, comment: '成交额' })
+  turnover: number;
+
+  @Column({ type: 'tinyint', nullable: true, comment: '交易方向：1-买入，2-卖出' })
+  trade_direction: number | null;
+
+  @CreateDateColumn({ type: 'timestamp', comment: '接收时间' })
+  received_at: Date;
 }

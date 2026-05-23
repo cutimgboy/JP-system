@@ -32,6 +32,8 @@ import { CryptoInfoEntity } from './cfd/entities/crypto-info.entity';
 import { ProductEntity } from './cfd/entities/product.entity';
 import { StockRealtimePriceEntity } from './quote/entities/stock-realtime-price.entity';
 import { StockPriceChangeEntity } from './quote/entities/stock-price-change.entity';
+import { StockTickEntity } from './quote/entities/stock-tick.entity';
+import { StockKlineEntity } from './quote/entities/stock-kline.entity';
 import { BankCardEntity } from './bank-card/entities/bank-card.entity';
 import { SystemBankCardEntity } from './system-bank-card/entities/system-bank-card.entity';
 import { DepositRecordEntity } from './deposit/entities/deposit-record.entity';
@@ -72,6 +74,8 @@ import { MigrationEntity } from './migration/entities/migration.entity';
             ProductEntity,
             StockRealtimePriceEntity,
             StockPriceChangeEntity,
+            StockTickEntity,
+            StockKlineEntity,
             BankCardEntity,
             SystemBankCardEntity,
             DepositRecordEntity,

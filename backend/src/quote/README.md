@@ -1,493 +1,82 @@
-# WebSocket 实时行情模块使用说明
+# 行情模块说明
 
-## 📦 模块概述
+## 当前链路
 
-WebSocket 实时行情模块用于订阅和接收股票、外汇、加密货币的实时行情数据。基于 alltick.co 行情数据源实现。
+当前行情模块以 `QuoteService` 为核心：
 
-## 🏗️ 架构设计
-
-```
-外部行情源 (alltick.co)
-    ↓ WebSocket 连接
-QuoteService (服务层)
-    ↓ 数据转发
-QuoteGateway (网关层)
-    ↓ Socket.IO
-前端客户端 (浏览器/App)
+```text
+AllTick WebSocket
+  -> QuoteService.handleTickData()
+  -> processPriceChange()
+  -> Redis 最新报价缓存
+  -> DB buffer 批量落库 stock_ticks / stock_klines / stock_realtime_price / stock_price_change
+  -> SSE /api/quote/stream/:code
+  -> 前端 TradingChart/KLineChart
 ```
 
-### 核心组件
+前端交易页会先加载历史 K 线快照，再建立 SSE 连接接收后续 tick。历史快照现在优先读取 `stock_klines` 聚合表；新表没有数据时，会回落到 `stock_realtime_price` 实时流水临时聚合。
 
-1. **QuoteService** - 管理与外部行情源的 WebSocket 连接
-   - 连接管理（连接、断开、重连）
-   - 订阅管理（订阅、取消订阅）
-   - 心跳维护
-   - 消息分发
+## 主要接口
 
+- `GET /api/quote/symbols`：获取订阅股票列表。
+- `GET /api/quote/realtime`：获取所有实时买卖价。
+- `GET /api/quote/realtime/:code`：获取单只股票实时买卖价。
+- `GET /api/quote/kline/:code?interval=1s&limit=300`：获取历史 K 线快照。
+- `GET /api/quote/status/connection`：查看外部行情 WebSocket 状态。
+- `GET /api/quote/status/cache`：查看 Redis 缓存统计。
+- `POST /api/quote/maintenance/clean-cache`：清理缓存。
+- `POST /api/quote/test/price-calculation`：测试价差计算。
+- `GET /api/quote/stream/:code`：SSE tick 推送。
 
-## 🚀 快速开始
+注意：缓存统计、清缓存、测试价差属于运维/调试接口，已加 JWT + admin 角色保护。
 
-### 1. 配置 Token
+## Redis Key
 
-在 `.env.dev` 或 `.env.prod` 中配置 alltick.co 的 Token：
+- `stock:quote:{code}`：单只股票最新报价，TTL 60 秒。
+- `stock:price:{code}`：单只股票最新成交价，TTL 60 秒。
+- `stock:spread:{code}`：价差设置，TTL 300 秒。
+- `stock:quotes:all`：所有股票实时报价汇总，TTL 2 秒。
 
-```bash
-# WebSocket 行情源配置
-QUOTE_WS_TOKEN=your-token-here  # 替换为您的实际 Token
-```
-
-**申请 Token：** https://alltick.co
-
-### 2. 启动应用
-
-```bash
-npm run start:dev
-```
-
-WebSocket 服务会在应用启动时自动连接到 alltick.co 并订阅默认美股股票（AAPL.US、MSFT.US、GOOG.US、AMZN.US、TSLA.US）。
-
-### 3. 客户端连接
-
-**连接地址：** `ws://localhost:3000/quote`
-
----
-
-## 💻 客户端使用示例
-
-### JavaScript/TypeScript
-
-```typescript
-import { io } from 'socket.io-client';
-
-// 连接到 WebSocket 服务
-const socket = io('http://localhost:3000/quote', {
-  transports: ['websocket'],
-});
-
-// 监听连接状态
-socket.on('connection-status', (data) => {
-  console.log('连接状态:', data);
-  // { status: 'connected', message: '连接成功', timestamp: '...' }
-});
-
-// 订阅股票行情
-socket.emit('subscribe', {
-  symbols: ['700.HK', 'AAPL.US'],
-});
-
-// 监听订阅成功
-socket.on('subscribe-success', (data) => {
-  console.log('订阅成功:', data);
-  // { message: '成功订阅 2 个股票', symbols: ['700.HK', 'AAPL.US'] }
-});
-
-// 接收实时行情数据
-socket.on('quote-data', (data) => {
-  console.log('收到行情数据:', data);
-  // 实时行情数据会持续推送
-});
-
-// 取消订阅
-socket.emit('unsubscribe', {
-  symbols: ['700.HK'],
-});
-
-// 监听取消订阅成功
-socket.on('unsubscribe-success', (data) => {
-  console.log('取消订阅成功:', data);
-});
-
-// 获取连接状态
-socket.emit('get-status');
-
-// 监听状态信息
-socket.on('status-info', (data) => {
-  console.log('状态信息:', data);
-  // {
-  //   connectionStatus: 'OPEN',
-  //   subscribedSymbols: ['700.HK', 'AAPL.US'],
-  //   timestamp: '...'
-  // }
-});
-
-// 监听错误
-socket.on('error', (data) => {
-  console.error('错误:', data);
-});
-```
-
-### Vue 3 示例
-
-```vue
-<template>
-  <div>
-    <h2>实时行情</h2>
-    <div>连接状态: {{ connectionStatus }}</div>
-    
-    <div>
-      <input v-model="symbol" placeholder="输入股票代码，如 AAPL.US" />
-      <button @click="subscribe">订阅</button>
-      <button @click="unsubscribe">取消订阅</button>
-    </div>
-
-    <div v-for="quote in quotes" :key="quote.code">
-      {{ quote.code }}: {{ quote.price }}
-    </div>
-  </div>
-</template>
-
-<script setup>
-import { ref, onMounted, onUnmounted } from 'vue';
-import { io } from 'socket.io-client';
-
-const socket = ref(null);
-const connectionStatus = ref('未连接');
-const symbol = ref('');
-const quotes = ref([]);
-
-onMounted(() => {
-  // 连接 WebSocket
-  socket.value = io('http://localhost:3000/quote');
-
-  socket.value.on('connection-status', (data) => {
-    connectionStatus.value = data.status;
-  });
-
-  socket.value.on('quote-data', (data) => {
-    // 处理行情数据
-    console.log('行情数据:', data);
-    // 更新 UI
-  });
-});
-
-onUnmounted(() => {
-  socket.value?.disconnect();
-});
-
-const subscribe = () => {
-  if (!symbol.value) return;
-  socket.value.emit('subscribe', {
-    symbols: [symbol.value],
-    depthLevel: 5,
-  });
-};
-
-const unsubscribe = () => {
-  if (!symbol.value) return;
-  socket.value.emit('unsubscribe', {
-    symbols: [symbol.value],
-  });
-};
-</script>
-```
-
----
-
-## 📡 消息协议
-
-### 客户端 → 服务端
-
-#### 1. 订阅行情
+## 数据库存储
 
-```javascript
-socket.emit('subscribe', {
-  symbols: ['700.HK', 'AAPL.US'],  // 股票代码列表
-  depthLevel: 5                     // 深度档位 (1-5)，可选
-});
-```
+当前持久化表：
 
-#### 2. 取消订阅
+- `stock_ticks`：原始 tick 流水，按 `code + seq` 去重，支持问题回放和重新聚合。
+- `stock_klines`：K 线聚合表，唯一键为 `code + interval_sec + bucket_time`。
+- `stock_realtime_price`：实时价格流水。
+- `stock_price_change`：价格变化流水。
 
-```javascript
-socket.emit('unsubscribe', {
-  symbols: ['700.HK']  // 要取消订阅的股票代码
-});
-```
+K 线聚合周期：
 
-#### 3. 获取状态
+- 1s
+- 5s
+- 15s
+- 60s
+- 300s
 
-```javascript
-socket.emit('get-status');
-```
+迁移文件：
 
-### 服务端 → 客户端
+- `backend/migrations/002-add-quote-tick-time-indexes.sql`
+- `backend/migrations/003-create-stock-ticks-and-klines.sql`
 
-#### 1. 连接状态
+注意：当前项目的 `MigrationService` 不会自动读取 `backend/migrations/*.sql`，部署时需要显式执行这些 SQL，或先统一迁移机制。
 
-```javascript
-socket.on('connection-status', (data) => {
-  // { status: 'connected', message: '连接成功', timestamp: '...' }
-});
-```
+建议详见 `backend/docs/architecture-and-kline-audit.md`。
 
-#### 2. 订阅成功
+## K 线性能结论
 
-```javascript
-socket.on('subscribe-success', (data) => {
-  // { message: '成功订阅 2 个股票', symbols: [...] }
-});
-```
+用户感知的交易页 K 线卡顿，最强嫌疑在前端绘制：
 
-#### 3. 取消订阅成功
+- `KLineChart` 每个 `requestAnimationFrame` 都用 React state 触发 render。
+- 每帧又重新计算价格范围、可见数据、网格、曲线、标签并绘制 canvas。
+- 每条 SSE tick 还会更新 `TradingChart` 和父组件 `TradingDetail` 的状态。
 
-```javascript
-socket.on('unsubscribe-success', (data) => {
-  // { message: '成功取消订阅 1 个股票', symbols: [...] }
-});
-```
+后端已经补了历史快照接口和 K 线聚合表。眼前卡顿不应只按数据库慢查询处理，前端渲染频率和状态更新同样关键。
 
-#### 4. 实时行情数据
+## 推荐演进
 
-```javascript
-socket.on('quote-data', (data) => {
-  // alltick.co 返回的实时行情数据
-  // 数据格式参考: https://github.com/alltick/realtime-forex-crypto-stock-tick-finance-websocket-api
-});
-```
-
-#### 5. 状态信息
-
-```javascript
-socket.on('status-info', (data) => {
-  // {
-  //   connectionStatus: 'OPEN',
-  //   subscribedSymbols: ['700.HK', 'AAPL.US'],
-  //   timestamp: '...'
-  // }
-});
-```
-
-#### 6. 错误信息
-
-```javascript
-socket.on('error', (data) => {
-  // { message: '错误描述' }
-});
-```
-
----
-
-## 🔧 核心特性
-
-### 1. 自动重连
-
-连接断开后自动在 5 秒后重连，并重新订阅之前的股票。
-
-### 2. 心跳机制
-
-每 30 秒发送一次心跳，保持连接活跃。
-
-### 3. 订阅管理
-
-- 支持动态订阅/取消订阅
-- 重连后自动恢复订阅
-- 记录所有订阅的股票代码
-
-### 4. 消息广播
-
-所有连接的客户端都能接收到行情数据。
-
----
-
-## 📝 股票代码格式
-
-根据 alltick.co 的要求，股票代码格式为：
-
-| 市场 | 格式 | 示例 |
-|-----|------|------|
-| 香港 | `代码.HK` | `700.HK`（腾讯）|
-| 美股 | `代码.US` | `AAPL.US`（苹果）|
-| A股 | `代码.SH/SZ` | `600000.SH`（浦发银行）|
-
-**注意：** 不同的 WebSocket API 地址支持不同的市场：
-
-- **股票 API**：`wss://quote.alltick.co/quote-stock-b-ws-api`
-- **外汇/加密货币 API**：`wss://quote.alltick.co/quote-b-ws-api`
-
-当前实现使用的是**股票 API**。
-
----
-
-## 🛠️ 高级用法
-
-### 在服务中使用 QuoteService
-
-```typescript
-import { Injectable } from '@nestjs/common';
-import { QuoteService } from '../quote/quote.service';
-
-@Injectable()
-export class TradingService {
-  constructor(private quoteService: QuoteService) {}
-
-  async startMonitoring() {
-    // 连接行情源
-    await this.quoteService.connect();
-
-    // 订阅股票
-    this.quoteService.subscribe(['AAPL.US', '700.HK']);
-
-    // 监听行情数据
-    this.quoteService.onMessage((data) => {
-      console.log('收到行情:', data);
-      // 处理行情数据，如存储到 Redis、触发交易逻辑等
-    });
-  }
-
-  async stopMonitoring() {
-    // 取消订阅
-    this.quoteService.unsubscribe(['AAPL.US', '700.HK']);
-    
-    // 断开连接
-    this.quoteService.disconnect();
-  }
-}
-```
-
----
-
-## ⚙️ 配置说明
-
-### 修改行情源地址
-
-如需订阅外汇、加密货币，修改 `src/quote/quote.service.ts`：
-
-```typescript
-// 外汇、加密货币 API
-const url = `wss://quote.alltick.co/quote-b-ws-api?token=${token}`;
-
-// 股票 API（当前使用）
-const url = `wss://quote.alltick.co/quote-stock-b-ws-api?token=${token}`;
-```
-
-### 调整心跳和重连间隔
-
-在 `QuoteService` 构造函数中：
-
-```typescript
-private readonly reconnectInterval = 5000;  // 重连间隔（毫秒）
-private readonly heartbeatInterval = 30000; // 心跳间隔（毫秒）
-```
-
----
-
-## 🧪 测试
-
-### 使用 Socket.IO 客户端测试
-
-```bash
-npm install socket.io-client -g
-
-# 或使用在线工具
-# https://amritb.github.io/socketio-client-tool/
-```
-
-**测试代码：**
-
-```javascript
-const io = require('socket.io-client');
-const socket = io('http://localhost:3000/quote');
-
-socket.on('connect', () => {
-  console.log('✅ 已连接');
-  
-  // 订阅
-  socket.emit('subscribe', {
-    symbols: ['700.HK', 'AAPL.US'],
-    depthLevel: 5,
-  });
-});
-
-socket.on('quote-data', (data) => {
-  console.log('📊 行情数据:', data);
-});
-
-socket.on('error', (err) => {
-  console.error('❌ 错误:', err);
-});
-```
-
----
-
-## 📊 行情数据格式
-
-根据 alltick.co 的 API 文档，行情数据可能包含：
-
-```json
-{
-  "cmd_id": 22002,
-  "data": {
-    "code": "AAPL.US",
-    "price": 150.25,
-    "volume": 1000,
-    "bid": [
-      { "price": 150.24, "volume": 100 },
-      { "price": 150.23, "volume": 200 }
-    ],
-    "ask": [
-      { "price": 150.25, "volume": 150 },
-      { "price": 150.26, "volume": 250 }
-    ],
-    "timestamp": 1678419657806
-  }
-}
-```
-
-**详细格式请参考：** https://github.com/alltick/realtime-forex-crypto-stock-tick-finance-websocket-api
-
----
-
-## 🔐 安全建议
-
-1. **生产环境**
-   - 使用真实 Token 替换 `testtoken`
-   - 限制 CORS 来源
-   - 添加客户端认证
-
-2. **性能优化**
-   - 限制每个客户端的订阅数量
-   - 使用 Redis 缓存行情数据
-   - 对高频数据进行节流处理
-
-3. **错误处理**
-   - 监控连接状态
-   - 记录异常日志
-   - 实现降级策略
-
----
-
-## 📚 相关文档
-
-- [alltick.co API 文档](https://github.com/alltick/realtime-forex-crypto-stock-tick-finance-websocket-api)
-- [NestJS WebSocket 文档](https://docs.nestjs.com/websockets/gateways)
-- [Socket.IO 客户端文档](https://socket.io/docs/v4/client-api/)
-- [ws 库文档](https://github.com/websockets/ws)
-
----
-
-## 🎯 使用场景
-
-1. **实时行情展示**
-   - K线图实时更新
-   - 价格跳动展示
-   - 深度行情显示
-
-2. **交易监控**
-   - 价格预警
-   - 自动交易触发
-   - 风险监控
-
-3. **数据分析**
-   - 实时数据采集
-   - 历史数据回放
-   - 量化分析
-
----
-
-## ⚡ 性能特点
-
-- ✅ 自动重连机制
-- ✅ 心跳保活
-- ✅ 订阅状态管理
-- ✅ 广播式数据分发
-- ✅ 支持多客户端并发连接
+1. 统一迁移机制，让 `backend/migrations/*.sql` 能进入部署链路。
+2. SSE 后续可只推实时 tick 或当前 bucket 更新，减少前端合并成本。
+3. 给高频行情表增加归档、分区或冷热数据策略。
+4. 增加 K 线接口 P95/P99、DB buffer 长度和丢弃行数指标。
+5. 前端继续保持 tick 合并和 KLine canvas 降频刷新。

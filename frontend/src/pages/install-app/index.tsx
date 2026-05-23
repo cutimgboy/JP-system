@@ -1,107 +1,220 @@
-import { ArrowLeft, Battery, Wifi, Signal, Download, Smartphone } from 'lucide-react';
-import { BottomNav } from '../../components/BottomNav';
+import { useEffect, useState } from 'react';
+import {
+  Book,
+  ChevronLeft,
+  ChevronRight,
+  Copy,
+  Download,
+  Home,
+  Lock,
+  MonitorSmartphone,
+  MoreVertical,
+  PlusSquare,
+  RefreshCw,
+  Search,
+  Share,
+  Star,
+  TrendingUp,
+} from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { AnimatePresence, motion } from 'framer-motion';
 
 export function InstallApp() {
   const navigate = useNavigate();
+  const [browser, setBrowser] = useState<'safari' | 'chrome'>('safari');
+
+  useEffect(() => {
+    const ua = navigator.userAgent.toLowerCase();
+    if (ua.includes('chrome') || ua.includes('crios')) {
+      setBrowser('chrome');
+    } else if (ua.includes('safari')) {
+      setBrowser('safari');
+    }
+  }, []);
 
   return (
-    <div className="min-h-screen bg-[#1a1f2e] pb-16">
-      {/* Status Bar */}
-      <div className="bg-[#141820] px-4 pt-3 pb-2">
-        <div className="flex items-center justify-between text-xs">
-          <div className="text-white">12:00</div>
-          <div className="flex items-center gap-1 text-white">
-            <Signal className="w-4 h-4" />
-            <Wifi className="w-4 h-4" />
-            <Battery className="w-4 h-4" />
-          </div>
-        </div>
+    <div className="min-h-screen bg-[#09090b] text-white">
+      <div className="sticky top-0 z-20 flex h-[60px] items-center justify-between border-b border-white/5 bg-[#09090b]/90 px-4 backdrop-blur-md">
+        <button
+          onClick={() => navigate(-1)}
+          className="-ml-2 flex h-10 w-10 items-center justify-center rounded-full transition-colors hover:bg-white/10"
+        >
+          <ChevronLeft size={24} />
+        </button>
+        <h1 className="absolute left-1/2 -translate-x-1/2 text-[18px] font-medium">安装 APP 应用</h1>
+        <div className="w-10" />
       </div>
 
-      {/* Navigation Header */}
-      <div className="bg-[#141820] px-4 py-4 border-b border-gray-700/50">
-        <div className="flex items-center justify-center relative">
+      <div className="px-5 pb-10 pt-6">
+        <div className="relative mb-6 flex rounded-[14px] border border-white/5 bg-[#14141c] p-1">
+          <motion.div
+            className="absolute inset-y-1 w-[calc(50%-4px)] rounded-[10px] bg-[#2a2a36] shadow-sm"
+            initial={false}
+            animate={{
+              x: browser === 'safari' ? 0 : '100%',
+              marginLeft: browser === 'safari' ? '4px' : '0px',
+            }}
+            transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+          />
           <button
-            onClick={() => navigate('/profile')}
-            className="absolute left-0 w-9 h-9 flex items-center justify-center hover:bg-gray-700/30 rounded-full transition-colors"
+            onClick={() => setBrowser('safari')}
+            className={`relative z-10 flex-1 rounded-[10px] py-2.5 text-[14px] font-medium transition-colors ${
+              browser === 'safari' ? 'text-white' : 'text-[#8a8a93] hover:text-white/80'
+            }`}
           >
-            <ArrowLeft className="w-5 h-5 text-gray-300" />
+            Safari 浏览器
           </button>
-          <h1 className="text-white text-base font-medium">APP (IOS&Android)</h1>
+          <button
+            onClick={() => setBrowser('chrome')}
+            className={`relative z-10 flex-1 rounded-[10px] py-2.5 text-[14px] font-medium transition-colors ${
+              browser === 'chrome' ? 'text-white' : 'text-[#8a8a93] hover:text-white/80'
+            }`}
+          >
+            谷歌浏览器
+          </button>
+        </div>
+
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={browser}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.2 }}
+            className="space-y-4"
+          >
+            {browser === 'safari' ? (
+              <>
+                <StepCard number={1} title="点击底部栏中间的分享按钮">
+                  <div className="flex h-[60px] w-full items-center justify-between border-t border-white/5 bg-[#1a1a24] px-6">
+                    <ChevronLeft size={22} className="text-[#8a8a93]" />
+                    <ChevronRight size={22} className="text-[#8a8a93]/30" />
+                    <div className="relative">
+                      <Share size={24} className="text-[#6c48f5]" />
+                      <span className="absolute -right-1 -top-1 flex h-3 w-3">
+                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#6c48f5] opacity-75" />
+                        <span className="relative inline-flex h-3 w-3 rounded-full bg-[#6c48f5]" />
+                      </span>
+                    </div>
+                    <Book size={22} className="text-[#8a8a93]" />
+                    <Copy size={22} className="text-[#8a8a93]" />
+                  </div>
+                </StepCard>
+
+                <StepCard number={2} title="点击“添加到主屏幕”" description="在弹出的菜单中向上滑动，找到并点击该选项">
+                  <div className="bg-[#1a1a24] p-2">
+                    <div className="overflow-hidden rounded-[14px] bg-[#2a2a36]">
+                      <MenuRow icon={Copy} label="拷贝" />
+                      <div className="relative flex items-center justify-between bg-[#6c48f5]/15 px-4 py-3.5">
+                        <div className="absolute bottom-0 left-0 top-0 w-1 bg-[#6c48f5]" />
+                        <span className="ml-1 text-[15px] font-medium text-[#a58dff]">添加到主屏幕</span>
+                        <PlusSquare size={20} className="text-[#a58dff]" />
+                      </div>
+                      <MenuRow icon={Search} label="在网页中查找" />
+                    </div>
+                  </div>
+                </StepCard>
+              </>
+            ) : (
+              <>
+                <StepCard number={1} title="点击右上角的菜单按钮">
+                  <div className="flex h-[60px] w-full items-center gap-3 border-b border-white/5 bg-[#1a1a24] px-4">
+                    <Home size={20} className="text-[#8a8a93]" />
+                    <div className="flex h-[36px] flex-1 items-center justify-center rounded-full border border-white/5 bg-[#2a2a36] px-3">
+                      <Lock size={14} className="mr-1.5 text-[#8a8a93]" />
+                      <span className="text-[14px] text-white/80">trading.app</span>
+                    </div>
+                    <div className="relative p-1">
+                      <MoreVertical size={24} className="text-[#6c48f5]" />
+                      <span className="absolute right-1 top-1 flex h-2.5 w-2.5">
+                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#6c48f5] opacity-75" />
+                        <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-[#6c48f5]" />
+                      </span>
+                    </div>
+                  </div>
+                </StepCard>
+
+                <StepCard number={2} title="点击“添加到主屏幕”" description="在下拉菜单中找到该选项以安装">
+                  <div className="relative h-[180px] bg-[#1a1a24] p-3">
+                    <div className="ml-auto w-[220px] rounded-[16px] border border-white/10 bg-[#2a2a36] py-1.5 shadow-xl">
+                      <MenuRow icon={Star} label="添加书签" />
+                      <MenuRow icon={Download} label="下载此网页" />
+                      <div className="relative flex items-center gap-3 bg-[#6c48f5]/15 px-4 py-3">
+                        <div className="absolute bottom-0 left-0 top-0 w-1 bg-[#6c48f5]" />
+                        <MonitorSmartphone size={18} className="ml-1 text-[#a58dff]" />
+                        <span className="text-[14px] font-medium text-[#a58dff]">添加到主屏幕</span>
+                      </div>
+                      <MenuRow icon={RefreshCw} label="重新加载" />
+                    </div>
+                  </div>
+                </StepCard>
+              </>
+            )}
+
+            <StepCard number={3} title="开始交易" description="回到手机桌面，点击图标即可快速访问">
+              <div className="flex justify-center bg-[#1a1a24] py-8">
+                <div className="grid max-w-[300px] grid-cols-4 gap-x-6 gap-y-4 px-6">
+                  {[1, 2, 3, 4].map((item) => (
+                    <div key={item} className="flex flex-col items-center gap-2">
+                      <div
+                        className={`h-[56px] w-[56px] rounded-[14px] ${
+                          item === 3
+                            ? 'flex items-center justify-center border border-white/10 bg-gradient-to-br from-[#6c48f5] to-[#4b2eb3] shadow-[0_4px_16px_rgba(108,72,245,0.4)]'
+                            : 'border border-white/5 bg-[#2a2a36]'
+                        }`}
+                      >
+                        {item === 3 ? (
+                          <div className="relative">
+                            <TrendingUp size={28} className="text-white" strokeWidth={2.5} />
+                            <div className="absolute -right-1 -top-1 h-2.5 w-2.5 animate-pulse rounded-full bg-[#a58dff] shadow-[0_0_8px_#a58dff]" />
+                          </div>
+                        ) : null}
+                      </div>
+                      <span className="text-[11px] font-medium text-white/80">{item === 3 ? 'Trading' : 'App'}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </StepCard>
+          </motion.div>
+        </AnimatePresence>
+      </div>
+    </div>
+  );
+}
+
+function StepCard({
+  number,
+  title,
+  description,
+  children,
+}: {
+  number: number;
+  title: string;
+  description?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-[20px] border border-white/5 bg-[#14141c] p-5">
+      <div className="mb-4 flex items-start gap-3">
+        <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#6c48f5]/20 text-[12px] font-bold text-[#a58dff]">
+          {number}
+        </div>
+        <div>
+          <h3 className="mb-1 text-[15px] font-medium text-white/90">{title}</h3>
+          {description ? <p className="text-[13px] leading-relaxed text-[#8a8a93]">{description}</p> : null}
         </div>
       </div>
+      <div className="relative overflow-hidden rounded-[16px] border border-white/5 bg-[#09090b]">{children}</div>
+    </div>
+  );
+}
 
-      {/* Content */}
-      <div className="px-4 pt-6">
-        <div className="text-center mb-8">
-          <div className="w-24 h-24 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-3xl flex items-center justify-center mx-auto mb-4 shadow-lg">
-            <Smartphone className="w-12 h-12 text-white" />
-          </div>
-          <h2 className="text-white text-xl font-bold mb-2">下载我们的移动应用</h2>
-          <p className="text-gray-400 text-sm">随时随地进行交易，体验更流畅的移动端操作</p>
-        </div>
-
-        <div className="space-y-4">
-          {/* iOS Download */}
-          <button className="w-full bg-[#1f2633] rounded-xl p-6 border border-gray-700/50 hover:border-blue-500/50 transition-colors">
-            <div className="flex items-center gap-4">
-              <div className="w-16 h-16 bg-gray-700/50 rounded-2xl flex items-center justify-center">
-                <svg className="w-10 h-10 text-white" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09l.01-.01zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/>
-                </svg>
-              </div>
-              <div className="flex-1 text-left">
-                <div className="text-white font-medium mb-1">iOS 版本</div>
-                <div className="text-gray-400 text-sm">适用于 iPhone 和 iPad</div>
-              </div>
-              <Download className="w-6 h-6 text-blue-400" />
-            </div>
-          </button>
-
-          {/* Android Download */}
-          <button className="w-full bg-[#1f2633] rounded-xl p-6 border border-gray-700/50 hover:border-green-500/50 transition-colors">
-            <div className="flex items-center gap-4">
-              <div className="w-16 h-16 bg-gray-700/50 rounded-2xl flex items-center justify-center">
-                <svg className="w-10 h-10 text-white" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M17.523 15.341c-.759 0-1.373.615-1.373 1.373s.614 1.373 1.373 1.373c.758 0 1.373-.615 1.373-1.373s-.615-1.373-1.373-1.373zm-11.046 0c-.758 0-1.373.615-1.373 1.373s.615 1.373 1.373 1.373c.759 0 1.373-.615 1.373-1.373s-.614-1.373-1.373-1.373zm13.118-7.341l1.605-2.781c.088-.152.035-.347-.117-.435-.152-.088-.347-.035-.435.117l-1.623 2.812c-1.329-.652-2.832-1.013-4.425-1.013s-3.096.361-4.425 1.013l-1.623-2.812c-.088-.152-.283-.205-.435-.117-.152.088-.205.283-.117.435l1.605 2.781c-2.754 1.411-4.606 4.181-4.606 7.373h19.2c0-3.192-1.852-5.962-4.606-7.373z"/>
-                </svg>
-              </div>
-              <div className="flex-1 text-left">
-                <div className="text-white font-medium mb-1">Android 版本</div>
-                <div className="text-gray-400 text-sm">适用于 Android 设备</div>
-              </div>
-              <Download className="w-6 h-6 text-green-400" />
-            </div>
-          </button>
-        </div>
-
-        {/* Features */}
-        <div className="mt-8 bg-[#1f2633] rounded-xl p-6 border border-gray-700/50">
-          <h3 className="text-white font-medium mb-4">应用特性</h3>
-          <ul className="space-y-3">
-            <li className="flex items-start gap-3 text-gray-300 text-sm">
-              <span className="text-blue-400 mt-0.5">✓</span>
-              <span>实时行情推送，把握每一个交易机会</span>
-            </li>
-            <li className="flex items-start gap-3 text-gray-300 text-sm">
-              <span className="text-blue-400 mt-0.5">✓</span>
-              <span>快速下单，流畅的交易体验</span>
-            </li>
-            <li className="flex items-start gap-3 text-gray-300 text-sm">
-              <span className="text-blue-400 mt-0.5">✓</span>
-              <span>安全可靠，多重加密保护</span>
-            </li>
-            <li className="flex items-start gap-3 text-gray-300 text-sm">
-              <span className="text-blue-400 mt-0.5">✓</span>
-              <span>支持生物识别登录，更加便捷</span>
-            </li>
-          </ul>
-        </div>
-      </div>
-
-      {/* Bottom Navigation */}
-      <BottomNav />
+function MenuRow({ icon: Icon, label }: { icon: typeof Copy; label: string }) {
+  return (
+    <div className="flex items-center gap-3 border-b border-white/5 px-4 py-3.5 last:border-b-0">
+      <Icon size={20} className="text-[#8a8a93]" />
+      <span className="text-[15px] text-white/90">{label}</span>
     </div>
   );
 }

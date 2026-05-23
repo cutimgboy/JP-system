@@ -1,8 +1,11 @@
-import { Controller, Get, Post, Param, Query, Body, HttpException, HttpStatus, Sse, MessageEvent } from '@nestjs/common';
+import { Controller, Get, Post, Param, Query, Body, HttpException, HttpStatus, Sse, MessageEvent, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery } from '@nestjs/swagger';
 import { QuoteService } from './quote.service';
 import { StockTickData } from './entities/stock-tick.entity';
 import { Observable } from 'rxjs';
+import { JwtAuthGuard } from '../user/guards/jwt-auth.guard';
+import { RolesGuard } from '../user/guards/roles.guard';
+import { Roles } from '../user/decorators/roles.decorator';
 
 /**
  * 行情数据控制器
@@ -114,6 +117,44 @@ export class QuoteController {
   }
 
   /**
+   * 获取历史 K 线快照
+   */
+  @Get('kline/:code')
+  @ApiOperation({ summary: '获取历史 K 线快照' })
+  @ApiParam({
+    name: 'code',
+    description: '股票代码，如: AAPL.US'
+  })
+  @ApiQuery({
+    name: 'interval',
+    required: false,
+    description: 'K 线周期，支持 1s/5s/15s/1m/5m，默认 1s'
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    description: '返回条数，默认 300，最多 1200'
+  })
+  async getKlineSnapshot(
+    @Param('code') code: string,
+    @Query('interval') interval: string = '1s',
+    @Query('limit') limit: string = '300',
+  ) {
+    try {
+      if (!code) {
+        throw new HttpException('股票代码不能为空', HttpStatus.BAD_REQUEST);
+      }
+
+      return await this.quoteService.getKlineSnapshot(code, interval, limit);
+    } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      throw new HttpException('获取K线数据失败', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  /**
    * 获取所有订阅的股票行情数据（兼容旧接口）
    */
   @Get()
@@ -178,6 +219,8 @@ export class QuoteController {
    * 获取缓存统计信息
    */
   @Get('status/cache')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
   @ApiOperation({ summary: '获取 Redis 缓存统计信息' })
   @ApiResponse({ 
     status: 200, 
@@ -200,6 +243,8 @@ export class QuoteController {
    * 清理过期缓存
    */
   @Post('maintenance/clean-cache')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
   @ApiOperation({ summary: '清理过期的缓存数据' })
   @ApiResponse({ 
     status: 200, 
@@ -223,6 +268,8 @@ export class QuoteController {
    * 测试价格计算逻辑
    */
   @Post('test/price-calculation')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
   @ApiOperation({ summary: '测试价格计算逻辑' })
   @ApiResponse({
     status: 200,

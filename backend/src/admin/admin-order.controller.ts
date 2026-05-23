@@ -5,6 +5,8 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../user/guards/jwt-auth.guard';
+import { RolesGuard } from '../user/guards/roles.guard';
+import { Roles } from '../user/decorators/roles.decorator';
 import { TradeOrderService } from '../user/services/trade-order.service';
 import { OrderStatus } from '../user/entities/trade-order.entity';
 import { AccountType } from '../user/entities/user-account.entity';
@@ -13,7 +15,8 @@ import { AccountType } from '../user/entities/user-account.entity';
  * 管理员订单控制器
  */
 @Controller('admin/orders')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles('admin')
 export class AdminOrderController {
   constructor(private readonly tradeOrderService: TradeOrderService) {}
 

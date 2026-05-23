@@ -10,13 +10,30 @@ import {
   SubscribeResponse,
   HeartbeatResponse,
   MessageCommandId,
+  StockTickEntity,
 } from './entities/stock-tick.entity';
 import { StockRealtimePriceEntity } from './entities/stock-realtime-price.entity';
 import { StockPriceChangeEntity } from './entities/stock-price-change.entity';
+import { StockKlineEntity } from './entities/stock-kline.entity';
 import { TradingSettingsEntity } from '../cfd/entities/trading-settings.entity';
 import { ProductEntity } from '../cfd/entities/product.entity';
 import { Observable, Subject } from 'rxjs';
 import { filter, map } from 'rxjs/operators';
+
+interface KlineAggregationBuffer {
+  code: string;
+  interval_sec: number;
+  bucket_time: Date;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+  turnover: number;
+  trade_count: number;
+  first_tick_time: Date;
+  last_tick_time: Date;
+}
 
 /**
  * 行情订阅服务
@@ -37,7 +54,9 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
   private readonly dbFlushInterval = 1000;
   private readonly dbBatchSize = 200;
   private readonly maxBufferedDbRows = 5000;
+  private readonly klineIntervals = [1, 5, 15, 60, 300];
   private dbFlushInProgress = false;
+  private dbFlushPromise: Promise<void> | null = null;
   private droppedDbRows = 0;
   private lastDroppedRowsWarnAt = 0;
 
@@ -82,6 +101,8 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
   private readonly cacheExpiryTime = 1000; // 1秒内的重复数据将被过滤
   private pendingTicks: Map<string, StockTickData> = new Map();
   private processingTickCodes: Set<string> = new Set();
+  private stockTickBuffer: Array<Partial<StockTickEntity>> = [];
+  private klineBuffer: Map<string, KlineAggregationBuffer> = new Map();
   private realtimePriceBuffer: Array<Partial<StockRealtimePriceEntity>> = [];
   private priceChangeBuffer: Array<Partial<StockPriceChangeEntity>> = [];
 
@@ -95,6 +116,10 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
     private stockRealtimePriceRepository: Repository<StockRealtimePriceEntity>,
     @InjectRepository(StockPriceChangeEntity)
     private stockPriceChangeRepository: Repository<StockPriceChangeEntity>,
+    @InjectRepository(StockTickEntity)
+    private stockTickRepository: Repository<StockTickEntity>,
+    @InjectRepository(StockKlineEntity)
+    private stockKlineRepository: Repository<StockKlineEntity>,
     @InjectRepository(TradingSettingsEntity)
     private tradingSettingsRepository: Repository<TradingSettingsEntity>,
     @InjectRepository(ProductEntity)
@@ -262,8 +287,9 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
   private handleTickData(message: TickPushMessage): void {
     const tickData = message.data;
     
-    // 创建唯一键：股票代码 + 价格 + 时间戳
-    const uniqueKey = `${tickData.code}-${tickData.price}-${tickData.tick_time}`;
+    const uniqueKey = tickData.seq
+      ? `${tickData.code}-${tickData.seq}`
+      : `${tickData.code}-${tickData.price}-${tickData.tick_time}`;
     const now = Date.now();
     
     // 检查是否为重复数据
@@ -522,9 +548,12 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
             ? parseFloat(cachedQuote.realtime_price)
             : null;
 
-      // 检查价格是否真的变化了
-      if (cachedPrice !== null && Math.abs(cachedPrice - newPrice) < 0.0001) {
-        // 价格没有变化，跳过处理
+      const priceChanged =
+        cachedPrice === null || Math.abs(cachedPrice - newPrice) >= 0.0001;
+
+      this.scheduleDatabaseWrite(tickData, cachedPrice, priceChanged);
+
+      if (!priceChanged) {
         return;
       }
 
@@ -554,14 +583,13 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
         bidSpread: tradingSettings?.bidSpread || 0,
         askSpread: tradingSettings?.askSpread || 0,
       });
-      this.scheduleDatabaseWrite(tickData, cachedPrice);
       this.scheduleAllQuotesCacheRefresh();
 
       // 推送 SSE 事件
       this.tickSubject.next({
         code,
         data: {
-          time: Math.floor(parseInt(tickData.tick_time) / 1000),
+          time: Math.floor(this.parseTickTime(tickData.tick_time).getTime() / 1000),
           price: newPrice,
           volume: parseInt(tickData.volume),
         },
@@ -641,21 +669,36 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
   private scheduleDatabaseWrite(
     tickData: StockTickData,
     oldPrice: number | null,
+    shouldWriteRealtime: boolean = true,
   ): void {
     const newPrice = parseFloat(tickData.price);
     const tickTime = this.parseTickTime(tickData.tick_time);
     const volume = parseInt(tickData.volume) || 0;
     const turnover = parseFloat(tickData.turnover) || 0;
 
-    this.realtimePriceBuffer.push({
+    this.stockTickBuffer.push({
       code: tickData.code,
+      seq: tickData.seq || `${tickData.tick_time}-${tickData.price}-${tickData.volume}-${tickData.turnover}`,
+      tick_time: tickTime,
       price: newPrice,
       volume,
       turnover,
-      tick_time: tickTime,
+      trade_direction: tickData.trade_direction ?? null,
     });
 
-    if (oldPrice !== null && Math.abs(oldPrice - newPrice) >= 0.0001) {
+    this.addKlineBufferRows(tickData.code, tickTime, newPrice, volume, turnover);
+
+    if (shouldWriteRealtime) {
+      this.realtimePriceBuffer.push({
+        code: tickData.code,
+        price: newPrice,
+        volume,
+        turnover,
+        tick_time: tickTime,
+      });
+    }
+
+    if (oldPrice !== null && shouldWriteRealtime) {
       this.priceChangeBuffer.push({
         code: tickData.code,
         old_price: oldPrice,
@@ -670,8 +713,175 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
     this.trimDatabaseBuffers();
   }
 
+  private addKlineBufferRows(
+    code: string,
+    tickTime: Date,
+    price: number,
+    volume: number,
+    turnover: number,
+  ): void {
+    for (const intervalSeconds of this.klineIntervals) {
+      const bucketTime = this.getKlineBucketTime(tickTime, intervalSeconds);
+      const key = this.getKlineBufferKey(code, intervalSeconds, bucketTime);
+      const buffered = this.klineBuffer.get(key);
+
+      if (!buffered) {
+        this.klineBuffer.set(key, {
+          code,
+          interval_sec: intervalSeconds,
+          bucket_time: bucketTime,
+          open: price,
+          high: price,
+          low: price,
+          close: price,
+          volume,
+          turnover,
+          trade_count: 1,
+          first_tick_time: tickTime,
+          last_tick_time: tickTime,
+        });
+        continue;
+      }
+
+      if (tickTime.getTime() < buffered.first_tick_time.getTime()) {
+        buffered.open = price;
+        buffered.first_tick_time = tickTime;
+      }
+
+      if (tickTime.getTime() >= buffered.last_tick_time.getTime()) {
+        buffered.close = price;
+        buffered.last_tick_time = tickTime;
+      }
+
+      buffered.high = Math.max(buffered.high, price);
+      buffered.low = Math.min(buffered.low, price);
+      buffered.volume += volume;
+      buffered.turnover += turnover;
+      buffered.trade_count += 1;
+    }
+  }
+
+  private getKlineBucketTime(tickTime: Date, intervalSeconds: number): Date {
+    const bucketMs =
+      Math.floor(tickTime.getTime() / (intervalSeconds * 1000)) *
+      intervalSeconds *
+      1000;
+    return new Date(bucketMs);
+  }
+
+  private getKlineBufferKey(
+    code: string,
+    intervalSeconds: number,
+    bucketTime: Date,
+  ): string {
+    return `${code}:${intervalSeconds}:${bucketTime.getTime()}`;
+  }
+
+  private getKlineBufferRows(limit: number = this.dbBatchSize): KlineAggregationBuffer[] {
+    const rows: KlineAggregationBuffer[] = [];
+
+    for (const [key, row] of this.klineBuffer.entries()) {
+      rows.push(row);
+      this.klineBuffer.delete(key);
+
+      if (rows.length >= limit) {
+        break;
+      }
+    }
+
+    return rows;
+  }
+
+  private hasDatabaseBuffers(): boolean {
+    return (
+      this.stockTickBuffer.length > 0 ||
+      this.klineBuffer.size > 0 ||
+      this.realtimePriceBuffer.length > 0 ||
+      this.priceChangeBuffer.length > 0
+    );
+  }
+
+  private buildKlineUpsertSql(rows: KlineAggregationBuffer[]): { sql: string; params: any[] } {
+    const placeholders = rows
+      .map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .join(', ');
+
+    const params = rows.flatMap((row) => [
+      row.code,
+      row.interval_sec,
+      row.bucket_time,
+      row.open,
+      row.high,
+      row.low,
+      row.close,
+      row.volume,
+      row.turnover,
+      row.trade_count,
+      row.first_tick_time,
+      row.last_tick_time,
+    ]);
+
+    return {
+      sql: `
+        INSERT INTO stock_klines (
+          code,
+          interval_sec,
+          bucket_time,
+          open,
+          high,
+          low,
+          close,
+          volume,
+          turnover,
+          trade_count,
+          first_tick_time,
+          last_tick_time
+        )
+        VALUES ${placeholders}
+        ON DUPLICATE KEY UPDATE
+          open = IF(VALUES(first_tick_time) < first_tick_time, VALUES(open), open),
+          high = GREATEST(high, VALUES(high)),
+          low = LEAST(low, VALUES(low)),
+          close = IF(VALUES(last_tick_time) >= last_tick_time, VALUES(close), close),
+          volume = volume + VALUES(volume),
+          turnover = turnover + VALUES(turnover),
+          trade_count = trade_count + VALUES(trade_count),
+          first_tick_time = LEAST(first_tick_time, VALUES(first_tick_time)),
+          last_tick_time = GREATEST(last_tick_time, VALUES(last_tick_time)),
+          updated_at = CURRENT_TIMESTAMP
+      `,
+      params,
+    };
+  }
+
+  private async insertStockTicks(rows: Array<Partial<StockTickEntity>>): Promise<void> {
+    await this.stockTickRepository
+      .createQueryBuilder()
+      .insert()
+      .into(StockTickEntity)
+      .values(rows)
+      .orIgnore()
+      .execute();
+  }
+
+  private async upsertKlineRows(rows: KlineAggregationBuffer[]): Promise<void> {
+    const { sql, params } = this.buildKlineUpsertSql(rows);
+    await this.stockKlineRepository.query(sql, params);
+  }
+
   private parseTickTime(tickTimeRaw: string): Date {
     try {
+      if (/^\d+$/.test(tickTimeRaw)) {
+        const timestamp = Number(tickTimeRaw);
+        const normalizedTimestamp =
+          tickTimeRaw.length <= 10 ? timestamp * 1000 : timestamp;
+        const tickTime = new Date(normalizedTimestamp);
+
+        if (!isNaN(tickTime.getTime())) {
+          return tickTime;
+        }
+      }
+
       const tickTime = new Date(tickTimeRaw);
       if (isNaN(tickTime.getTime())) {
         return new Date();
@@ -683,6 +893,19 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
   }
 
   private trimDatabaseBuffers(): void {
+    const overflowTicks = this.stockTickBuffer.length - this.maxBufferedDbRows;
+    if (overflowTicks > 0) {
+      this.stockTickBuffer.splice(0, overflowTicks);
+      this.droppedDbRows += overflowTicks;
+    }
+
+    const overflowKlines = this.klineBuffer.size - this.maxBufferedDbRows;
+    if (overflowKlines > 0) {
+      const keys = Array.from(this.klineBuffer.keys()).slice(0, overflowKlines);
+      keys.forEach((key) => this.klineBuffer.delete(key));
+      this.droppedDbRows += overflowKlines;
+    }
+
     const overflowRealtime = this.realtimePriceBuffer.length - this.maxBufferedDbRows;
     if (overflowRealtime > 0) {
       this.realtimePriceBuffer.splice(0, overflowRealtime);
@@ -722,35 +945,53 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
 
   private async flushDatabaseBuffers(force: boolean = false): Promise<void> {
     if (this.dbFlushInProgress) {
+      if (force && this.dbFlushPromise) {
+        await this.dbFlushPromise;
+        if (this.hasDatabaseBuffers()) {
+          await this.flushDatabaseBuffers(true);
+        }
+      }
       return;
     }
 
-    if (this.realtimePriceBuffer.length === 0 && this.priceChangeBuffer.length === 0) {
+    if (!this.hasDatabaseBuffers()) {
       return;
     }
 
     this.dbFlushInProgress = true;
 
-    try {
-      do {
-        const realtimeBatch = this.realtimePriceBuffer.splice(0, this.dbBatchSize);
-        if (realtimeBatch.length > 0) {
-          await this.stockRealtimePriceRepository.insert(realtimeBatch);
-        }
+    this.dbFlushPromise = (async () => {
+      try {
+        do {
+          const tickBatch = this.stockTickBuffer.splice(0, this.dbBatchSize);
+          if (tickBatch.length > 0) {
+            await this.insertStockTicks(tickBatch);
+          }
 
-        const changeBatch = this.priceChangeBuffer.splice(0, this.dbBatchSize);
-        if (changeBatch.length > 0) {
-          await this.stockPriceChangeRepository.insert(changeBatch);
-        }
-      } while (
-        force &&
-        (this.realtimePriceBuffer.length > 0 || this.priceChangeBuffer.length > 0)
-      );
-    } catch (error) {
-      this.logger.error('批量保存行情数据失败:', error);
-    } finally {
-      this.dbFlushInProgress = false;
-    }
+          const klineBatch = this.getKlineBufferRows(this.dbBatchSize);
+          if (klineBatch.length > 0) {
+            await this.upsertKlineRows(klineBatch);
+          }
+
+          const realtimeBatch = this.realtimePriceBuffer.splice(0, this.dbBatchSize);
+          if (realtimeBatch.length > 0) {
+            await this.stockRealtimePriceRepository.insert(realtimeBatch);
+          }
+
+          const changeBatch = this.priceChangeBuffer.splice(0, this.dbBatchSize);
+          if (changeBatch.length > 0) {
+            await this.stockPriceChangeRepository.insert(changeBatch);
+          }
+        } while (force && this.hasDatabaseBuffers());
+      } catch (error) {
+        this.logger.error('批量保存行情数据失败:', error);
+      } finally {
+        this.dbFlushInProgress = false;
+        this.dbFlushPromise = null;
+      }
+    })();
+
+    await this.dbFlushPromise;
   }
 
   /**
@@ -857,6 +1098,176 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
       this.logger.error(`获取 ${code} 实时行情失败:`, error);
       throw error;
     }
+  }
+
+  private parseKlineInterval(interval: string | undefined): number {
+    const normalized = (interval || '1s').trim().toLowerCase();
+    const matched = normalized.match(/^(\d+)(s|m)$/);
+
+    if (!matched) {
+      return 1;
+    }
+
+    const value = Math.max(1, parseInt(matched[1], 10));
+    const unit = matched[2];
+    const seconds = unit === 'm' ? value * 60 : value;
+
+    return Math.min(seconds, 300);
+  }
+
+  private parseKlineLimit(limit: string | undefined): number {
+    const parsed = parseInt(limit || '300', 10);
+    if (Number.isNaN(parsed)) {
+      return 300;
+    }
+    return Math.max(1, Math.min(parsed, 1200));
+  }
+
+  /**
+   * 获取历史 K 线快照。
+   * 优先读取 stock_klines 聚合表，旧数据空窗期回落到实时价格流水临时聚合。
+   */
+  async getKlineSnapshot(
+    code: string,
+    interval: string = '1s',
+    limit: string = '300',
+  ): Promise<any> {
+    const intervalSeconds = this.parseKlineInterval(interval);
+    const limitNumber = this.parseKlineLimit(limit);
+
+    const klineRows = await this.stockKlineRepository.find({
+      where: {
+        code,
+        interval_sec: intervalSeconds,
+      },
+      order: {
+        bucket_time: 'DESC',
+      },
+      take: limitNumber,
+    });
+
+    if (klineRows.length > 0) {
+      return {
+        code,
+        interval: `${intervalSeconds}s`,
+        data: klineRows.reverse().map((row) => {
+          const bucketTime = new Date(row.bucket_time);
+          const close = Number(row.close);
+
+          return {
+            time: Math.floor(bucketTime.getTime() / 1000),
+            open: Number(row.open),
+            high: Number(row.high),
+            low: Number(row.low),
+            close,
+            price: close,
+            volume: Number(row.volume || 0),
+            turnover: Number(row.turnover || 0),
+            trade_count: Number(row.trade_count || 0),
+          };
+        }),
+      };
+    }
+
+    const latestRow = await this.stockRealtimePriceRepository
+      .createQueryBuilder('price')
+      .select('price.tick_time', 'tick_time')
+      .where('price.code = :code', { code })
+      .orderBy('price.tick_time', 'DESC')
+      .addOrderBy('price.id', 'DESC')
+      .getRawOne<{ tick_time: Date | string }>();
+
+    if (!latestRow?.tick_time) {
+      const latestQuote = await this.getCachedQuote(code);
+      const fallbackPrice =
+        typeof latestQuote?.realtime_price === 'number'
+          ? latestQuote.realtime_price
+          : latestQuote?.realtime_price
+            ? parseFloat(latestQuote.realtime_price)
+            : null;
+
+      return {
+        code,
+        interval: `${intervalSeconds}s`,
+        data: fallbackPrice
+          ? [
+              {
+                time: Math.floor(Date.now() / 1000),
+                open: fallbackPrice,
+                high: fallbackPrice,
+                low: fallbackPrice,
+                close: fallbackPrice,
+                price: fallbackPrice,
+                volume: latestQuote?.volume || 0,
+                trade_count: 1,
+              },
+            ]
+          : [],
+      };
+    }
+
+    const latestTime = new Date(latestRow.tick_time);
+    const startTime = new Date(
+      latestTime.getTime() - intervalSeconds * limitNumber * 1000,
+    );
+
+    const rows = await this.stockRealtimePriceRepository.query(
+      `
+        WITH filtered AS (
+          SELECT
+            id,
+            price,
+            volume,
+            tick_time,
+            FLOOR(UNIX_TIMESTAMP(tick_time) / ?) AS bucket
+          FROM stock_realtime_price
+          WHERE code = ?
+            AND tick_time >= ?
+            AND tick_time <= ?
+        ),
+        ranked AS (
+          SELECT
+            *,
+            ROW_NUMBER() OVER (PARTITION BY bucket ORDER BY tick_time ASC, id ASC) AS rn_asc,
+            ROW_NUMBER() OVER (PARTITION BY bucket ORDER BY tick_time DESC, id DESC) AS rn_desc
+          FROM filtered
+        )
+        SELECT
+          bucket * ? AS time,
+          MAX(CASE WHEN rn_asc = 1 THEN price END) AS open,
+          MAX(price) AS high,
+          MIN(price) AS low,
+          MAX(CASE WHEN rn_desc = 1 THEN price END) AS close,
+          SUM(volume) AS volume,
+          SUM(turnover) AS turnover,
+          COUNT(*) AS trade_count
+        FROM ranked
+        GROUP BY bucket
+        ORDER BY bucket ASC
+      `,
+      [intervalSeconds, code, startTime, latestTime, intervalSeconds],
+    );
+
+    const data = rows.slice(-limitNumber).map((row: any) => {
+      const close = Number(row.close);
+      return {
+        time: Number(row.time),
+        open: Number(row.open),
+        high: Number(row.high),
+        low: Number(row.low),
+        close,
+        price: close,
+        volume: Number(row.volume || 0),
+        turnover: Number(row.turnover || 0),
+        trade_count: Number(row.trade_count || 0),
+      };
+    });
+
+    return {
+      code,
+      interval: `${intervalSeconds}s`,
+      data,
+    };
   }
 
   /**
@@ -994,6 +1405,18 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
 
       // 更新缓存
       await this.updateMockQuoteCache(code, newPrice, volume, tickTime);
+      this.scheduleDatabaseWrite(
+        {
+          code,
+          price: newPrice.toString(),
+          volume: volume.toString(),
+          turnover: (newPrice * volume).toString(),
+          tick_time: tickTime.toString(),
+          seq: `mock-${code}-${tickTime}`,
+          trade_direction: changePercent >= 0 ? 1 : 2,
+        },
+        currentPrice,
+      );
 
       // 推送 SSE 事件
       this.tickSubject.next({

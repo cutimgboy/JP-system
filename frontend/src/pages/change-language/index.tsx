@@ -1,8 +1,7 @@
-import { ArrowLeft, Battery, Wifi, Signal, Check } from 'lucide-react';
-import { BottomNav } from '../../components/BottomNav';
+import { useEffect, useState } from 'react';
+import { Check, ChevronLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { useState, useEffect } from 'react';
-import { useTranslation } from 'react-i18next';
+import { motion } from 'framer-motion';
 import i18n from '../../i18n/config';
 
 interface Language {
@@ -19,80 +18,63 @@ const languages: Language[] = [
 
 export function ChangeLanguage() {
   const navigate = useNavigate();
-  const { t } = useTranslation();
-  const [selectedLanguage, setSelectedLanguage] = useState(() => {
-    // 直接从 localStorage 读取，而不是依赖 i18n.language
-    return localStorage.getItem('i18nextLng') || i18n.language || 'zh-CN';
-  });
+  const [selectedLanguage, setSelectedLanguage] = useState(() => localStorage.getItem('i18nextLng') || i18n.language || 'zh-CN');
 
   useEffect(() => {
-    // 初始化时设置当前语言
     const savedLanguage = localStorage.getItem('i18nextLng') || i18n.language || 'zh-CN';
     setSelectedLanguage(savedLanguage);
-    // 确保 i18n 使用正确的语言
     if (i18n.language !== savedLanguage) {
-      i18n.changeLanguage(savedLanguage);
+      void i18n.changeLanguage(savedLanguage);
     }
   }, []);
 
   const handleLanguageChange = (languageCode: string) => {
     setSelectedLanguage(languageCode);
-    i18n.changeLanguage(languageCode);
+    void i18n.changeLanguage(languageCode);
     localStorage.setItem('i18nextLng', languageCode);
+    setTimeout(() => navigate(-1), 250);
   };
 
   return (
-    <div className="min-h-screen bg-[#1a1f2e] pb-16">
-      {/* Status Bar */}
-      <div className="bg-[#141820] px-4 pt-3 pb-2">
-        <div className="flex items-center justify-between text-xs">
-          <div className="text-white">12:00</div>
-          <div className="flex items-center gap-1 text-white">
-            <Signal className="w-4 h-4" />
-            <Wifi className="w-4 h-4" />
-            <Battery className="w-4 h-4" />
-          </div>
+    <div className="min-h-screen bg-[#09090b] text-white">
+      <div className="sticky top-0 z-20 flex h-[60px] items-center justify-between border-b border-white/5 bg-[#09090b]/90 px-4 backdrop-blur-md">
+        <button
+          onClick={() => navigate(-1)}
+          className="-ml-2 flex h-10 w-10 items-center justify-center rounded-full transition-colors hover:bg-white/10"
+        >
+          <ChevronLeft size={24} />
+        </button>
+        <h1 className="absolute left-1/2 -translate-x-1/2 text-[18px] font-medium">切换语言</h1>
+        <div className="w-10" />
+      </div>
+
+      <div className="px-5 pb-[120px] pt-4">
+        <div className="rounded-[20px] border border-white/5 bg-[#14141c] px-2 shadow-sm">
+          {languages.map((language, index) => (
+            <motion.button
+              key={language.code}
+              type="button"
+              onClick={() => handleLanguageChange(language.code)}
+              whileTap={{ scale: 0.98 }}
+              className={`flex w-full items-center justify-between px-3 py-4 text-left transition-colors hover:bg-white/[0.02] ${
+                index !== languages.length - 1 ? 'border-b border-white/5' : ''
+              }`}
+            >
+              <div>
+                <div className={`text-[15px] ${selectedLanguage === language.code ? 'font-medium text-[#6c48f5]' : 'text-white/90'}`}>
+                  {language.nativeName}
+                </div>
+                <div className="mt-0.5 text-[12px] text-[#8a8a93]">{language.name}</div>
+              </div>
+              {selectedLanguage === language.code ? <Check size={18} className="text-[#6c48f5]" strokeWidth={2.5} /> : null}
+            </motion.button>
+          ))}
         </div>
-      </div>
 
-      {/* Navigation Header */}
-      <div className="bg-[#141820] px-4 py-4 border-b border-gray-700/50">
-        <div className="flex items-center justify-center relative">
-          <button
-            onClick={() => navigate('/profile')}
-            className="absolute left-0 w-9 h-9 flex items-center justify-center hover:bg-gray-700/30 rounded-full transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5 text-gray-300" />
-          </button>
-          <h1 className="text-white text-base font-medium">{t('language.title')}</h1>
-        </div>
+        <p className="mt-4 px-1 text-[12px] leading-relaxed text-[#8a8a93]">
+          当前仅展示已配置翻译资源的语言。新增语言需要先补齐对应的资源文件。
+        </p>
       </div>
-
-      {/* Language List */}
-      <div className="px-4 pt-4 space-y-2">
-        {languages.map((language) => (
-          <button
-            key={language.code}
-            onClick={() => handleLanguageChange(language.code)}
-            className={`w-full bg-[#1f2633] rounded-xl p-4 border ${
-              selectedLanguage === language.code
-                ? 'border-blue-500 bg-blue-500/10'
-                : 'border-gray-700/50'
-            } flex items-center justify-between hover:bg-gray-700/30 transition-colors`}
-          >
-            <div className="text-left">
-              <div className="text-white font-medium">{language.nativeName}</div>
-              <div className="text-gray-400 text-sm">{language.name}</div>
-            </div>
-            {selectedLanguage === language.code && (
-              <Check className="w-5 h-5 text-blue-400" />
-            )}
-          </button>
-        ))}
-      </div>
-
-      {/* Bottom Navigation */}
-      <BottomNav />
     </div>
   );
 }

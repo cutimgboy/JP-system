@@ -8,9 +8,13 @@ import {
   Post,
   Put,
   Query,
+  UseGuards,
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CreatePostDto } from './dto/create-post.dto';
+import { JwtAuthGuard } from '../user/guards/jwt-auth.guard';
+import { RolesGuard } from '../user/guards/roles.guard';
+import { Roles } from '../user/decorators/roles.decorator';
 
 @ApiTags('文章')
 @Controller('post')
@@ -23,6 +27,8 @@ export class PostsController {
    */
   @ApiOperation({ summary: '创建文章' })
   @Post('/create')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
   async create(@Body() post: CreatePostDto) {
     return await this.postsService.create(post);
   }
@@ -50,6 +56,8 @@ export class PostsController {
    * @param post
    */
   @Put(':id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
   async update(@Param('id') id, @Body() post) {
     return await this.postsService.updateById(id, post);
   }
@@ -58,7 +66,9 @@ export class PostsController {
    * 删除
    * @param id
    */
-  @Delete('id')
+  @Delete(':id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
   async remove(@Param('id') id) {
     return await this.postsService.remove(id);
   }
