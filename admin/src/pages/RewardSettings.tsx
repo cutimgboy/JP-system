@@ -1,5 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { Check, Pencil } from 'lucide-react';
 import { Toast } from '../components/Toast';
+import {
+  Button,
+  DataTable,
+  Modal,
+  PageHeader,
+  StatusBadge,
+  fieldClass,
+} from '../components/AdminUI';
 import {
   apiClient,
   extractData,
@@ -21,10 +30,11 @@ export function RewardSettings() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [editAmount, setEditAmount] = useState('');
   const [editActive, setEditActive] = useState(1);
+  const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'warning' } | null>(null);
 
   useEffect(() => {
-    fetchSettings();
+    void fetchSettings();
   }, []);
 
   const fetchSettings = async () => {
@@ -36,6 +46,7 @@ export function RewardSettings() {
     } catch (error) {
       console.error('获取奖励设置失败:', error);
       setSettings([]);
+      setToast({ message: '获取奖励设置失败', type: 'error' });
     } finally {
       setLoading(false);
     }
@@ -50,13 +61,13 @@ export function RewardSettings() {
 
   const handleSave = async () => {
     if (!editingSetting) return;
-
-    const amount = parseFloat(editAmount);
-    if (isNaN(amount) || amount < 0) {
-      setToast({ message: '请输入有效的金额', type: 'error' });
+    const amount = Number(editAmount);
+    if (Number.isNaN(amount) || amount < 0) {
+      setToast({ message: '请输入有效的奖励金额', type: 'warning' });
       return;
     }
 
+    setSaving(true);
     try {
       const response = await apiClient.put(`/reward/settings/${editingSetting.id}`, {
         rewardAmount: amount,
@@ -73,135 +84,100 @@ export function RewardSettings() {
     } catch (error) {
       console.error('更新失败:', error);
       setToast({ message: '更新失败', type: 'error' });
+    } finally {
+      setSaving(false);
     }
   };
 
-  const getAccountTypeName = (type: string) => {
-    return type === 'demo' ? '模拟账户' : '真实账户';
-  };
-
   return (
-    <div className="p-6">
-      <h1 className="text-2xl font-bold mb-6">奖励设置</h1>
+    <div className="space-y-4">
+      <PageHeader title="奖励设置" description="管理模拟账户和真实账户的奖励金额与开关状态" />
 
-      {loading ? (
-        <div className="text-center py-8 text-gray-400">加载中...</div>
-      ) : (
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  账户类型
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  奖励金额 (VND)
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  状态
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  操作
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {settings.map((setting) => (
-                <tr key={setting.id}>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="text-sm font-medium text-gray-900">
-                      {getAccountTypeName(setting.accountType)}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="text-sm text-gray-900">
-                      {setting.rewardAmount.toLocaleString()}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                      setting.isActive === 1
-                        ? 'bg-green-100 text-green-800'
-                        : 'bg-red-100 text-red-800'
-                    }`}>
-                      {setting.isActive === 1 ? '启用' : '禁用'}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm">
-                    <button
-                      onClick={() => handleEdit(setting)}
-                      className="text-blue-600 hover:text-blue-900"
-                    >
-                      编辑
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      <DataTable
+        loading={loading}
+        rows={settings}
+        rowKey={(row) => row.id}
+        emptyText="暂无奖励设置"
+        columns={[
+          {
+            key: 'accountType',
+            title: '账户类型',
+            render: (setting) => (setting.accountType === 'demo' ? '模拟账户' : '真实账户'),
+          },
+          {
+            key: 'rewardAmount',
+            title: '奖励金额',
+            render: (setting) => `${Number(setting.rewardAmount).toLocaleString()} VND`,
+          },
+          {
+            key: 'status',
+            title: '状态',
+            render: (setting) => (
+              <StatusBadge tone={setting.isActive === 1 ? 'green' : 'slate'}>
+                {setting.isActive === 1 ? '启用' : '禁用'}
+              </StatusBadge>
+            ),
+          },
+          {
+            key: 'actions',
+            title: '操作',
+            render: (setting) => (
+              <Button variant="secondary" onClick={() => handleEdit(setting)}>
+                <Pencil className="h-4 w-4" />
+                编辑
+              </Button>
+            ),
+          },
+        ]}
+      />
 
-      {/* Edit Modal */}
       {showEditModal && editingSetting && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full">
-            <h2 className="text-xl font-bold mb-4">
-              编辑奖励设置 - {getAccountTypeName(editingSetting.accountType)}
-            </h2>
-
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                奖励金额 (VND)
-              </label>
+        <Modal
+          title={`编辑奖励设置 - ${editingSetting.accountType === 'demo' ? '模拟账户' : '真实账户'}`}
+          onClose={() => setShowEditModal(false)}
+          footer={
+            <>
+              <Button onClick={() => setShowEditModal(false)} disabled={saving}>取消</Button>
+              <Button variant="primary" onClick={handleSave} disabled={saving}>
+                {saving ? '保存中...' : '保存'}
+              </Button>
+            </>
+          }
+        >
+          <div className="grid gap-4">
+            <div>
+              <div className="mb-2 text-sm font-medium text-slate-900">奖励金额 (VND)</div>
               <input
+                className={fieldClass}
                 type="number"
                 value={editAmount}
-                onChange={(e) => setEditAmount(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="请输入奖励金额"
+                onChange={(event) => setEditAmount(event.target.value)}
               />
             </div>
-
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                状态
-              </label>
-              <select
-                value={editActive}
-                onChange={(e) => setEditActive(parseInt(e.target.value))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                <option value={1}>启用</option>
-                <option value={0}>禁用</option>
-              </select>
-            </div>
-
-            <div className="flex gap-3">
-              <button
-                onClick={() => setShowEditModal(false)}
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-              >
-                取消
-              </button>
-              <button
-                onClick={handleSave}
-                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                保存
-              </button>
+            <div>
+              <div className="mb-2 text-sm font-medium text-slate-900">状态</div>
+              <div className="flex gap-2">
+                <Button
+                  variant={editActive === 1 ? 'success' : 'secondary'}
+                  onClick={() => setEditActive(1)}
+                >
+                  <Check className="h-4 w-4" />
+                  启用
+                </Button>
+                <Button
+                  variant={editActive === 0 ? 'danger' : 'secondary'}
+                  onClick={() => setEditActive(0)}
+                >
+                  禁用
+                </Button>
+              </div>
             </div>
           </div>
-        </div>
+        </Modal>
       )}
 
-      {/* Toast Notification */}
       {toast && (
-        <Toast
-          message={toast.message}
-          type={toast.type}
-          onClose={() => setToast(null)}
-        />
+        <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />
       )}
     </div>
   );

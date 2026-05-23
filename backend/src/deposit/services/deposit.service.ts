@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 import { DepositRecordEntity } from '../entities/deposit-record.entity';
@@ -46,16 +46,39 @@ export class DepositService {
   /**
    * 获取所有入金记录（后台管理）
    */
-  async findAll(status?: number): Promise<DepositRecordEntity[]> {
+  async findAll(
+    status?: number,
+    page: number = 1,
+    limit: number = 50,
+  ): Promise<{
+    records: DepositRecordEntity[];
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  }> {
+    const safePage = Math.max(Number(page) || 1, 1);
+    const safeLimit = Math.min(Math.max(Number(limit) || 50, 1), 100);
     const where: any = {};
     if (status !== undefined) {
-      where.status = status;
+      where.status = Number(status);
     }
-    return await this.depositRepository.find({
+
+    const [records, total] = await this.depositRepository.findAndCount({
       where,
       relations: ['user'],
       order: { createTime: 'DESC' },
+      skip: (safePage - 1) * safeLimit,
+      take: safeLimit,
     });
+
+    return {
+      records,
+      total,
+      page: safePage,
+      limit: safeLimit,
+      totalPages: Math.max(Math.ceil(total / safeLimit), 1),
+    };
   }
 
   /**
@@ -94,11 +117,19 @@ export class DepositService {
       // 获取入金记录
       const deposit = await queryRunner.manager.findOne(DepositRecordEntity, {
         where: { id },
+        lock: { mode: 'pessimistic_write' },
       });
 
       if (!deposit) {
-        await queryRunner.rollbackTransaction();
-        return null;
+        throw new NotFoundException('入金记录不存在');
+      }
+
+      if (![1, 2].includes(data.status)) {
+        throw new BadRequestException('审核状态不正确');
+      }
+
+      if (deposit.status !== 0) {
+        throw new BadRequestException('该入金记录已审核，不能重复处理');
       }
 
       // 更新入金记录状态

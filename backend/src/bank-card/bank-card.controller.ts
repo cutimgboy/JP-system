@@ -3,6 +3,7 @@ import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagg
 import { BankCardService } from './services/bank-card.service';
 import { CurrentUser } from '../user/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../user/guards/jwt-auth.guard';
+import { CreateBankCardDto, UpdateBankCardDto } from './dto/bank-card.dto';
 
 @ApiTags('银行卡')
 @Controller('bank-card')
@@ -63,12 +64,7 @@ export class BankCardController {
   @ApiResponse({ status: 200, description: '添加成功' })
   async createBankCard(
     @CurrentUser() user,
-    @Body() data: {
-      bankName: string;
-      accountName: string;
-      accountNumber: string;
-      swiftCode?: string;
-    },
+    @Body() data: CreateBankCardDto,
   ) {
     try {
       const bankCard = await this.bankCardService.create({
@@ -95,12 +91,7 @@ export class BankCardController {
   async updateBankCard(
     @Param('id') id: number,
     @CurrentUser() user,
-    @Body() data: {
-      bankName?: string;
-      accountName?: string;
-      accountNumber?: string;
-      swiftCode?: string;
-    },
+    @Body() data: UpdateBankCardDto,
   ) {
     try {
       const bankCard = await this.bankCardService.findById(id);

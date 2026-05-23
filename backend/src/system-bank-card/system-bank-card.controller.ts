@@ -4,6 +4,10 @@ import { SystemBankCardService } from './services/system-bank-card.service';
 import { JwtAuthGuard } from '../user/guards/jwt-auth.guard';
 import { RolesGuard } from '../user/guards/roles.guard';
 import { Roles } from '../user/decorators/roles.decorator';
+import {
+  CreateSystemBankCardDto,
+  UpdateSystemBankCardDto,
+} from './dto/system-bank-card.dto';
 
 @ApiTags('系统收款银行卡')
 @Controller('system-bank-card')
@@ -89,12 +93,7 @@ export class SystemBankCardController {
   @ApiOperation({ summary: '添加系统银行卡' })
   @ApiResponse({ status: 200, description: '添加成功' })
   async createSystemBankCard(
-    @Body() data: {
-      bankName: string;
-      accountName: string;
-      accountNumber: string;
-      swiftCode?: string;
-    },
+    @Body() data: CreateSystemBankCardDto,
   ) {
     try {
       const bankCard = await this.systemBankCardService.create(data);
@@ -119,12 +118,7 @@ export class SystemBankCardController {
   @ApiResponse({ status: 200, description: '更新成功' })
   async updateSystemBankCard(
     @Param('id') id: number,
-    @Body() data: {
-      bankName?: string;
-      accountName?: string;
-      accountNumber?: string;
-      swiftCode?: string;
-    },
+    @Body() data: UpdateSystemBankCardDto,
   ) {
     try {
       const bankCard = await this.systemBankCardService.findById(id);

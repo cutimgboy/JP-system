@@ -1,7 +1,18 @@
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
+import {
+  Entity,
+  Column,
+  PrimaryGeneratedColumn,
+  CreateDateColumn,
+  UpdateDateColumn,
+  ManyToOne,
+  JoinColumn,
+  Index,
+} from 'typeorm';
 import { UserEntity } from '../../user/entities/user.entity';
 
 @Entity('deposit_records')
+@Index(['status', 'createTime'])
+@Index(['userId', 'createTime'])
 export class DepositRecordEntity {
   @PrimaryGeneratedColumn()
   id: number;

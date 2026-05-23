@@ -1,7 +1,19 @@
-import { Controller, Get, Post, Body, Param, Query, UseGuards, Request } from '@nestjs/common';
+import {
+  BadRequestException,
+  Controller,
+  Get,
+  Post,
+  Body,
+  Query,
+  UseGuards,
+  Request,
+} from '@nestjs/common';
 import { AccountService } from '../services/account.service';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
 import { AccountType } from '../entities/user-account.entity';
+import { RolesGuard } from '../guards/roles.guard';
+import { Roles } from '../decorators/roles.decorator';
+import { AccountTransferDto } from '../dto/account-transfer.dto';
 
 /**
  * 账户管理控制器
@@ -43,12 +55,17 @@ export class AccountController {
    * 充值（测试用）
    */
   @Post('deposit')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
   async deposit(
     @Request() req,
-    @Body() body: { amount: number; accountType?: string },
+    @Body() body: AccountTransferDto,
   ) {
     const userId = req.user.id;
-    const type = body.accountType === 'real' ? AccountType.REAL : AccountType.DEMO;
+    const type = body.accountType || AccountType.DEMO;
+    if (type === AccountType.REAL) {
+      throw new BadRequestException('真实账户充值必须走入金审核流程');
+    }
     await this.accountService.deposit(userId, body.amount, type);
     return {
       data: { message: '充值成功' },
@@ -61,12 +78,17 @@ export class AccountController {
    * 提现（测试用）
    */
   @Post('withdraw')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
   async withdraw(
     @Request() req,
-    @Body() body: { amount: number; accountType?: string },
+    @Body() body: AccountTransferDto,
   ) {
     const userId = req.user.id;
-    const type = body.accountType === 'real' ? AccountType.REAL : AccountType.DEMO;
+    const type = body.accountType || AccountType.DEMO;
+    if (type === AccountType.REAL) {
+      throw new BadRequestException('真实账户提现必须走正式出金流程');
+    }
     await this.accountService.withdraw(userId, body.amount, type);
     return {
       data: { message: '提现成功' },

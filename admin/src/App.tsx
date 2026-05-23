@@ -8,6 +8,7 @@ import { OrderManagement } from './pages/OrderManagement';
 import { RewardSettings } from './pages/RewardSettings';
 import { CommunityManagement } from './pages/CommunityManagement';
 import { MessageManagement } from './pages/MessageManagement';
+import { adminNavItems } from './config/navigation';
 
 function App() {
   return (
@@ -24,7 +25,7 @@ function App() {
           </ProtectedRoute>
         }
       >
-        <Route index element={<Navigate to="/bank-cards" replace />} />
+        <Route index element={<Navigate to={adminNavItems[0].path} replace />} />
         <Route path="bank-cards" element={<BankCards />} />
         <Route path="deposit-review" element={<DepositReview />} />
         <Route path="order-management" element={<OrderManagement />} />

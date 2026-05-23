@@ -99,6 +99,9 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
   // 用于去重的最近收到的Tick数据缓存
   private recentTickCache: Map<string, number> = new Map();
   private readonly cacheExpiryTime = 1000; // 1秒内的重复数据将被过滤
+  private lastTickCacheCleanupAt = 0;
+  private readonly tickCacheCleanupInterval = 5000;
+  private readonly maxRecentTickCacheSize = 20000;
   private pendingTicks: Map<string, StockTickData> = new Map();
   private processingTickCodes: Set<string> = new Set();
   private stockTickBuffer: Array<Partial<StockTickEntity>> = [];
@@ -302,8 +305,8 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
     // 缓存新的Tick数据
     this.recentTickCache.set(uniqueKey, now);
     
-    // 清理内存中的过期缓存数据
-    this.cleanMemoryCache();
+    // 清理内存中的过期缓存数据，按时间和阈值节流，避免每条 tick 都 O(n) 扫描。
+    this.cleanMemoryCacheIfNeeded(now);
     
     // 同一股票代码仅保留最新一条待处理 tick，避免异步任务堆积
     this.pendingTicks.set(tickData.code, tickData);
@@ -340,8 +343,15 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
   /**
    * 清理内存中的过期缓存数据
    */
-  private cleanMemoryCache(): void {
-    const now = Date.now();
+  private cleanMemoryCacheIfNeeded(now: number = Date.now()): void {
+    if (
+      now - this.lastTickCacheCleanupAt < this.tickCacheCleanupInterval &&
+      this.recentTickCache.size < this.maxRecentTickCacheSize
+    ) {
+      return;
+    }
+
+    this.lastTickCacheCleanupAt = now;
     for (const [key, value] of this.recentTickCache.entries()) {
       if (now - value > this.cacheExpiryTime) {
         this.recentTickCache.delete(key);

@@ -16,28 +16,20 @@ export class SmsService {
    * 发送短信验证码
    * @param phone 手机号
    */
-  async sendSms(phone: string): Promise<string> {
-    // 检查是否频繁发送（调试时临时禁用）
+  async sendSms(phone: string): Promise<void> {
     const cacheKey = `sms:${phone}`;
-    // const existingCode = await this.redisService.get(cacheKey);
+    const existingCode = await this.redisService.get(cacheKey);
 
-    // if (existingCode) {
-    //   throw new BadRequestException('验证码已发送，请稍后再试');
-    // }
+    if (existingCode) {
+      throw new BadRequestException('验证码已发送，请稍后再试');
+    }
 
-    // 生成验证码
     const code = this.generateCode();
 
-    // 这里集成真实的短信服务商（如阿里云、腾讯云等）
-    // 示例代码，实际需要替换为真实的短信API调用
-    console.log(`[短信服务] 发送验证码到 ${phone}: ${code}`);
-
-    // TODO: 调用真实短信API
+    // TODO: 接入真实短信服务商。不要在接口响应或生产日志中暴露验证码。
     // await this.sendSmsToProvider(phone, code);
 
-    // 将验证码存入缓存，有效期5分钟（300秒）
     await this.redisService.set(cacheKey, code, 300);
-    return code;
   }
 
   /**

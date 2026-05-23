@@ -6,6 +6,7 @@ import { Observable } from 'rxjs';
 import { JwtAuthGuard } from '../user/guards/jwt-auth.guard';
 import { RolesGuard } from '../user/guards/roles.guard';
 import { Roles } from '../user/decorators/roles.decorator';
+import { TestPriceCalculationDto } from './dto/test-price-calculation.dto';
 
 /**
  * 行情数据控制器
@@ -275,7 +276,7 @@ export class QuoteController {
     status: 200,
     description: '成功测试价格计算'
   })
-  async testPriceCalculation(@Body() body: {code: string, price: number}) {
+  async testPriceCalculation(@Body() body: TestPriceCalculationDto) {
     try {
       const result = await this.quoteService.testPriceCalculation(body.code, body.price);
       return {

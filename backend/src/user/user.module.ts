@@ -21,6 +21,7 @@ import { TradeOrderController } from './controllers/trade-order.controller';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { GoogleStrategy } from './strategies/google.strategy';
 import { FacebookStrategy } from './strategies/facebook.strategy';
+import { getJwtSecret } from '../config/security';
 
 @Module({
   imports: [
@@ -31,7 +32,7 @@ import { FacebookStrategy } from './strategies/facebook.strategy';
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: async (configService: ConfigService) => ({
-        secret: configService.get('JWT_SECRET') || 'your-secret-key',
+        secret: getJwtSecret(configService),
         signOptions: {
           expiresIn: configService.get('JWT_EXPIRES_IN') || '7d',
         },

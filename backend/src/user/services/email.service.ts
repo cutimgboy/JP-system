@@ -28,11 +28,7 @@ export class EmailService {
     // 生成验证码
     const code = this.generateCode();
 
-    // 这里集成真实的邮件服务商（如 Nodemailer、SendGrid 等）
-    // 示例代码，实际需要替换为真实的邮件API调用
-    console.log(`[邮件服务] 发送验证码到 ${email}: ${code}`);
-
-    // TODO: 调用真实邮件API
+    // TODO: 接入真实邮件服务商。不要在生产日志中暴露验证码。
     // await this.sendEmailToProvider(email, code);
 
     // 将验证码存入缓存，有效期5分钟（300秒）
