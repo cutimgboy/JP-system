@@ -1,4 +1,4 @@
-import { ArrowLeft, Battery, Wifi, Signal, Building2 } from 'lucide-react';
+import { ArrowLeft, Building2 } from 'lucide-react';
 import { BottomNav } from '../../components/BottomNav';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useState, useEffect } from 'react';
@@ -101,18 +101,6 @@ export function DepositFunds() {
 
   return (
     <div className="min-h-screen bg-[#1a1f2e] pb-16">
-      {/* Status Bar */}
-      <div className="bg-[#141820] px-4 pt-3 pb-2">
-        <div className="flex items-center justify-between text-xs">
-          <div className="text-white">12:00</div>
-          <div className="flex items-center gap-1 text-white">
-            <Signal className="w-4 h-4" />
-            <Wifi className="w-4 h-4" />
-            <Battery className="w-4 h-4" />
-          </div>
-        </div>
-      </div>
-
       {/* Navigation Header */}
       <div className="bg-[#141820] px-4 py-4 border-b border-gray-700/50">
         <div className="flex items-center justify-center relative">

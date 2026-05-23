@@ -16,7 +16,7 @@ export class SmsService {
    * 发送短信验证码
    * @param phone 手机号
    */
-  async sendSms(phone: string): Promise<void> {
+  async sendSms(phone: string): Promise<string> {
     const cacheKey = `sms:${phone}`;
     const existingCode = await this.redisService.get(cacheKey);
 
@@ -30,6 +30,7 @@ export class SmsService {
     // await this.sendSmsToProvider(phone, code);
 
     await this.redisService.set(cacheKey, code, 300);
+    return code;
   }
 
   /**

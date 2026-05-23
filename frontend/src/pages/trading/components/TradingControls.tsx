@@ -79,7 +79,7 @@ export function TradingControls({
               tradeStatus !== 'idle'
                 ? 'opacity-50 cursor-not-allowed'
                 : guideStep === 1
-                  ? 'relative z-[65] cursor-pointer bg-white text-black shadow-[0_0_20px_rgba(255,255,255,0.4),0_0_0_2px_white]'
+                  ? 'relative z-[65] cursor-pointer border-white bg-white text-black shadow-[0_0_24px_rgba(255,255,255,0.55),0_0_0_2px_white]'
                   : guideStep > 0
                     ? 'opacity-40 pointer-events-none'
                     : 'cursor-pointer focus-within:border-[#6c48f5]/50'
@@ -92,7 +92,7 @@ export function TradingControls({
             tradeStatus !== 'idle'
               ? 'opacity-50 cursor-not-allowed'
               : guideStep === 2
-                ? 'relative z-[65] bg-white shadow-[0_0_20px_rgba(255,255,255,0.4),0_0_0_2px_white]'
+                ? 'relative z-[65] border-white bg-white text-black shadow-[0_0_24px_rgba(255,255,255,0.55),0_0_0_2px_white]'
                 : guideStep > 0
                   ? 'opacity-40 pointer-events-none'
                   : 'focus-within:border-[#6c48f5]/50'
@@ -139,7 +139,7 @@ export function TradingControls({
             )}
             <button
               className={`flex-1 bg-[#ef4444] hover:bg-[#dc2626] transition-colors rounded-[16px] h-[52px] flex items-center justify-center gap-2 shadow-[0_4px_12px_rgba(239,68,68,0.2)] ${
-                guideStep === 3 ? 'shadow-[0_0_20px_rgba(239,68,68,0.6),0_0_0_2px_white]' : ''
+                guideStep === 3 ? 'relative z-[66] shadow-[0_0_24px_rgba(239,68,68,0.72),0_0_0_2px_white]' : ''
               }`}
               onClick={onBullTrade}
             >
@@ -151,7 +151,7 @@ export function TradingControls({
             </button>
             <button
               className={`flex-1 bg-[#10b981] hover:bg-[#059669] transition-colors rounded-[16px] h-[52px] flex items-center justify-center gap-2 shadow-[0_4px_12px_rgba(16,185,129,0.2)] ${
-                guideStep === 3 ? 'shadow-[0_0_20px_rgba(16,185,129,0.6),0_0_0_2px_white]' : ''
+                guideStep === 3 ? 'relative z-[66] shadow-[0_0_24px_rgba(16,185,129,0.72),0_0_0_2px_white]' : ''
               }`}
               onClick={onBearTrade}
             >
@@ -246,11 +246,11 @@ function GuideBubble({
     <button
       type="button"
       onClick={onClick}
-      className={`absolute bottom-[calc(100%+16px)] z-[80] rounded-2xl border border-white/10 bg-[#1c1c24]/95 px-4 py-3 text-left text-[14px] font-bold leading-relaxed text-white shadow-[0_10px_30px_rgba(0,0,0,0.5)] backdrop-blur-md ${className || ''}`}
+      className={`absolute bottom-[calc(100%+16px)] z-[80] rounded-2xl border border-white/15 bg-[#24242e]/98 px-4 py-3 text-left text-[14px] font-bold leading-relaxed text-white shadow-[0_14px_36px_rgba(0,0,0,0.62)] backdrop-blur-md ${className || ''}`}
     >
       <div className="flex items-center gap-3">
         <span className="relative flex h-8 w-8 shrink-0 items-center justify-center">
-          <span className="absolute h-full w-full animate-ping rounded-full bg-white/20" />
+          <span className="absolute h-full w-full animate-ping rounded-full bg-[#10b981]/30" />
           <span className="relative flex h-7 w-7 items-center justify-center rounded-full bg-white text-black">⌁</span>
         </span>
         <span>{children}</span>

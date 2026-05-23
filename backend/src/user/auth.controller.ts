@@ -12,6 +12,7 @@ import { CheckPhoneLoginMethodDto } from './dto/check-phone-login-method.dto';
 import { PhonePasswordLoginDto } from './dto/phone-password-login.dto';
 import { AdminLoginDto } from './dto/admin-login.dto';
 import { Public } from './decorators/public.decorator';
+import { ConfigService } from '@nestjs/config';
 
 @ApiTags('认证')
 @Controller('auth')
@@ -20,16 +21,28 @@ export class AuthController {
     private readonly authService: AuthService,
     private readonly smsService: SmsService,
     private readonly emailService: EmailService,
+    private readonly configService: ConfigService,
   ) {}
+
+  private shouldExposeVerificationCode() {
+    const configured = this.configService.get<string>('EXPOSE_VERIFICATION_CODE');
+
+    if (configured !== undefined) {
+      return configured === 'true';
+    }
+
+    return this.configService.get('NODE_ENV') !== 'production';
+  }
 
   @Public()
   @Post('send-sms')
   @ApiOperation({ summary: '发送短信验证码' })
   @ApiResponse({ status: 200, description: '发送成功' })
   async sendSms(@Body() sendSmsDto: SendSmsDto) {
-    await this.smsService.sendSms(sendSmsDto.phone);
+    const code = await this.smsService.sendSms(sendSmsDto.phone);
     return {
       message: '验证码已发送',
+      data: this.shouldExposeVerificationCode() ? { code } : null,
     };
   }
 
@@ -86,9 +99,10 @@ export class AuthController {
   @ApiOperation({ summary: '发送邮箱验证码' })
   @ApiResponse({ status: 200, description: '发送成功' })
   async sendEmail(@Body() sendEmailDto: SendEmailDto) {
-    await this.emailService.sendEmail(sendEmailDto.email);
+    const code = await this.emailService.sendEmail(sendEmailDto.email);
     return {
       message: '验证码已发送',
+      data: this.shouldExposeVerificationCode() ? { code } : null,
     };
   }
 

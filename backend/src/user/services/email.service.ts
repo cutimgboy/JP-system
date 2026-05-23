@@ -16,7 +16,7 @@ export class EmailService {
    * 发送邮箱验证码
    * @param email 邮箱地址
    */
-  async sendEmail(email: string): Promise<void> {
+  async sendEmail(email: string): Promise<string> {
     // 检查是否频繁发送
     const cacheKey = `email:${email}`;
     const existingCode = await this.redisService.get(cacheKey);
@@ -33,6 +33,7 @@ export class EmailService {
 
     // 将验证码存入缓存，有效期5分钟（300秒）
     await this.redisService.set(cacheKey, code, 300);
+    return code;
   }
 
   /**

@@ -397,6 +397,7 @@ export function TradingDetail({
         stockCode={selectedStock}
         entryPrice={entryPrice}
         entryTime={entryTime}
+        tradeType={tradeStatus === 'bull' || tradeStatus === 'bear' ? tradeStatus : null}
         onPriceUpdate={(price, time) => {
           setLatestPrice(price);
           setLatestTime(time);
