@@ -2,6 +2,7 @@ import { ArrowLeft, Copy, Share, TrendingUp, TrendingDown, X } from 'lucide-reac
 import { useNavigate, useParams } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { useAccount } from '../../contexts/AccountContext';
+import { useTradeColors } from '../../contexts/TradeColorContext';
 import apiClient, { extractData } from '../../utils/api';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Toast } from '../../components/Toast';
@@ -26,6 +27,11 @@ export default function OrderDetail() {
   const navigate = useNavigate();
   const { orderId } = useParams();
   const { accountType } = useAccount();
+  const {
+    getProfitTone,
+    getTradeTone,
+    getToneTextClass,
+  } = useTradeColors();
   const [order, setOrder] = useState<OrderDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [showShare, setShowShare] = useState(false);
@@ -129,6 +135,8 @@ export default function OrderDetail() {
   }
 
   const isProfit = order.profitLoss > 0;
+  const profitTone = getProfitTone(order.profitLoss);
+  const tradeTone = getTradeTone(order.tradeType);
 
   return (
     <div className="min-h-screen bg-[#09090b] text-white">
@@ -149,17 +157,17 @@ export default function OrderDetail() {
       {/* PnL Section */}
       <div className="px-6 pt-8 pb-6 text-center border-b border-white/5 bg-gradient-to-b from-[#14141c] to-transparent">
         <div className="text-[#8a8a93] text-[13px] mb-2">盈亏结算 (VND)</div>
-        <div className={`text-[40px] font-bold font-mono tracking-tight mb-3 ${isProfit ? 'text-[#10b981]' : 'text-[#ef4444]'}`}>
+        <div className={`text-[40px] font-bold font-mono tracking-tight mb-3 ${getToneTextClass(profitTone)}`}>
           {order.profitLoss >= 0 ? '+' : ''}{Number(order.profitLoss || 0).toLocaleString()}
         </div>
         <div className="flex justify-center mb-4">
           {isProfit ? (
-            <div className="w-20 h-20 bg-green-500/20 rounded-full flex items-center justify-center">
-              <TrendingUp className="w-10 h-10 text-green-400" />
+            <div className={`w-20 h-20 rounded-full flex items-center justify-center ${profitTone === 'red' ? 'bg-[#ef4444]/20' : 'bg-[#10b981]/20'}`}>
+              <TrendingUp className={`w-10 h-10 ${getToneTextClass(profitTone)}`} />
             </div>
           ) : (
-            <div className="w-20 h-20 bg-red-500/20 rounded-full flex items-center justify-center">
-              <TrendingDown className="w-10 h-10 text-red-400" />
+            <div className={`w-20 h-20 rounded-full flex items-center justify-center ${profitTone === 'red' ? 'bg-[#ef4444]/20' : 'bg-[#10b981]/20'}`}>
+              <TrendingDown className={`w-10 h-10 ${getToneTextClass(profitTone)}`} />
             </div>
           )}
         </div>
@@ -183,17 +191,17 @@ export default function OrderDetail() {
           <InfoRow
             label="盈亏金额"
             value={`${order.profitLoss >= 0 ? '+' : ''}${order.profitLoss.toLocaleString()} VND`}
-            valueColor={order.profitLoss >= 0 ? 'text-green-400' : 'text-red-400'}
+            valueColor={getToneTextClass(profitTone)}
           />
           <InfoRow
             label="盈亏比例"
             value={`${order.profitLoss >= 0 ? '+' : ''}${calculateProfitRate()}%`}
-            valueColor={order.profitLoss >= 0 ? 'text-green-400' : 'text-red-400'}
+            valueColor={getToneTextClass(profitTone)}
           />
           <InfoRow
             label="交易方向"
             value={order.tradeType === 'bull' ? '看涨' : '看跌'}
-            valueColor={order.tradeType === 'bull' ? 'text-green-400' : 'text-red-400'}
+            valueColor={getToneTextClass(tradeTone)}
           />
           <InfoRow label="开仓时间" value={formatDate(order.openTime)} />
           <InfoRow label="开仓价格" value={Number(order.openPrice).toFixed(2)} />
@@ -254,7 +262,7 @@ export default function OrderDetail() {
                     <div className="text-[16px] font-bold">{order.stockName || order.stockCode}</div>
                   </div>
                   <div className={`rounded-full px-3 py-1 text-[12px] font-medium ${
-                    order.tradeType === 'bull' ? 'bg-[#ef4444]/15 text-[#ef4444]' : 'bg-[#10b981]/15 text-[#10b981]'
+                    tradeTone === 'red' ? 'bg-[#ef4444]/15 text-[#ef4444]' : 'bg-[#10b981]/15 text-[#10b981]'
                   }`}>
                     {order.tradeType === 'bull' ? '看涨' : '看跌'}
                   </div>
@@ -262,7 +270,7 @@ export default function OrderDetail() {
 
                 <div className="mb-5 text-center">
                   <div className="mb-1 text-[13px] text-[#8a8a93]">本次盈亏</div>
-                  <div className={`font-mono text-[42px] font-bold leading-none ${isProfit ? 'text-[#10b981]' : 'text-[#ef4444]'}`}>
+                  <div className={`font-mono text-[42px] font-bold leading-none ${getToneTextClass(profitTone)}`}>
                     {order.profitLoss >= 0 ? '+' : ''}{Number(order.profitLoss || 0).toLocaleString()}
                   </div>
                   <div className="mt-2 text-[13px] text-[#8a8a93]">收益率 {order.profitLoss >= 0 ? '+' : ''}{calculateProfitRate()}%</div>

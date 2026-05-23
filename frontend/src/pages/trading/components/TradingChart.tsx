@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { KLineChart, type KLineData } from './KLineChart';
 import { API_BASE_URL, apiClient, extractData } from '../../../utils/api';
+import { useTradeColors } from '../../../contexts/TradeColorContext';
 
 interface TradingChartProps {
   countdown?: number; // 倒计时时间（秒）
@@ -14,6 +15,14 @@ interface TradingChartProps {
 }
 
 export function TradingChart({ countdown, stockCode = 'AAPL.US', entryPrice, entryTime, tradeType, onPriceUpdate, profitLoss, showProfit }: TradingChartProps) {
+  const {
+    getTrendTone,
+    getProfitTone,
+    getTradeTone,
+    getToneBgClass,
+    getToneColor,
+    getToneTextClass,
+  } = useTradeColors();
   const [kLineData, setKLineData] = useState<KLineData[]>([]);
   const [currentPrice, setCurrentPrice] = useState(0);
   const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting');
@@ -140,6 +149,11 @@ export function TradingChart({ countdown, stockCode = 'AAPL.US', entryPrice, ent
       pendingPointsRef.current = [];
     };
   }, [stockCode]);
+  const isUpTrend = kLineData.length > 1 && currentPrice >= kLineData[0].price;
+  const trendTone = getTrendTone(isUpTrend);
+  const bullTone = getTradeTone('bull');
+  const bearTone = getTradeTone('bear');
+
   return (
     <div className="relative bg-[#09090b] h-[60vh] min-h-[400px] pb-4">
       {/* Overlaid Trading Pair Title and Price Info */}
@@ -165,14 +179,10 @@ export function TradingChart({ countdown, stockCode = 'AAPL.US', entryPrice, ent
             </div>
           </div>
           <div className="text-right flex flex-col items-end">
-            <div className={`text-[24px] font-bold font-mono leading-none tracking-tight ${
-              kLineData.length > 1 && currentPrice >= kLineData[0].price ? 'text-[#ef4444]' : 'text-[#10b981]'
-            }`}>
+            <div className={`text-[24px] font-bold font-mono leading-none tracking-tight ${getToneTextClass(trendTone)}`}>
               {currentPrice.toFixed(2)}
             </div>
-            <div className={`text-[13px] font-medium mt-1 ${
-              kLineData.length > 1 && currentPrice >= kLineData[0].price ? 'text-[#ef4444]' : 'text-[#10b981]'
-            }`}>
+            <div className={`text-[13px] font-medium mt-1 ${getToneTextClass(trendTone)}`}>
               {kLineData.length > 1
                 ? `${currentPrice >= kLineData[0].price ? '+' : ''}${(currentPrice - kLineData[0].price).toFixed(2)} ${currentPrice >= kLineData[0].price ? '+' : ''}${(((currentPrice - kLineData[0].price) / kLineData[0].price) * 100).toFixed(2)}%`
                 : '+0.00 +0.00%'
@@ -194,6 +204,9 @@ export function TradingChart({ countdown, stockCode = 'AAPL.US', entryPrice, ent
             tradeType={tradeType}
             profitLoss={profitLoss}
             showProfit={showProfit}
+            getTrendColor={(isUp) => getToneColor(getTrendTone(isUp))}
+            getProfitColor={(value) => getToneColor(getProfitTone(value))}
+            getTradeColor={(type) => getToneColor(getTradeTone(type))}
           />
         )}
       </div>
@@ -201,12 +214,12 @@ export function TradingChart({ countdown, stockCode = 'AAPL.US', entryPrice, ent
       {/* Bull/Bear Progress Bar */}
       <div className="absolute bottom-0 left-0 right-0 px-4 pb-3 pt-8 z-10">
         <div className="flex justify-between text-[12px] font-medium mb-2 px-1">
-          <span className="text-[#ef4444]">看涨 32.56%</span>
-          <span className="text-[#10b981]">67.34% 看跌</span>
+          <span className={getToneTextClass(bullTone)}>看涨 32.56%</span>
+          <span className={getToneTextClass(bearTone)}>67.34% 看跌</span>
         </div>
         <div className="h-[6px] w-full bg-[#1a1a24] rounded-full overflow-hidden flex">
-          <div className="bg-[#ef4444] h-full transition-all duration-500" style={{ width: '32.56%' }}></div>
-          <div className="bg-[#10b981] h-full transition-all duration-500" style={{ width: '67.44%' }}></div>
+          <div className={`${getToneBgClass(bullTone)} h-full transition-all duration-500`} style={{ width: '32.56%' }}></div>
+          <div className={`${getToneBgClass(bearTone)} h-full transition-all duration-500`} style={{ width: '67.44%' }}></div>
         </div>
       </div>
     </div>

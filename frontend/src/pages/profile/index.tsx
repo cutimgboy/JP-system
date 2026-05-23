@@ -23,6 +23,7 @@ import { PageHeader } from '../../components/PageHeader';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useTradeColors } from '../../contexts/TradeColorContext';
 
 const IconWrapper = ({ children }: { children: React.ReactNode }) => (
   <div className="relative w-[48px] h-[48px] shrink-0 rounded-[14px] bg-gradient-to-br from-[#6c48f5]/20 via-[#6c48f5]/10 to-[#14141c] border border-[#6c48f5]/30 flex items-center justify-center shadow-[0_4px_16px_rgba(108,72,245,0.15)] group-hover:shadow-[0_4px_20px_rgba(108,72,245,0.25)] transition-shadow duration-300">
@@ -84,6 +85,7 @@ const highlights = [
 
 export default function ProfilePage() {
   const navigate = useNavigate();
+  const { isReversed, setIsReversed } = useTradeColors();
   const [currentSlide, setCurrentSlide] = useState(0);
 
   // Auto-play carousel
@@ -193,14 +195,11 @@ export default function ProfilePage() {
               { icon: Smartphone, label: 'APP (IOS&Android)', path: '/install-app' },
               { icon: Lock, label: '修改密码', path: '/change-password' },
               { icon: Globe, label: '切换语言', path: '/change-language' },
-              { icon: Info, label: '关于我们', path: '/about-us' },
             ].map((item, idx) => (
               <div
                 key={idx}
                 onClick={() => navigate(item.path)}
-                className={`flex items-center justify-between py-4 cursor-pointer hover:bg-white/[0.02] -mx-4 px-4 transition-colors ${
-                  idx !== 5 ? 'border-b border-white/5' : ''
-                }`}
+                className="flex items-center justify-between py-4 cursor-pointer hover:bg-white/[0.02] -mx-4 px-4 transition-colors border-b border-white/5"
               >
                 <div className="flex items-center gap-3">
                   <item.icon size={18} className="text-[#8a8a93]" strokeWidth={1.5} />
@@ -214,6 +213,44 @@ export default function ProfilePage() {
                 <ChevronRight size={16} className="text-[#8a8a93]" />
               </div>
             ))}
+            <div className="flex items-center justify-between border-b border-white/5 py-4">
+              <div className="flex items-center gap-3">
+                <Globe size={18} className="text-[#8a8a93]" strokeWidth={1.5} />
+                <div>
+                  <div className="text-[14px] font-medium text-white/90">交易色彩设置</div>
+                  <div className="mt-1 text-[11px] text-[#8a8a93]">
+                    {isReversed ? '红跌绿涨' : '红涨绿跌'}
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={isReversed}
+                onClick={() => setIsReversed(!isReversed)}
+                className={`relative flex h-[28px] w-[48px] shrink-0 items-center rounded-full border p-[3px] transition-colors ${
+                  isReversed
+                    ? 'border-[#10b981]/40 bg-[#10b981]'
+                    : 'border-white/10 bg-[#2a2a36]'
+                }`}
+              >
+                <span
+                  className={`block h-5 w-5 rounded-full bg-white shadow-[0_2px_8px_rgba(0,0,0,0.35)] transition-transform ${
+                    isReversed ? 'translate-x-[20px]' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+            </div>
+            <div
+              onClick={() => navigate('/about-us')}
+              className="flex items-center justify-between py-4 cursor-pointer hover:bg-white/[0.02] -mx-4 px-4 transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <Info size={18} className="text-[#8a8a93]" strokeWidth={1.5} />
+                <span className="text-[14px] font-medium text-white/90">关于我们</span>
+              </div>
+              <ChevronRight size={16} className="text-[#8a8a93]" />
+            </div>
           </div>
 
         </div>

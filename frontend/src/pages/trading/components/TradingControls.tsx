@@ -1,3 +1,5 @@
+import { useTradeColors } from '../../../contexts/TradeColorContext';
+
 interface TradingControlsProps {
   selectedTime: string;
   investmentAmount: string;
@@ -33,6 +35,20 @@ export function TradingControls({
   guideStep = -1,
   onGuideStepChange,
 }: TradingControlsProps) {
+  const {
+    getProfitTone,
+    getTradeTone,
+    getToneBgClass,
+    getToneTextClass,
+  } = useTradeColors();
+  const bullTone = getTradeTone('bull');
+  const bearTone = getTradeTone('bear');
+  const expectedProfitTone = getProfitTone(expectedProfit);
+  const activeTradeTone =
+    tradeStatus === 'bull' || tradeStatus === 'bear'
+      ? getTradeTone(tradeStatus)
+      : 'red';
+
   // 格式化数字显示
   const formatNumber = (num: number) => {
     if (num === undefined || num === null || isNaN(num)) {
@@ -138,7 +154,7 @@ export function TradingControls({
               </GuideBubble>
             )}
             <button
-              className={`flex-1 bg-[#ef4444] hover:bg-[#dc2626] transition-colors rounded-[16px] h-[52px] flex items-center justify-center gap-2 shadow-[0_4px_12px_rgba(239,68,68,0.2)] ${
+              className={`flex-1 ${getToneBgClass(bullTone)} transition-colors rounded-[16px] h-[52px] flex items-center justify-center gap-2 shadow-[0_4px_12px_rgba(0,0,0,0.18)] ${
                 guideStep === 3 ? 'relative z-[66] shadow-[0_0_24px_rgba(239,68,68,0.72),0_0_0_2px_white]' : ''
               }`}
               onClick={onBullTrade}
@@ -150,7 +166,7 @@ export function TradingControls({
               <span className="text-white font-bold text-[16px] tracking-widest">看涨</span>
             </button>
             <button
-              className={`flex-1 bg-[#10b981] hover:bg-[#059669] transition-colors rounded-[16px] h-[52px] flex items-center justify-center gap-2 shadow-[0_4px_12px_rgba(16,185,129,0.2)] ${
+              className={`flex-1 ${getToneBgClass(bearTone)} transition-colors rounded-[16px] h-[52px] flex items-center justify-center gap-2 shadow-[0_4px_12px_rgba(0,0,0,0.18)] ${
                 guideStep === 3 ? 'relative z-[66] shadow-[0_0_24px_rgba(16,185,129,0.72),0_0_0_2px_white]' : ''
               }`}
               onClick={onBearTrade}
@@ -165,18 +181,14 @@ export function TradingControls({
         ) : tradeStatus === 'completed' ? (
           // Completed State - Reset Trade Button
           <button
-            className="w-full bg-gradient-to-r from-[#ef4444] to-[#dc2626] hover:from-[#dc2626] hover:to-[#b91c1c] text-white py-3.5 rounded-[16px] transition-colors flex items-center justify-center gap-2 shadow-[0_4px_12px_rgba(239,68,68,0.2)] mb-3"
+            className="w-full bg-[#6c48f5] text-white py-3.5 rounded-[16px] transition-colors flex items-center justify-center gap-2 shadow-[0_4px_12px_rgba(108,72,245,0.26)] mb-3"
             onClick={onResetTrade}
           >
             <span className="font-medium">重新交易</span>
           </button>
         ) : (
           // Active Trade Status Bar - Countdown in progress
-          <div className={`rounded-[16px] mb-3 shadow-[0_4px_12px_rgba(0,0,0,0.2)] ${
-            tradeStatus === 'bull'
-              ? 'bg-gradient-to-r from-[#ef4444] to-[#dc2626]'
-              : 'bg-gradient-to-r from-[#10b981] to-[#059669]'
-          }`}>
+          <div className={`rounded-[16px] mb-3 shadow-[0_4px_12px_rgba(0,0,0,0.2)] ${getToneBgClass(activeTradeTone)}`}>
             <div className="px-4 py-3.5 flex items-center justify-between">
               {/* Left side - Trade type with icon */}
               <div className="flex items-center gap-2">
@@ -210,7 +222,7 @@ export function TradingControls({
         <div className={`flex justify-between items-center px-1 ${guideStep > 0 ? 'opacity-40 pointer-events-none' : ''}`}>
           <div className="text-[12px]">
             <span className="text-[#8a8a93]">投资收益 </span>
-            <span className={`font-bold font-mono ${expectedProfit >= 0 ? 'text-[#10b981]' : 'text-[#ef4444]'}`}>
+            <span className={`font-bold font-mono ${getToneTextClass(expectedProfitTone)}`}>
               {tradeStatus === 'idle' ? (
                 expectedProfit === 0 ? '0' : (expectedProfit > 0 ? `+${formatNumber(expectedProfit)}` : formatNumber(expectedProfit))
               ) : tradeStatus === 'completed' ? (

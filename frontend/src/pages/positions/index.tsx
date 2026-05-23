@@ -4,6 +4,7 @@ import { Toast } from '../../components/Toast';
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAccount } from '../../contexts/AccountContext';
+import { useTradeColors } from '../../contexts/TradeColorContext';
 import apiClient, {
   extractData,
   extractMessage,
@@ -76,6 +77,11 @@ interface DashboardSummary {
 export default function PositionsPage() {
   const navigate = useNavigate();
   const { accountType, setAccountType } = useAccount();
+  const {
+    getProfitTone,
+    getTradeTone,
+    getToneTextClass,
+  } = useTradeColors();
   const [activeTab, setActiveTab] = useState('全部');
   const [positions, setPositions] = useState<Position[]>([]);
   const [historyRecords, setHistoryRecords] = useState<HistoryRecord[]>([]);
@@ -333,11 +339,7 @@ export default function PositionsPage() {
           <div className="flex justify-between items-center">
             <div className="flex-1">
               <div className="text-[#8a8a93] text-[12px] mb-1.5 font-medium">今日盈亏</div>
-              <div
-                className={`text-[16px] font-bold font-mono ${
-                  todayProfitLoss >= 0 ? 'text-[#ef4444]' : 'text-[#10b981]'
-                }`}
-              >
+              <div className={`text-[16px] font-bold font-mono ${getToneTextClass(getProfitTone(todayProfitLoss))}`}>
                 {todayProfitLoss >= 0 ? '+' : ''}{Math.floor(todayProfitLoss).toLocaleString()}
               </div>
             </div>
@@ -389,6 +391,7 @@ export default function PositionsPage() {
                 const isTrading = order.type === 'trading';
                 const position = isTrading ? (order as Position) : null;
                 const history = !isTrading ? (order as HistoryRecord) : null;
+                const tradeTone = getTradeTone(order.tradeType);
 
                 return (
                   <motion.div
@@ -441,9 +444,7 @@ export default function PositionsPage() {
                         </div>
                       ) : history ? (
                         <div
-                          className={`font-mono text-[16px] font-bold ${
-                            history.profitLoss > 0 ? 'text-[#ef4444]' : 'text-[#10b981]'
-                          }`}
+                          className={`font-mono text-[16px] font-bold ${getToneTextClass(getProfitTone(history.profitLoss))}`}
                         >
                           {history.profitLoss > 0 ? '+' : ''}
                           {Number(history.profitLoss || 0).toLocaleString()}{' '}
@@ -466,7 +467,7 @@ export default function PositionsPage() {
                         </span>
                         <span
                           className={`text-[11px] px-2 py-0.5 rounded-[6px] font-bold tracking-wider whitespace-nowrap shrink-0 ${
-                            order.tradeType === 'bull'
+                            tradeTone === 'red'
                               ? 'bg-[#ef4444]/15 text-[#ef4444] border border-[#ef4444]/20'
                               : 'bg-[#10b981]/15 text-[#10b981] border border-[#10b981]/20'
                           }`}

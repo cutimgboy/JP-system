@@ -21,6 +21,9 @@ interface KLineChartProps {
   tradeType?: 'bull' | 'bear' | null;
   profitLoss?: number;
   showProfit?: boolean;
+  getTrendColor?: (isUp: boolean) => string;
+  getProfitColor?: (value: number) => string;
+  getTradeColor?: (tradeType: 'bull' | 'bear') => string;
 }
 
 type CanvasPoint = KLineData & {
@@ -44,12 +47,22 @@ type ChartRenderState = {
   tradeType?: 'bull' | 'bear' | null;
   profitLoss?: number;
   showProfit: boolean;
+  getTrendColor: (isUp: boolean) => string;
+  getProfitColor: (value: number) => string;
+  getTradeColor: (tradeType: 'bull' | 'bear') => string;
 };
 
 const MAX_CHART_SLOTS = 70;
 const FIXED_HEAD_INDEX = 42;
 const TRANSITION_MS = 850;
 const FRAME_INTERVAL_MS = 1000 / 30;
+const DEFAULT_RED = '#ef4444';
+const DEFAULT_GREEN = '#10b981';
+
+const defaultTrendColor = (isUp: boolean) => (isUp ? DEFAULT_RED : DEFAULT_GREEN);
+const defaultProfitColor = (value: number) => (value >= 0 ? DEFAULT_RED : DEFAULT_GREEN);
+const defaultTradeColor = (tradeType: 'bull' | 'bear') =>
+  tradeType === 'bull' ? DEFAULT_RED : DEFAULT_GREEN;
 
 function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value));
@@ -154,6 +167,9 @@ export function KLineChart({
   tradeType,
   profitLoss,
   showProfit = false,
+  getTrendColor = defaultTrendColor,
+  getProfitColor = defaultProfitColor,
+  getTradeColor = defaultTradeColor,
 }: KLineChartProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -175,6 +191,9 @@ export function KLineChart({
     tradeType,
     profitLoss,
     showProfit,
+    getTrendColor,
+    getProfitColor,
+    getTradeColor,
   });
 
   useEffect(() => {
@@ -235,6 +254,9 @@ export function KLineChart({
       tradeType,
       profitLoss,
       showProfit,
+      getTrendColor,
+      getProfitColor,
+      getTradeColor,
     };
   }, [
     canvasSize,
@@ -243,6 +265,9 @@ export function KLineChart({
     data,
     entryPrice,
     entryTime,
+    getProfitColor,
+    getTradeColor,
+    getTrendColor,
     profitLoss,
     showProfit,
     tradeType,
@@ -263,6 +288,9 @@ export function KLineChart({
         tradeType: renderTradeType,
         profitLoss: renderProfitLoss,
         showProfit: renderShowProfit,
+        getTrendColor: renderTrendColor,
+        getProfitColor: renderProfitColor,
+        getTradeColor: renderTradeColor,
       } = renderStateRef.current;
 
       const canvas = canvasRef.current;
@@ -377,8 +405,11 @@ export function KLineChart({
       const firstPoint = points[0];
       const currentPoint = points[points.length - 1];
       const isUpTrend = currentPoint.drawPrice >= firstPoint.drawPrice;
-      const trendColor = isUpTrend ? '#ef4444' : '#10b981';
-      const trendFill = isUpTrend ? 'rgba(239, 68, 68, ' : 'rgba(16, 185, 129, ';
+      const trendColor = renderTrendColor(isUpTrend);
+      const trendFill =
+        trendColor.toLowerCase() === DEFAULT_RED
+          ? 'rgba(239, 68, 68, '
+          : 'rgba(16, 185, 129, ';
 
       ctx.save();
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.06)';
@@ -519,7 +550,7 @@ export function KLineChart({
         renderTradeType
       ) {
         const isBull = renderTradeType === 'bull';
-        const tradeColor = isBull ? '#ef4444' : '#10b981';
+        const tradeColor = renderTradeColor(renderTradeType);
         let entryX = fixedX - slotWidth * 3;
         const closestPoint = points.reduce((closest, point) => {
           const currentDistance = Math.abs(point.time - renderEntryTime);
@@ -580,7 +611,7 @@ export function KLineChart({
 
       if (renderShowProfit && typeof renderProfitLoss === 'number') {
         const isProfit = renderProfitLoss >= 0;
-        const color = isProfit ? '#10b981' : '#ef4444';
+        const color = renderProfitColor(renderProfitLoss);
         const boxWidth = 118;
         const boxHeight = 54;
         const boxX = clamp(fixedX - boxWidth / 2, 8, logicalWidth - boxWidth - 8);

@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { AccountProvider } from './contexts/AccountContext';
+import { TradeColorProvider } from './contexts/TradeColorContext';
 import App from './App';
 import './app.css';
 
@@ -16,7 +17,9 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     <BrowserRouter>
       <AuthProvider>
         <AccountProvider>
-          <App />
+          <TradeColorProvider>
+            <App />
+          </TradeColorProvider>
         </AccountProvider>
       </AuthProvider>
     </BrowserRouter>
