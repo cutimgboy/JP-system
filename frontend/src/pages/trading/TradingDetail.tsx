@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import { NavigationHeader } from './components/NavigationHeader';
 import { TradingChart } from './components/TradingChart';
 import { TradingControls } from './components/TradingControls';
@@ -36,6 +36,7 @@ export function TradingDetail({
   const [balanceLoading, setBalanceLoading] = useState(true);
   const [currentOrderId, setCurrentOrderId] = useState<number | null>(null);
   const [actualProfitLoss, setActualProfitLoss] = useState(0);
+  const [isSettling, setIsSettling] = useState(false);
   const [alertDialog, setAlertDialog] = useState({ isOpen: false, title: '', message: '' });
   const [entryPrice, setEntryPrice] = useState<number | undefined>(undefined);
   const [entryTime, setEntryTime] = useState<number | undefined>(undefined);
@@ -48,6 +49,7 @@ export function TradingDetail({
     }
     return 0;
   });
+  const closeTriggeredRef = useRef(false);
 
   // 当 initialStock 变化时更新 selectedStock
   useEffect(() => {
@@ -229,13 +231,15 @@ export function TradingDetail({
 
       const orderData = extractData(response);
       setCurrentOrderId(orderData.id);
+      closeTriggeredRef.current = false;
+      setIsSettling(false);
       setCountdown(seconds);
       setTradeStatus('bull');
       // 保存买入价和买入时间 - 使用K线图的最新价格和时间
       setEntryPrice(latestPrice || orderData.openPrice);
       setEntryTime(latestTime || Date.now() / 1000);
       // 设置目标时间
-      setTargetTime((latestTime || Date.now() / 1000) + seconds);
+      setTargetTime(new Date(orderData.expectedCloseTime).getTime() / 1000);
       if (guideStep === 3) {
         setGuideStep(4);
       }
@@ -305,13 +309,15 @@ export function TradingDetail({
 
       const orderData = extractData(response);
       setCurrentOrderId(orderData.id);
+      closeTriggeredRef.current = false;
+      setIsSettling(false);
       setCountdown(seconds);
       setTradeStatus('bear');
       // 保存买入价和买入时间 - 使用K线图的最新价格和时间
       setEntryPrice(latestPrice || orderData.openPrice);
       setEntryTime(latestTime || Date.now() / 1000);
       // 设置目标时间
-      setTargetTime((latestTime || Date.now() / 1000) + seconds);
+      setTargetTime(new Date(orderData.expectedCloseTime).getTime() / 1000);
       if (guideStep === 3) {
         setGuideStep(4);
       }
@@ -331,10 +337,19 @@ export function TradingDetail({
     setCountdown(0);
     setCurrentOrderId(null);
     setActualProfitLoss(0);
+    closeTriggeredRef.current = false;
+    setIsSettling(false);
     setEntryPrice(undefined);
     setEntryTime(undefined);
     setTargetTime(null);
     fetchBalance(); // 刷新余额
+  };
+
+  const applySettledOrder = (orderData: any) => {
+    setActualProfitLoss(Number(orderData?.profitLoss ?? 0));
+    setTradeStatus('completed');
+    setIsSettling(false);
+    fetchBalance();
   };
 
   // 获取订单详情
@@ -342,14 +357,51 @@ export function TradingDetail({
     try {
       const response = await apiClient.get(`/trade/order/${orderId}`);
       const orderData = extractData(response);
-      setActualProfitLoss(orderData.profitLoss || 0);
+      setActualProfitLoss(Number(orderData?.profitLoss ?? 0));
 
       // 如果订单还是open状态，说明还没有平仓，继续轮询
       if (orderData.status === 'open') {
         setTimeout(() => fetchOrderDetail(orderId), 1000);
+      } else {
+        applySettledOrder(orderData);
       }
     } catch (error) {
       console.error('获取订单详情失败:', error);
+    }
+  };
+
+  const settleOrder = async (orderId: number, attempt = 0) => {
+    try {
+      setIsSettling(true);
+      const response = await apiClient.post(`/trade/order/${orderId}/close`);
+      const orderData = extractData(response);
+      applySettledOrder(orderData);
+    } catch (error: any) {
+      console.error('订单结算失败:', error);
+
+      try {
+        const detailResponse = await apiClient.get(`/trade/order/${orderId}`);
+        const orderData = extractData(detailResponse);
+
+        if (orderData?.status === 'closed') {
+          applySettledOrder(orderData);
+          return;
+        }
+      } catch (detailError) {
+        console.error('获取结算订单详情失败:', detailError);
+      }
+
+      if (attempt < 8) {
+        window.setTimeout(() => settleOrder(orderId, attempt + 1), 1000);
+        return;
+      }
+
+      setIsSettling(false);
+      setAlertDialog({
+        isOpen: true,
+        title: '结算中',
+        message: '订单正在结算，请稍后在持仓记录查看结果'
+      });
     }
   };
 
@@ -362,15 +414,9 @@ export function TradingDetail({
 
         setCountdown(remaining);
 
-        if (remaining <= 0) {
-          setTradeStatus('completed');
-          // 订单完成后获取实际盈亏和刷新余额
-          if (currentOrderId) {
-            setTimeout(() => {
-              fetchOrderDetail(currentOrderId);
-              fetchBalance();
-            }, 1000);
-          }
+        if (remaining <= 0 && currentOrderId && !closeTriggeredRef.current) {
+          closeTriggeredRef.current = true;
+          settleOrder(currentOrderId);
         }
       }, 250); // 降低刷新频率，减少交易页整体重渲染压力
 
@@ -403,7 +449,7 @@ export function TradingDetail({
           setLatestTime(time);
         }}
         profitLoss={actualProfitLoss}
-        showProfit={tradeStatus === 'completed'}
+        showProfit={tradeStatus === 'completed' && !isSettling}
       />
 
       <TradingControls
@@ -544,7 +590,7 @@ export function TradingDetail({
                   localStorage.setItem('tradeGuideCompleted', 'true');
                   setGuideStep(-1);
                 }}
-                className="h-[52px] w-full rounded-full bg-white text-[16px] font-bold text-black shadow-[0_4px_15px_rgba(255,255,255,0.2)] transition-colors hover:bg-gray-200"
+                className="h-[52px] w-full rounded-full bg-[#10b981] text-[16px] font-bold text-white shadow-[0_4px_15px_rgba(16,185,129,0.35)] transition-colors hover:bg-[#059669]"
               >
                 知道了
               </button>

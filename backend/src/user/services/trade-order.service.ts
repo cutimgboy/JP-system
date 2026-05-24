@@ -214,12 +214,13 @@ export class TradeOrderService {
    * 平仓订单
    */
   async closeOrder(orderId: number, userId: number): Promise<TradeOrderEntity> {
-    return this.closeOrderInternal(orderId, userId);
+    return this.closeOrderInternal(orderId, userId, false);
   }
 
   private async closeOrderInternal(
     orderId: number,
     userId?: number,
+    allowBeforeExpiry: boolean = true,
   ): Promise<TradeOrderEntity> {
     const where = userId ? { id: orderId, userId } : { id: orderId };
     const order = await this.orderRepository.findOne({ where });
@@ -230,6 +231,14 @@ export class TradeOrderService {
 
     if (order.status !== OrderStatus.OPEN) {
       throw new BadRequestException('订单状态不正确');
+    }
+
+    if (
+      !allowBeforeExpiry &&
+      order.expectedCloseTime &&
+      new Date(order.expectedCloseTime).getTime() > Date.now()
+    ) {
+      throw new BadRequestException('订单尚未到期，请等待倒计时结束');
     }
 
     // 获取平仓价格
