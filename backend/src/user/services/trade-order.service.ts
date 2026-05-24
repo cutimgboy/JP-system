@@ -229,6 +229,10 @@ export class TradeOrderService {
       throw new NotFoundException('订单不存在');
     }
 
+    if (order.status === OrderStatus.CLOSED) {
+      return order;
+    }
+
     if (order.status !== OrderStatus.OPEN) {
       throw new BadRequestException('订单状态不正确');
     }
