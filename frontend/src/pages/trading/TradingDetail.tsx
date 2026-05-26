@@ -13,6 +13,21 @@ import { useAccount } from '../../contexts/AccountContext';
 import { AnimatePresence, motion } from 'framer-motion';
 import { tx } from "../../i18n/text";
 import { getFallbackProductInfo, getLocalizedProductName } from './productInfo';
+const TRADE_GUIDE_COMPLETED_KEY = 'tradeGuideCompleted';
+const hasTriggeredTradeGuide = () => {
+  try {
+    return localStorage.getItem(TRADE_GUIDE_COMPLETED_KEY) === 'true';
+  } catch {
+    return false;
+  }
+};
+const markTradeGuideTriggered = () => {
+  try {
+    localStorage.setItem(TRADE_GUIDE_COMPLETED_KEY, 'true');
+  } catch {
+    // Storage can be unavailable in restricted browser contexts.
+  }
+};
 interface TradingDetailProps {
   onBack: () => void;
   initialStock?: string;
@@ -53,7 +68,7 @@ export function TradingDetail({
   const [latestPrice, setLatestPrice] = useState<number>(0); // 最新价格
   const [latestTime, setLatestTime] = useState<number>(0); // 最新时间
   const [guideStep, setGuideStep] = useState(() => {
-    if (initialOrderId || localStorage.getItem('tradeGuideCompleted') === 'true') {
+    if (initialOrderId || hasTriggeredTradeGuide()) {
       return -1;
     }
     return 0;
@@ -187,13 +202,18 @@ export function TradingDetail({
   }, []);
   useEffect(() => {
     const handleStartGuide = () => {
-      if (tradeStatus === 'idle') {
+      if (tradeStatus === 'idle' && !hasTriggeredTradeGuide()) {
         setGuideStep(0);
       }
     };
     window.addEventListener('start-trade-guide', handleStartGuide);
     return () => window.removeEventListener('start-trade-guide', handleStartGuide);
   }, [tradeStatus]);
+  useEffect(() => {
+    if (guideStep === 0) {
+      markTradeGuideTriggered();
+    }
+  }, [guideStep]);
 
   // 加载订单详情并恢复交易状态
   const loadOrderAndRestoreState = async (orderId: number) => {
@@ -665,9 +685,12 @@ export function TradingDetail({
               </div>
               <h3 className="mb-2 text-[18px] font-bold text-black">{tx("欢迎来到交易世界")}</h3>
               <p className="mb-6 text-center text-[16px] font-bold leading-relaxed text-black/80">{tx("30 秒带你体验一笔交易")}<br />{tx("准备好了么？")}</p>
-              <button onClick={() => setGuideStep(1)} className="h-[48px] w-full rounded-[12px] bg-[#10b981] text-[16px] font-bold text-white shadow-[0_4px_12px_rgba(16,185,129,0.3)] transition-colors hover:bg-[#059669]">{tx("开始引导")}</button>
               <button onClick={() => {
-            localStorage.setItem('tradeGuideCompleted', 'true');
+            markTradeGuideTriggered();
+            setGuideStep(1);
+          }} className="h-[48px] w-full rounded-[12px] bg-[#10b981] text-[16px] font-bold text-white shadow-[0_4px_12px_rgba(16,185,129,0.3)] transition-colors hover:bg-[#059669]">{tx("开始引导")}</button>
+              <button onClick={() => {
+            markTradeGuideTriggered();
             setGuideStep(-1);
           }} className="mt-3 text-[13px] text-black/45">{tx("暂时跳过")}</button>
             </motion.div>
@@ -705,7 +728,7 @@ export function TradingDetail({
               <h3 className="mb-3 text-[20px] font-bold text-white">{tx("下单成功")}</h3>
               <p className="mb-8 text-[15px] leading-relaxed text-white/70">{tx("恭喜你，完成了第一笔交易。")}<br />{tx("现在只需等待到期结算，中途涨跌不用管。")}</p>
               <button onClick={() => {
-            localStorage.setItem('tradeGuideCompleted', 'true');
+            markTradeGuideTriggered();
             setGuideStep(-1);
           }} className="h-[52px] w-full rounded-full bg-[#10b981] text-[16px] font-bold text-white shadow-[0_4px_15px_rgba(16,185,129,0.35)] transition-colors hover:bg-[#059669]">{tx("知道了")}</button>
             </motion.div>
