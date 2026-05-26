@@ -21,7 +21,7 @@ interface Market {
 
 export default function MarketPage() {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState('股票');
+  const [activeTab, setActiveTab] = useState('数字货币');
   const { accountType, setAccountType } = useAccount();
   const [markets, setMarkets] = useState<Market[]>([]);
   const [loading, setLoading] = useState(true);
