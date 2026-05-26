@@ -5,8 +5,13 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { apiClient, extractMessage } from '../../utils/api';
 import { Toast } from '../../components/Toast';
 
-const passwordRule =
-  /^(?=.{8,20}$)(?:(?=.*[A-Za-z])(?=.*\d)|(?=.*[A-Za-z])(?=.*[^A-Za-z\d])|(?=.*\d)(?=.*[^A-Za-z\d]))\S+$/;
+function hasPasswordComplexity(password: string) {
+  const hasLetter = /[A-Za-z]/.test(password);
+  const hasNumber = /\d/.test(password);
+  const hasSymbol = /[^A-Za-z\d]/.test(password);
+
+  return Number(hasLetter) + Number(hasNumber) + Number(hasSymbol) >= 2;
+}
 
 export function ChangePassword() {
   const navigate = useNavigate();
@@ -40,8 +45,16 @@ export function ChangePassword() {
       setError('请再次输入新密码');
       return false;
     }
-    if (!passwordRule.test(newPassword)) {
-      setError('密码需包含字母、数字或标点中的至少两种，长度不小于8位');
+    if (newPassword.length < 8) {
+      setError('密码长度至少为 8 个字符');
+      return false;
+    }
+    if (newPassword.length > 20) {
+      setError('密码长度不能超过 20 个字符');
+      return false;
+    }
+    if (!hasPasswordComplexity(newPassword)) {
+      setError('密码需包含字母、数字或标点中的至少两种');
       return false;
     }
     if (newPassword !== confirmPassword) {

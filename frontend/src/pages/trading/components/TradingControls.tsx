@@ -71,14 +71,14 @@ export function TradingControls({
         <div className="flex gap-3 mb-3 relative">
           {guideStep === 1 && (
             <GuideBubble className="left-0 w-[52%]" onClick={() => onGuideStepChange?.(1)}>
-              点击设置到期时间
-              <span className="block text-[12px] font-normal text-white/60">到期时间决定多久之后判断输赢</span>
+              点击可设置到期时间
+              <span className="block text-[12px] font-normal text-white/60">到期时间决定：多久之后来判断输赢</span>
             </GuideBubble>
           )}
           {guideStep === 2 && (
             <GuideBubble className="right-0 w-[55%]" onClick={() => onGuideStepChange?.(3)}>
-              输入投资金额
-              <span className="block text-[12px] font-normal text-white/60">投资金额决定这一单的收益空间</span>
+              点击可设置投资金额
+              <span className="block text-[12px] font-normal text-white/60">投资金额决定：这一单你可以盈利多少</span>
             </GuideBubble>
           )}
           <div
@@ -150,7 +150,7 @@ export function TradingControls({
             {guideStep === 3 && (
               <GuideBubble className="left-1/2 w-[80%] -translate-x-1/2" onClick={() => undefined}>
                 选择看涨看跌方向
-                <span className="block text-[12px] font-normal text-white/60">方向决定到期时价格往哪边算你赢</span>
+                <span className="block text-[12px] font-normal text-white/60">方向决定：到期时价格往哪边算你赢</span>
               </GuideBubble>
             )}
             <button

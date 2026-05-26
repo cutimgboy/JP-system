@@ -9,7 +9,7 @@ export function BottomNav() {
   const navItems = [
     { path: '/market', label: '市场', icon: BarChart2 },
     { path: '/trading', label: '交易', icon: ArrowLeftRight },
-    { path: '/community', label: '社区', icon: Trophy },
+    { path: '/community', label: '排行', icon: Trophy },
     { path: '/positions', label: '持仓', icon: Briefcase },
     { path: '/profile', label: '我的', icon: User },
   ];
