@@ -5,9 +5,9 @@ import { AuthProvider } from './contexts/AuthContext';
 import { AccountProvider } from './contexts/AccountContext';
 import { TradeColorProvider } from './contexts/TradeColorContext';
 import App from './App';
+import './i18n/config';
 import './app.css';
 
-// 强制启用深色模式
 document.documentElement.classList.add('dark');
 document.documentElement.style.colorScheme = 'dark';
 document.body.classList.add('dark');

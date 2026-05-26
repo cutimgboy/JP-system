@@ -1,17 +1,18 @@
 import { useNavigate, useLocation } from 'react-router-dom';
 import { BarChart2, ArrowLeftRight, Trophy, Briefcase, User } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { tx } from '../i18n/text';
 
 export function BottomNav() {
   const navigate = useNavigate();
   const location = useLocation();
 
   const navItems = [
-    { path: '/market', label: '市场', icon: BarChart2 },
-    { path: '/trading', label: '交易', icon: ArrowLeftRight },
-    { path: '/community', label: '排行', icon: Trophy },
-    { path: '/positions', label: '持仓', icon: Briefcase },
-    { path: '/profile', label: '我的', icon: User },
+    { path: '/market', label: tx('市场'), icon: BarChart2 },
+    { path: '/trading', label: tx('交易'), icon: ArrowLeftRight },
+    { path: '/community', label: tx('排行'), icon: Trophy },
+    { path: '/positions', label: tx('持仓'), icon: Briefcase },
+    { path: '/profile', label: tx('我的'), icon: User },
   ];
 
   return (

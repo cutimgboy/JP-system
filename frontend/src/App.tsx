@@ -1,6 +1,8 @@
 import { Suspense, lazy } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Routes, Route, Navigate, useParams } from 'react-router-dom';
 import { ProtectedRoute } from './components/ProtectedRoute';
+import { tx } from './i18n/text';
 
 const Login = lazy(() =>
   import('./pages/auth/Login').then((module) => ({ default: module.Login })),
@@ -144,7 +146,7 @@ function PageLoader() {
     <div className="min-h-screen bg-[#09090b] flex items-center justify-center">
       <div className="text-center">
         <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#6c48f5]"></div>
-        <p className="mt-4 text-[#8a8a93]">页面加载中...</p>
+        <p className="mt-4 text-[#8a8a93]">{tx('页面加载中...')}</p>
       </div>
     </div>
   );
@@ -156,6 +158,8 @@ function OrderDetailCompatRedirect() {
 }
 
 function App() {
+  useTranslation();
+
   return (
     <Suspense fallback={<PageLoader />}>
       <Routes>
@@ -390,7 +394,7 @@ function App() {
         <Route path="/profile/install" element={<Navigate to="/install-app" replace />} />
         <Route path="/profile/password" element={<Navigate to="/change-password" replace />} />
 
-        <Route path="*" element={<div>404 - Page Not Found</div>} />
+        <Route path="*" element={<div>{tx('页面未找到')}</div>} />
       </Routes>
     </Suspense>
   );

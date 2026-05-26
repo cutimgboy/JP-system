@@ -1,16 +1,14 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { apiClient, extractData } from '../utils/api';
 import { useAuth } from './AuthContext';
-
+import { tx } from "../i18n/text";
 type AccountType = 'demo' | 'real';
-
 interface Account {
   id: number;
   accountType: AccountType;
   balance: number;
   frozenBalance: number;
 }
-
 interface AccountContextType {
   accountType: AccountType;
   accountId: number | null;
@@ -18,17 +16,20 @@ interface AccountContextType {
   setAccountType: (type: AccountType) => void;
   refreshAccount: () => Promise<void>;
 }
-
 const AccountContext = createContext<AccountContextType | undefined>(undefined);
-
-export function AccountProvider({ children }: { children: ReactNode }) {
-  const { token } = useAuth();
+export function AccountProvider({
+  children
+}: {
+  children: ReactNode;
+}) {
+  const {
+    token
+  } = useAuth();
   const [accountType, setAccountTypeState] = useState<AccountType>(() => {
     // 从 localStorage 读取保存的账户类型
     const saved = localStorage.getItem('accountType');
-    return (saved === 'demo' || saved === 'real') ? saved : 'demo';
+    return saved === 'demo' || saved === 'real' ? saved : 'demo';
   });
-
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [currentAccount, setCurrentAccount] = useState<Account | null>(null);
 
@@ -42,10 +43,9 @@ export function AccountProvider({ children }: { children: ReactNode }) {
 
       // 确保 accountList 是数组
       if (!Array.isArray(accountList)) {
-        console.warn('账户列表不是数组,使用空数组');
+        console.warn(tx("账户列表不是数组,使用空数组"));
         accountList = [];
       }
-
       setAccounts(accountList);
 
       // 根据当前选择的账户类型，设置当前账户
@@ -56,7 +56,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
         setCurrentAccount(null);
       }
     } catch (error) {
-      console.error('获取账户列表失败:', error);
+      console.error(tx("获取账户列表失败:"), error);
       setAccounts([]);
       setCurrentAccount(null);
     }
@@ -85,20 +85,16 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     setAccountTypeState(type);
     localStorage.setItem('accountType', type);
   };
-
-  return (
-    <AccountContext.Provider value={{
-      accountType,
-      accountId: currentAccount?.id || null,
-      currentAccount,
-      setAccountType,
-      refreshAccount
-    }}>
+  return <AccountContext.Provider value={{
+    accountType,
+    accountId: currentAccount?.id || null,
+    currentAccount,
+    setAccountType,
+    refreshAccount
+  }}>
       {children}
-    </AccountContext.Provider>
-  );
+    </AccountContext.Provider>;
 }
-
 export function useAccount() {
   const context = useContext(AccountContext);
   if (context === undefined) {

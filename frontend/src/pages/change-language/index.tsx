@@ -3,25 +3,10 @@ import { Check, ChevronLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import i18n from '../../i18n/config';
-
-interface Language {
-  code: string;
-  name: string;
-}
-
-const languages: Language[] = [
-  { code: 'en', name: 'English' },
-  { code: 'zh-CN', name: '简体中文' },
-  { code: 'zh-TW', name: '繁體中文' },
-  { code: 'vi', name: 'Tiếng Việt' },
-  { code: 'th', name: 'ไทย' },
-  { code: 'ms', name: 'Bahasa Melayu' },
-  { code: 'id', name: 'Bahasa Indonesia' },
-];
+import { appLanguages, changeAppLanguage, normalizeLanguage, tx, type AppLanguage } from '../../i18n/text';
 
 export function ChangeLanguage() {
   const navigate = useNavigate();
-  const normalizeLanguage = (code: string) => (code === 'en-US' ? 'en' : code);
   const [selectedLanguage, setSelectedLanguage] = useState(() => normalizeLanguage(localStorage.getItem('i18nextLng') || i18n.language || 'zh-CN'));
 
   useEffect(() => {
@@ -32,10 +17,9 @@ export function ChangeLanguage() {
     }
   }, []);
 
-  const handleLanguageChange = (languageCode: string) => {
+  const handleLanguageChange = (languageCode: AppLanguage) => {
     setSelectedLanguage(languageCode);
-    void i18n.changeLanguage(languageCode);
-    localStorage.setItem('i18nextLng', languageCode);
+    void changeAppLanguage(languageCode);
     setTimeout(() => navigate(-1), 250);
   };
 
@@ -48,20 +32,20 @@ export function ChangeLanguage() {
         >
           <ChevronLeft size={24} />
         </button>
-        <h1 className="absolute left-1/2 -translate-x-1/2 text-[18px] font-medium">切换语言</h1>
+        <h1 className="absolute left-1/2 -translate-x-1/2 text-[18px] font-medium">{tx('切换语言')}</h1>
         <div className="w-10" />
       </div>
 
       <div className="px-5 pb-[120px] pt-4">
         <div className="rounded-[20px] border border-white/5 bg-[#14141c] px-2 shadow-sm">
-          {languages.map((language, index) => (
+          {appLanguages.map((language, index) => (
             <motion.button
               key={language.code}
               type="button"
               onClick={() => handleLanguageChange(language.code)}
               whileTap={{ scale: 0.98 }}
               className={`flex w-full items-center justify-between px-3 py-4 text-left transition-colors hover:bg-white/[0.02] ${
-                index !== languages.length - 1 ? 'border-b border-white/5' : ''
+                index !== appLanguages.length - 1 ? 'border-b border-white/5' : ''
               }`}
             >
               <span className={`text-[15px] ${selectedLanguage === language.code ? 'font-medium text-[#6c48f5]' : 'text-white/90'}`}>

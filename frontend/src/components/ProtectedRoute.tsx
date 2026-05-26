@@ -1,5 +1,6 @@
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { tx } from '../i18n/text';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -15,7 +16,7 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
       <div className="flex min-h-screen items-center justify-center bg-[#09090b]">
         <div className="text-center">
           <div className="inline-block h-12 w-12 animate-spin rounded-full border-b-2 border-t-2 border-[#6c48f5]"></div>
-          <p className="mt-4 text-[#8a8a93]">加载中...</p>
+          <p className="mt-4 text-[#8a8a93]">{tx('加载中...')}</p>
         </div>
       </div>
     );

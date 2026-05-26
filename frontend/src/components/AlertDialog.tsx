@@ -1,3 +1,5 @@
+import { tx } from '../i18n/text';
+
 interface AlertDialogProps {
   isOpen: boolean;
   title?: string;
@@ -36,7 +38,7 @@ export function AlertDialog({ isOpen, title, message, onClose }: AlertDialogProp
             onClick={onClose}
             className="w-full bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 text-white py-3 rounded-lg transition-all font-medium"
           >
-            确定
+            {tx('确定')}
           </button>
         </div>
       </div>

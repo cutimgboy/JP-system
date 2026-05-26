@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { apiClient, extractData } from '../utils/api';
-
+import { tx } from "../i18n/text";
 interface User {
   id: number;
   phone: string | null;
@@ -11,7 +11,6 @@ interface User {
   hasPassword?: boolean;
   requiresPasswordSetup?: boolean;
 }
-
 interface AuthContextType {
   user: User | null;
   token: string | null;
@@ -20,10 +19,12 @@ interface AuthContextType {
   logout: () => void;
   refreshUser: () => Promise<void>;
 }
-
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
-export function AuthProvider({ children }: { children: ReactNode }) {
+export function AuthProvider({
+  children
+}: {
+  children: ReactNode;
+}) {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -33,7 +34,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const initAuth = async () => {
       const storedToken = localStorage.getItem('token');
       const storedUser = localStorage.getItem('user');
-
       if (storedToken && storedUser) {
         try {
           const parsedUser = normalizeUser(JSON.parse(storedUser));
@@ -43,7 +43,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // 验证 token 是否有效，并刷新用户信息
           await refreshUserInfo(storedToken);
         } catch (error) {
-          console.error('初始化认证失败:', error);
+          console.error(tx("初始化认证失败:"), error);
           // Token 无效，清除本地存储
           localStorage.removeItem('token');
           localStorage.removeItem('user');
@@ -51,20 +51,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUser(null);
         }
       }
-
       setLoading(false);
     };
-
     initAuth();
   }, []);
-
   const normalizeUser = (value: User): User => ({
     ...value,
     hasPassword: typeof value.hasPassword === 'boolean' ? value.hasPassword : undefined,
-    requiresPasswordSetup:
-      typeof value.requiresPasswordSetup === 'boolean'
-        ? value.requiresPasswordSetup
-        : false,
+    requiresPasswordSetup: typeof value.requiresPasswordSetup === 'boolean' ? value.requiresPasswordSetup : false
   });
 
   // 刷新用户信息
@@ -72,13 +66,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const currentToken = authToken || token;
       if (!currentToken) return;
-
       const response = await apiClient.get('/user/info', {
         headers: {
-          Authorization: `Bearer ${currentToken}`,
-        },
+          Authorization: `Bearer ${currentToken}`
+        }
       });
-
       const userData = extractData(response);
       if (userData) {
         const normalizedUser = normalizeUser(userData);
@@ -86,7 +78,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         localStorage.setItem('user', JSON.stringify(normalizedUser));
       }
     } catch (error) {
-      console.error('刷新用户信息失败:', error);
+      console.error(tx("刷新用户信息失败:"), error);
       throw error;
     }
   };
@@ -112,21 +104,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const refreshUser = async () => {
     await refreshUserInfo();
   };
-
-  return (
-    <AuthContext.Provider
-      value={{
-        user,
-        token,
-        loading,
-        login,
-        logout,
-        refreshUser,
-      }}
-    >
+  return <AuthContext.Provider value={{
+    user,
+    token,
+    loading,
+    login,
+    logout,
+    refreshUser
+  }}>
       {children}
-    </AuthContext.Provider>
-  );
+    </AuthContext.Provider>;
 }
 
 // 自定义 Hook
