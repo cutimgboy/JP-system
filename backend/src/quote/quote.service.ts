@@ -1,4 +1,10 @@
-import { Injectable, OnModuleInit, OnModuleDestroy, Logger, MessageEvent } from '@nestjs/common';
+import {
+  Injectable,
+  OnModuleInit,
+  OnModuleDestroy,
+  Logger,
+  MessageEvent,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -42,6 +48,7 @@ interface KlineAggregationBuffer {
 @Injectable()
 export class QuoteService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(QuoteService.name);
+  private readonly logMockQuoteTicks: boolean;
   private ws: WebSocket | null = null;
   private reconnectTimer: NodeJS.Timeout | null = null;
   private heartbeatTimer: NodeJS.Timeout | null = null;
@@ -83,6 +90,22 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
     return `${secret.slice(0, 4)}***${secret.slice(-4)}`;
   }
 
+  private formatErrorMessage(error: unknown): string {
+    if (error instanceof Error) {
+      return error.message;
+    }
+
+    if (typeof error === 'string') {
+      return error;
+    }
+
+    try {
+      return JSON.stringify(error);
+    } catch {
+      return String(error);
+    }
+  }
+
   /**
    * 获取目标股票列表（从数据库）
    */
@@ -90,12 +113,12 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
     if (this.productsCache.length === 0) {
       await this.loadProductsFromDatabase();
     }
-    return this.productsCache.map(p => p.code);
+    return this.productsCache.map((p) => p.code);
   }
-  
+
   // 序列号计数器
   private sequenceId: number = 1;
-  
+
   // 用于去重的最近收到的Tick数据缓存
   private recentTickCache: Map<string, number> = new Map();
   private readonly cacheExpiryTime = 1000; // 1秒内的重复数据将被过滤
@@ -127,7 +150,10 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
     private tradingSettingsRepository: Repository<TradingSettingsEntity>,
     @InjectRepository(ProductEntity)
     private productRepository: Repository<ProductEntity>,
-  ) {}
+  ) {
+    this.logMockQuoteTicks =
+      this.configService.get('LOG_MOCK_QUOTE_TICKS', 'false') === 'true';
+  }
 
   /**
    * 从数据库加载产品列表
@@ -172,7 +198,8 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
     this.startDbFlushWorker();
 
     // 检查是否启用模拟模式
-    const mockMode = this.configService.get('MOCK_QUOTE_DATA', 'false') === 'true';
+    const mockMode =
+      this.configService.get('MOCK_QUOTE_DATA', 'false') === 'true';
 
     if (mockMode) {
       this.logger.warn('⚠️  模拟数据模式已启用');
@@ -208,8 +235,10 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
     this.logger.log(`使用 Token: ${this.maskSecret(token)}`);
     // 股票 API 地址 - 使用正确的 alltick.co 股票 WebSocket API
     const url = `wss://quote.alltick.co/quote-stock-b-ws-api?token=${token}`;
-    
-    this.logger.log('正在连接到行情服务器: wss://quote.alltick.co/quote-stock-b-ws-api');
+
+    this.logger.log(
+      '正在连接到行情服务器: wss://quote.alltick.co/quote-stock-b-ws-api',
+    );
 
     this.ws = new WebSocket(url);
 
@@ -217,7 +246,9 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
       this.ws.on('open', () => this.onOpen());
       this.ws.on('message', (data: WebSocket.Data) => this.onMessage(data));
       this.ws.on('error', (error: Error) => this.onError(error));
-      this.ws.on('close', (code: number, reason: Buffer) => this.onClose(code, reason));
+      this.ws.on('close', (code: number, reason: Buffer) =>
+        this.onClose(code, reason),
+      );
     }
   }
 
@@ -263,7 +294,7 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
   private onMessage(data: WebSocket.Data): void {
     try {
       const message = JSON.parse(data.toString());
-      
+
       // 根据命令ID处理不同类型的消息
       switch (message.cmd_id) {
         case MessageCommandId.TICK_PUSH:
@@ -289,25 +320,25 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
    */
   private handleTickData(message: TickPushMessage): void {
     const tickData = message.data;
-    
+
     const uniqueKey = tickData.seq
       ? `${tickData.code}-${tickData.seq}`
       : `${tickData.code}-${tickData.price}-${tickData.tick_time}`;
     const now = Date.now();
-    
+
     // 检查是否为重复数据
     const cached = this.recentTickCache.get(uniqueKey);
-    if (cached && (now - cached) < this.cacheExpiryTime) {
+    if (cached && now - cached < this.cacheExpiryTime) {
       // 重复数据，跳过处理
       return;
     }
-    
+
     // 缓存新的Tick数据
     this.recentTickCache.set(uniqueKey, now);
-    
+
     // 清理内存中的过期缓存数据，按时间和阈值节流，避免每条 tick 都 O(n) 扫描。
     this.cleanMemoryCacheIfNeeded(now);
-    
+
     // 同一股票代码仅保留最新一条待处理 tick，避免异步任务堆积
     this.pendingTicks.set(tickData.code, tickData);
     if (!this.processingTickCodes.has(tickData.code)) {
@@ -365,10 +396,14 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
   private handleSubscribeResponse(message: SubscribeResponse): void {
     if (message.ret === 200) {
       this.logger.log(`订阅成功: ${message.msg}`);
-      this.logger.debug(`订阅响应 - 序列号: ${message.seq_id}, 跟踪号: ${message.trace}`);
+      this.logger.debug(
+        `订阅响应 - 序列号: ${message.seq_id}, 跟踪号: ${message.trace}`,
+      );
     } else {
       this.logger.error(`订阅失败: ${message.msg}`);
-      this.logger.error(`订阅响应详情 - 返回码: ${message.ret}, 序列号: ${message.seq_id}, 跟踪号: ${message.trace}`);
+      this.logger.error(
+        `订阅响应详情 - 返回码: ${message.ret}, 序列号: ${message.seq_id}, 跟踪号: ${message.trace}`,
+      );
     }
   }
 
@@ -378,7 +413,6 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
   private handleHeartbeatResponse(message: HeartbeatResponse): void {
     this.logger.log('收到心跳响应:', JSON.stringify(message, null, 2));
   }
-
 
   /**
    * 错误回调
@@ -459,21 +493,24 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
     }
 
     // 记录订阅
-    symbols.forEach(symbol => this.subscribedSymbols.add(symbol));
+    symbols.forEach((symbol) => this.subscribedSymbols.add(symbol));
 
     const subscribeMessage = {
       cmd_id: 22004, // 最新成交价批量订阅命令ID
       seq_id: this.sequenceId++,
       trace: `subscribe-${Date.now()}`,
       data: {
-        symbol_list: symbols.map(code => ({
+        symbol_list: symbols.map((code) => ({
           code,
         })),
       },
     };
 
     this.logger.log(`订阅股票: ${symbols.join(', ')}`);
-    this.logger.debug('订阅消息内容:', JSON.stringify(subscribeMessage, null, 2));
+    this.logger.debug(
+      '订阅消息内容:',
+      JSON.stringify(subscribeMessage, null, 2),
+    );
     this.send(subscribeMessage);
   }
 
@@ -487,7 +524,7 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
     }
 
     // 移除订阅记录
-    symbols.forEach(symbol => this.subscribedSymbols.delete(symbol));
+    symbols.forEach((symbol) => this.subscribedSymbols.delete(symbol));
 
     const unsubscribeMessage = {
       cmd_id: 22004, // 最新成交价批量订阅命令ID（覆盖式订阅）
@@ -519,7 +556,7 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
     if (!this.ws) {
       return 'CLOSED';
     }
-    
+
     switch (this.ws.readyState) {
       case WebSocket.CONNECTING:
         return 'CONNECTING';
@@ -569,10 +606,14 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
 
       // 获取价差设置
       const tradingSettings = await this.getTradingSettings(code);
-      
+
       // 计算买卖价格
-      const bidSpread = parseFloat(tradingSettings?.bidSpread?.toString() || '0');
-      const askSpread = parseFloat(tradingSettings?.askSpread?.toString() || '0');
+      const bidSpread = parseFloat(
+        tradingSettings?.bidSpread?.toString() || '0',
+      );
+      const askSpread = parseFloat(
+        tradingSettings?.askSpread?.toString() || '0',
+      );
       const buyPrice = newPrice + bidSpread;
       const salePrice = newPrice - askSpread;
 
@@ -599,12 +640,13 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
       this.tickSubject.next({
         code,
         data: {
-          time: Math.floor(this.parseTickTime(tickData.tick_time).getTime() / 1000),
+          time: Math.floor(
+            this.parseTickTime(tickData.tick_time).getTime() / 1000,
+          ),
           price: newPrice,
           volume: parseInt(tickData.volume),
         },
       });
-
     } catch (error) {
       this.logger.error('处理价格变化失败:', error);
     }
@@ -613,7 +655,9 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
   /**
    * 获取交易设置
    */
-  private async getTradingSettings(code: string): Promise<TradingSettingsEntity | null> {
+  private async getTradingSettings(
+    code: string,
+  ): Promise<TradingSettingsEntity | null> {
     const cached = this.tradingSettingsCache.get(code);
     if (cached) {
       return cached;
@@ -688,7 +732,9 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
 
     this.stockTickBuffer.push({
       code: tickData.code,
-      seq: tickData.seq || `${tickData.tick_time}-${tickData.price}-${tickData.volume}-${tickData.turnover}`,
+      seq:
+        tickData.seq ||
+        `${tickData.tick_time}-${tickData.price}-${tickData.volume}-${tickData.turnover}`,
       tick_time: tickTime,
       price: newPrice,
       volume,
@@ -696,7 +742,13 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
       trade_direction: tickData.trade_direction ?? null,
     });
 
-    this.addKlineBufferRows(tickData.code, tickTime, newPrice, volume, turnover);
+    this.addKlineBufferRows(
+      tickData.code,
+      tickTime,
+      newPrice,
+      volume,
+      turnover,
+    );
 
     if (shouldWriteRealtime) {
       this.realtimePriceBuffer.push({
@@ -714,7 +766,8 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
         old_price: oldPrice,
         new_price: newPrice,
         price_change: newPrice - oldPrice,
-        change_rate: oldPrice !== 0 ? ((newPrice - oldPrice) / oldPrice) * 100 : 0,
+        change_rate:
+          oldPrice !== 0 ? ((newPrice - oldPrice) / oldPrice) * 100 : 0,
         volume,
         tick_time: tickTime,
       });
@@ -787,7 +840,9 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
     return `${code}:${intervalSeconds}:${bucketTime.getTime()}`;
   }
 
-  private getKlineBufferRows(limit: number = this.dbBatchSize): KlineAggregationBuffer[] {
+  private getKlineBufferRows(
+    limit: number = this.dbBatchSize,
+  ): KlineAggregationBuffer[] {
     const rows: KlineAggregationBuffer[] = [];
 
     for (const [key, row] of this.klineBuffer.entries()) {
@@ -811,7 +866,10 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
     );
   }
 
-  private buildKlineUpsertSql(rows: KlineAggregationBuffer[]): { sql: string; params: any[] } {
+  private buildKlineUpsertSql(rows: KlineAggregationBuffer[]): {
+    sql: string;
+    params: any[];
+  } {
     const placeholders = rows
       .map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
       .join(', ');
@@ -864,7 +922,9 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
     };
   }
 
-  private async insertStockTicks(rows: Array<Partial<StockTickEntity>>): Promise<void> {
+  private async insertStockTicks(
+    rows: Array<Partial<StockTickEntity>>,
+  ): Promise<void> {
     await this.stockTickRepository
       .createQueryBuilder()
       .insert()
@@ -916,13 +976,15 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
       this.droppedDbRows += overflowKlines;
     }
 
-    const overflowRealtime = this.realtimePriceBuffer.length - this.maxBufferedDbRows;
+    const overflowRealtime =
+      this.realtimePriceBuffer.length - this.maxBufferedDbRows;
     if (overflowRealtime > 0) {
       this.realtimePriceBuffer.splice(0, overflowRealtime);
       this.droppedDbRows += overflowRealtime;
     }
 
-    const overflowChanges = this.priceChangeBuffer.length - this.maxBufferedDbRows;
+    const overflowChanges =
+      this.priceChangeBuffer.length - this.maxBufferedDbRows;
     if (overflowChanges > 0) {
       this.priceChangeBuffer.splice(0, overflowChanges);
       this.droppedDbRows += overflowChanges;
@@ -930,7 +992,9 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
 
     const now = Date.now();
     if (this.droppedDbRows > 0 && now - this.lastDroppedRowsWarnAt >= 60000) {
-      this.logger.warn(`数据库写入缓冲区已满，累计丢弃 ${this.droppedDbRows} 条历史行情数据`);
+      this.logger.warn(
+        `数据库写入缓冲区已满，累计丢弃 ${this.droppedDbRows} 条历史行情数据`,
+      );
       this.droppedDbRows = 0;
       this.lastDroppedRowsWarnAt = now;
     }
@@ -983,12 +1047,18 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
             await this.upsertKlineRows(klineBatch);
           }
 
-          const realtimeBatch = this.realtimePriceBuffer.splice(0, this.dbBatchSize);
+          const realtimeBatch = this.realtimePriceBuffer.splice(
+            0,
+            this.dbBatchSize,
+          );
           if (realtimeBatch.length > 0) {
             await this.stockRealtimePriceRepository.insert(realtimeBatch);
           }
 
-          const changeBatch = this.priceChangeBuffer.splice(0, this.dbBatchSize);
+          const changeBatch = this.priceChangeBuffer.splice(
+            0,
+            this.dbBatchSize,
+          );
           if (changeBatch.length > 0) {
             await this.stockPriceChangeRepository.insert(changeBatch);
           }
@@ -1034,7 +1104,12 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
             sale_price: quote.sale_price,
           };
         })
-        .filter((quote): quote is { code: string; buy_price: number; sale_price: number } => Boolean(quote));
+        .filter(
+          (
+            quote,
+          ): quote is { code: string; buy_price: number; sale_price: number } =>
+            Boolean(quote),
+        );
 
       const allQuotesData = {
         codeList: quotes,
@@ -1044,7 +1119,9 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
       await this.redisService.setAllQuotes(allQuotesData);
       this.logger.debug('已更新所有股票汇总缓存');
     } catch (error) {
-      this.logger.error('更新所有股票汇总缓存失败:', error);
+      this.logger.error(
+        `更新所有股票汇总缓存失败: ${this.formatErrorMessage(error)}`,
+      );
     }
   }
 
@@ -1054,24 +1131,26 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
   async getAllRealtimeQuotes(): Promise<any> {
     try {
       const cachedData = await this.redisService.getAllQuotes();
-      
+
       if (cachedData) {
         return cachedData;
       }
 
       if (this.latestQuoteCache.size > 0) {
-        const codeList = Array.from(this.latestQuoteCache.values()).map((quote) => ({
-          code: quote.code,
-          buy_price: quote.buy_price,
-          sale_price: quote.sale_price,
-        }));
+        const codeList = Array.from(this.latestQuoteCache.values()).map(
+          (quote) => ({
+            code: quote.code,
+            buy_price: quote.buy_price,
+            sale_price: quote.sale_price,
+          }),
+        );
 
         return {
           codeList,
           updated_at: new Date().toISOString(),
         };
       }
-      
+
       // 如果缓存不存在，返回空数据
       return {
         codeList: [],
@@ -1089,7 +1168,7 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
   async getRealtimeQuote(code: string): Promise<any> {
     try {
       const cachedData = await this.getCachedQuote(code);
-      
+
       if (cachedData) {
         return {
           code: cachedData.code,
@@ -1097,7 +1176,7 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
           sale_price: cachedData.sale_price,
         };
       }
-      
+
       // 如果缓存不存在，返回空数据
       return {
         code,
@@ -1310,8 +1389,12 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
   async testPriceCalculation(code: string, price: number): Promise<any> {
     try {
       const tradingSettings = await this.getTradingSettings(code);
-      const bidSpread = parseFloat(tradingSettings?.bidSpread?.toString() || '0');
-      const askSpread = parseFloat(tradingSettings?.askSpread?.toString() || '0');
+      const bidSpread = parseFloat(
+        tradingSettings?.bidSpread?.toString() || '0',
+      );
+      const askSpread = parseFloat(
+        tradingSettings?.askSpread?.toString() || '0',
+      );
       const buyPrice = price + bidSpread;
       const salePrice = price - askSpread;
       const spread = buyPrice - salePrice;
@@ -1323,7 +1406,7 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
         askSpread,
         buy_price: buyPrice,
         sale_price: salePrice,
-        spread: spread
+        spread: spread,
       };
     } catch (error) {
       this.logger.error(`测试价格计算失败:`, error);
@@ -1343,7 +1426,7 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
     // 初始化所有产品的缓存和价格
     const targetSymbols = await this.getTargetSymbols();
     for (const code of targetSymbols) {
-      const product = this.productsCache.find(p => p.code === code);
+      const product = this.productsCache.find((p) => p.code === code);
       // 根据产品类型设置不同的初始价格
       let initialPrice = 100;
       if (product) {
@@ -1400,7 +1483,9 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
 
       // 生成随机价格波动 (-0.5% 到 +0.5%)
       const changePercent = (Math.random() - 0.5) * 0.01;
-      const newPrice = parseFloat((currentPrice * (1 + changePercent)).toFixed(2));
+      const newPrice = parseFloat(
+        (currentPrice * (1 + changePercent)).toFixed(2),
+      );
 
       // 更新价格
       this.mockPrices.set(code, newPrice);
@@ -1411,7 +1496,11 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
       // 当前时间戳（毫秒）
       const tickTime = Date.now();
 
-      this.logger.debug(`模拟数据: ${code} - ${newPrice} (${changePercent > 0 ? '+' : ''}${(changePercent * 100).toFixed(2)}%)`);
+      if (this.logMockQuoteTicks) {
+        this.logger.debug(
+          `模拟数据: ${code} - ${newPrice} (${changePercent > 0 ? '+' : ''}${(changePercent * 100).toFixed(2)}%)`,
+        );
+      }
 
       // 更新缓存
       await this.updateMockQuoteCache(code, newPrice, volume, tickTime);
@@ -1445,14 +1534,23 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
   /**
    * 更新模拟数据的缓存
    */
-  private async updateMockQuoteCache(code: string, price: number, volume: number = 100, tickTime: number = Date.now()): Promise<void> {
+  private async updateMockQuoteCache(
+    code: string,
+    price: number,
+    volume: number = 100,
+    tickTime: number = Date.now(),
+  ): Promise<void> {
     try {
       // 获取价差设置
       const tradingSettings = await this.getTradingSettings(code);
 
       // 计算买卖价格
-      const bidSpread = parseFloat(tradingSettings?.bidSpread?.toString() || '0');
-      const askSpread = parseFloat(tradingSettings?.askSpread?.toString() || '0');
+      const bidSpread = parseFloat(
+        tradingSettings?.bidSpread?.toString() || '0',
+      );
+      const askSpread = parseFloat(
+        tradingSettings?.askSpread?.toString() || '0',
+      );
       const buyPrice = price + bidSpread;
       const salePrice = price - askSpread;
 
@@ -1474,7 +1572,9 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
         askSpread: tradingSettings?.askSpread || 0,
       });
     } catch (error) {
-      this.logger.error(`更新模拟数据缓存失败 ${code}:`, error);
+      this.logger.error(
+        `更新模拟数据缓存失败 ${code}: ${this.formatErrorMessage(error)}`,
+      );
     }
   }
 
@@ -1494,12 +1594,15 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
       const subscription = this.tickSubject
         .pipe(
           filter((tick) => tick.code === code),
-          map((tick) => ({
-            data: {
-              type: 'tick',
-              ...tick.data,
-            },
-          } as any))
+          map(
+            (tick) =>
+              ({
+                data: {
+                  type: 'tick',
+                  ...tick.data,
+                },
+              }) as any,
+          ),
         )
         .subscribe({
           next: (event) => observer.next(event),

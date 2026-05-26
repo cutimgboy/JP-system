@@ -4,15 +4,34 @@ import { HttpExceptionFilter } from './core/filter/http-exception/http-exception
 import { TransformInterceptor } from './core/interceptor/transform/transform.interceptor';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
-import { ForbiddenException, ValidationPipe } from '@nestjs/common';
+import { ForbiddenException, LogLevel, ValidationPipe } from '@nestjs/common';
 import { getAllowedOrigins, isProduction } from './config/security';
 
+function resolveLoggerLevels(prod: boolean): LogLevel[] {
+  const configuredLevels = process.env.LOG_LEVELS;
+
+  if (configuredLevels) {
+    return configuredLevels
+      .split(',')
+      .map((level) => level.trim())
+      .filter((level): level is LogLevel =>
+        ['log', 'error', 'warn', 'debug', 'verbose', 'fatal'].includes(level),
+      );
+  }
+
+  return prod
+    ? ['error', 'warn', 'log']
+    : ['error', 'warn', 'log', 'debug', 'verbose'];
+}
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const prod = process.env.NODE_ENV === 'production';
+  const app = await NestFactory.create(AppModule, {
+    logger: resolveLoggerLevels(prod),
+  });
   const configService = app.get(ConfigService);
   const allowedOrigins = getAllowedOrigins(configService);
-  const prod = isProduction(configService);
+  const configProd = isProduction(configService);
 
   // 启用 CORS（支持 SSE）
   app.enableCors({
@@ -57,7 +76,7 @@ async function bootstrap() {
   );
 
   const enableSwagger =
-    !prod || configService.get('ENABLE_SWAGGER', 'false') === 'true';
+    !configProd || configService.get('ENABLE_SWAGGER', 'false') === 'true';
   if (enableSwagger) {
     const config = new DocumentBuilder()
       .setTitle('接口文档')
