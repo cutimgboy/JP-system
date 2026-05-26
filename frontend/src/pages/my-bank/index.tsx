@@ -157,7 +157,7 @@ export function MyBank() {
             >
               <h3 className="mb-2 text-center text-[18px] font-bold">删除银行卡</h3>
               <p className="mb-6 text-center text-[14px] leading-relaxed text-[#8a8a93]">
-                确定要删除这张银行卡吗？删除后将无法用于资金提取。
+                您确定要删除这张银行卡吗？删除后将无法用于资金提取。
               </p>
               <div className="flex gap-3">
                 <button

@@ -59,7 +59,7 @@ export function AboutUs() {
     },
     {
       title: "0交易佣金费用",
-      desc: "交易无佣金，利润全额归属您，真正实现\"所见即所得\"。",
+      desc: "交易无佣金，利润全额归属您，真正实现“所见即所得”。",
       icon: Percent
     },
     {

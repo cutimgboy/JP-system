@@ -101,7 +101,7 @@ export function InstallApp() {
                   </div>
                 </StepCard>
 
-                <StepCard number={2} title="点击“添加到主屏幕”" description="在弹出的菜单中向上滑动，找到并点击该选项">
+                <StepCard number={2} title="点击“添加到主屏幕”" description="在弹出的菜单中，向上滑动找到并点击该选项">
                   <div className="bg-[#1a1a24] p-2">
                     <div className="overflow-hidden rounded-[14px] bg-[#2a2a36]">
                       <MenuRow icon={Copy} label="拷贝" />
@@ -134,7 +134,7 @@ export function InstallApp() {
                   </div>
                 </StepCard>
 
-                <StepCard number={2} title="点击“添加到主屏幕”" description="在下拉菜单中找到该选项以安装">
+                <StepCard number={2} title="点击“添加到主屏幕”" description="在下拉菜单中找到此选项以安装">
                   <div className="relative h-[180px] bg-[#1a1a24] p-3">
                     <div className="ml-auto w-[220px] rounded-[16px] border border-white/10 bg-[#2a2a36] py-1.5 shadow-xl">
                       <MenuRow icon={Star} label="添加书签" />
