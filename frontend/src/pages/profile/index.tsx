@@ -5,7 +5,8 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTradeColors } from '../../contexts/TradeColorContext';
-import { tx } from "../../i18n/text";
+import { useTranslation } from 'react-i18next';
+import { normalizeLanguage, tx } from "../../i18n/text";
 const IconWrapper = ({
   children
 }: {
@@ -50,11 +51,13 @@ const highlights = [{
 }];
 export default function ProfilePage() {
   const navigate = useNavigate();
+  const { i18n } = useTranslation();
   const {
     isReversed,
     setIsReversed
   } = useTradeColors();
   const [currentSlide, setCurrentSlide] = useState(0);
+  const promotionImageSrc = normalizeLanguage(i18n.language) === 'vi' ? '/vi-info.jpg' : '/rujin.png';
   const showPreviousSlide = () => {
     setCurrentSlide(prev => (prev - 1 + highlights.length) % highlights.length);
   };
@@ -158,7 +161,7 @@ export default function ProfilePage() {
 
           {/* Module 3: Activity Banner */}
           <div onClick={() => navigate('/promotion')} className="relative h-[86px] rounded-[20px] overflow-hidden flex items-center justify-center border border-white/5 shadow-md cursor-pointer group">
-            <img src="/rujin.png" alt={tx("入金交易，送5倍现金奖励")} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+            <img src={promotionImageSrc} alt={tx("入金交易，送5倍现金奖励")} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
           </div>
 
           {/* Module 4: Other Entry Points List */}
