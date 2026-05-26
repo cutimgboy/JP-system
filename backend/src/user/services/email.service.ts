@@ -1,9 +1,23 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { RedisService } from '../../redis/redis.service';
 
 @Injectable()
 export class EmailService {
-  constructor(private redisService: RedisService) {}
+  constructor(
+    private redisService: RedisService,
+    private configService: ConfigService,
+  ) {}
+
+  private getFixedCode(): string | null {
+    const enabled = this.configService.get<string>('ENABLE_FIXED_EMAIL_CODE', 'true');
+
+    if (enabled !== 'true') {
+      return null;
+    }
+
+    return this.configService.get<string>('FIXED_EMAIL_CODE', '123456');
+  }
 
   /**
    * 生成6位随机验证码
@@ -17,6 +31,12 @@ export class EmailService {
    * @param email 邮箱地址
    */
   async sendEmail(email: string): Promise<string> {
+    const fixedCode = this.getFixedCode();
+
+    if (fixedCode) {
+      return fixedCode;
+    }
+
     // 检查是否频繁发送
     const cacheKey = `email:${email}`;
     const existingCode = await this.redisService.get(cacheKey);
@@ -42,6 +62,12 @@ export class EmailService {
    * @param code 验证码
    */
   async verifyEmail(email: string, code: string): Promise<boolean> {
+    const fixedCode = this.getFixedCode();
+
+    if (fixedCode && code === fixedCode) {
+      return true;
+    }
+
     const cacheKey = `email:${email}`;
     const cachedCode = await this.redisService.get(cacheKey);
 
@@ -55,6 +81,27 @@ export class EmailService {
 
     // 验证成功后删除验证码
     await this.redisService.del(cacheKey);
+    return true;
+  }
+
+  async assertEmailCode(email: string, code: string): Promise<boolean> {
+    const fixedCode = this.getFixedCode();
+
+    if (fixedCode && code === fixedCode) {
+      return true;
+    }
+
+    const cacheKey = `email:${email}`;
+    const cachedCode = await this.redisService.get(cacheKey);
+
+    if (!cachedCode) {
+      throw new BadRequestException('验证码已过期或不存在');
+    }
+
+    if (cachedCode !== code) {
+      throw new BadRequestException('验证码错误');
+    }
+
     return true;
   }
 

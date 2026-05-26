@@ -1,6 +1,7 @@
 import { useRef, useState, useEffect } from 'react';
 import { NavigationHeader } from './components/NavigationHeader';
-import { TradingChart } from './components/TradingChart';
+import type { Product } from './components/NavigationHeader';
+import { TradingChart, type TradingQuoteSummary } from './components/TradingChart';
 import { TradingControls } from './components/TradingControls';
 import { MarketOverview } from './components/MarketOverview';
 import { CoinIntroduction } from './components/CoinIntroduction';
@@ -50,6 +51,23 @@ export function TradingDetail({
     return 0;
   });
   const closeTriggeredRef = useRef(false);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const touchStartX = useRef<number | null>(null);
+  const touchStartY = useRef<number | null>(null);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [activeOrderByStock, setActiveOrderByStock] = useState<Record<string, any>>({});
+  const [quoteSummary, setQuoteSummary] = useState<TradingQuoteSummary | null>(null);
+  const [showStickyQuote, setShowStickyQuote] = useState(false);
+
+  const selectedProduct = products.find((product) => product.code === selectedStock);
+  const selectedName = selectedProduct?.nameCn || selectedProduct?.name || selectedProduct?.nameEn || selectedStock;
+  const displayQuote = quoteSummary || {
+    price: selectedProduct?.price || latestPrice || 0,
+    change: selectedProduct?.change || 0,
+    changePercent: selectedProduct?.changePercent || 0,
+    isUpTrend: (selectedProduct?.change || 0) >= 0,
+    time: latestTime || 0,
+  };
 
   // 当 initialStock 变化时更新 selectedStock
   useEffect(() => {
@@ -63,7 +81,40 @@ export function TradingDetail({
     }
   }, [initialOrderId]);
 
-  // 当进入交易页时，自动检查是否有进行中的订单
+  const resetTradeState = () => {
+    setTradeStatus('idle');
+    setCountdown(0);
+    setCurrentOrderId(null);
+    setActualProfitLoss(0);
+    closeTriggeredRef.current = false;
+    setIsSettling(false);
+    setEntryPrice(undefined);
+    setEntryTime(undefined);
+    setTargetTime(null);
+  };
+
+  const applyOpenOrderState = (orderData: any) => {
+    setGuideStep(-1);
+    setCurrentOrderId(orderData.id);
+    setTradeStatus(orderData.tradeType);
+    setInvestmentAmount(orderData.investmentAmount.toString());
+    setEntryPrice(orderData.openPrice);
+    setEntryTime(new Date(orderData.openTime).getTime() / 1000);
+
+    const expectedCloseTime = new Date(orderData.expectedCloseTime).getTime() / 1000;
+    setTargetTime(expectedCloseTime);
+
+    const now = Date.now() / 1000;
+    const remaining = Math.max(0, Math.ceil(expectedCloseTime - now));
+    setCountdown(remaining);
+
+    const durationSeconds = orderData.durationSeconds;
+    const minutes = Math.floor(durationSeconds / 60);
+    const seconds = durationSeconds % 60;
+    setSelectedTime(`${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`);
+  };
+
+  // 当进入交易页时，按品种缓存进行中的订单
   useEffect(() => {
     const checkAndRestoreActiveOrder = async () => {
       // 如果已经有 initialOrderId，说明是从持仓页点击进来的，不需要再检查
@@ -81,9 +132,15 @@ export function TradingDetail({
 
         // 如果有进行中的订单，自动恢复第一个
         if (openOrders && openOrders.length > 0) {
-          setGuideStep(-1);
-          const activeOrder = openOrders[0];
-          loadOrderAndRestoreState(activeOrder.id);
+          const orderMap = openOrders.reduce((map: Record<string, any>, order: any) => {
+            map[order.stockCode] = order;
+            return map;
+          }, {});
+          setActiveOrderByStock(orderMap);
+
+          if (orderMap[selectedStock]) {
+            applyOpenOrderState(orderMap[selectedStock]);
+          }
         }
       } catch (error) {
         console.error('检查进行中订单失败:', error);
@@ -92,6 +149,38 @@ export function TradingDetail({
 
     checkAndRestoreActiveOrder();
   }, [accountId, accountType, initialOrderId]);
+
+  useEffect(() => {
+    if (initialOrderId) {
+      return;
+    }
+
+    const activeOrder = activeOrderByStock[selectedStock];
+    if (activeOrder) {
+      applyOpenOrderState(activeOrder);
+    } else if (tradeStatus !== 'idle') {
+      resetTradeState();
+    }
+  }, [selectedStock, activeOrderByStock, initialOrderId]);
+
+  useEffect(() => {
+    setQuoteSummary(null);
+  }, [selectedStock]);
+
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) {
+      return;
+    }
+
+    const handleScroll = () => {
+      setShowStickyQuote(container.scrollTop > 105);
+    };
+
+    handleScroll();
+    container.addEventListener('scroll', handleScroll, { passive: true });
+    return () => container.removeEventListener('scroll', handleScroll);
+  }, []);
 
   useEffect(() => {
     const handleStartGuide = () => {
@@ -112,26 +201,9 @@ export function TradingDetail({
 
       // 检查订单是否还在进行中
       if (orderData.status === 'open') {
-        // 恢复交易状态
-        setCurrentOrderId(orderData.id);
-        setTradeStatus(orderData.tradeType); // 'bull' 或 'bear'
-        setInvestmentAmount(orderData.investmentAmount.toString());
-        setEntryPrice(orderData.openPrice);
-        setEntryTime(new Date(orderData.openTime).getTime() / 1000);
-
-        // 计算剩余时间
-        const expectedCloseTime = new Date(orderData.expectedCloseTime).getTime() / 1000;
-        setTargetTime(expectedCloseTime);
-
-        const now = Date.now() / 1000;
-        const remaining = Math.max(0, Math.ceil(expectedCloseTime - now));
-        setCountdown(remaining);
-
-        // 恢复选择的时间
-        const durationSeconds = orderData.durationSeconds;
-        const minutes = Math.floor(durationSeconds / 60);
-        const seconds = durationSeconds % 60;
-        setSelectedTime(`${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`);
+        setSelectedStock(orderData.stockCode);
+        setActiveOrderByStock(prev => ({ ...prev, [orderData.stockCode]: orderData }));
+        applyOpenOrderState(orderData);
       }
     } catch (error) {
       console.error('加载订单详情失败:', error);
@@ -230,7 +302,9 @@ export function TradingDetail({
       });
 
       const orderData = extractData(response);
+      const nextOrder = { ...orderData, stockCode: selectedStock, stockName: selectedStock, tradeType: 'bull' };
       setCurrentOrderId(orderData.id);
+      setActiveOrderByStock(prev => ({ ...prev, [selectedStock]: nextOrder }));
       closeTriggeredRef.current = false;
       setIsSettling(false);
       setCountdown(seconds);
@@ -308,7 +382,9 @@ export function TradingDetail({
       });
 
       const orderData = extractData(response);
+      const nextOrder = { ...orderData, stockCode: selectedStock, stockName: selectedStock, tradeType: 'bear' };
       setCurrentOrderId(orderData.id);
+      setActiveOrderByStock(prev => ({ ...prev, [selectedStock]: nextOrder }));
       closeTriggeredRef.current = false;
       setIsSettling(false);
       setCountdown(seconds);
@@ -333,15 +409,12 @@ export function TradingDetail({
   };
 
   const handleResetTrade = () => {
-    setTradeStatus('idle');
-    setCountdown(0);
-    setCurrentOrderId(null);
-    setActualProfitLoss(0);
-    closeTriggeredRef.current = false;
-    setIsSettling(false);
-    setEntryPrice(undefined);
-    setEntryTime(undefined);
-    setTargetTime(null);
+    resetTradeState();
+    setActiveOrderByStock(prev => {
+      const next = { ...prev };
+      delete next[selectedStock];
+      return next;
+    });
     fetchBalance(); // 刷新余额
   };
 
@@ -349,6 +422,11 @@ export function TradingDetail({
     setActualProfitLoss(Number(orderData?.profitLoss ?? 0));
     setTradeStatus('completed');
     setIsSettling(false);
+    setActiveOrderByStock(prev => {
+      const next = { ...prev };
+      delete next[orderData?.stockCode || selectedStock];
+      return next;
+    });
     fetchBalance();
   };
 
@@ -432,11 +510,81 @@ export function TradingDetail({
   const displayProfit = tradeStatus === 'idle' ? actualProfitLoss :
                         (tradeStatus === 'completed' ? actualProfitLoss : expectedProfit);
 
+  const changeSign = displayQuote.change >= 0 ? '+' : '';
+
+  const switchStockByOffset = (offset: number) => {
+    if (products.length === 0) {
+      return;
+    }
+
+    const currentIndex = products.findIndex(product => product.code === selectedStock);
+    if (currentIndex < 0) {
+      return;
+    }
+
+    const nextIndex = currentIndex + offset;
+    if (nextIndex >= 0 && nextIndex < products.length) {
+      setSelectedStock(products[nextIndex].code);
+    }
+  };
+
+  const handleTouchStart = (event: React.TouchEvent<HTMLDivElement>) => {
+    touchStartX.current = event.touches[0].clientX;
+    touchStartY.current = event.touches[0].clientY;
+  };
+
+  const handleTouchEnd = (event: React.TouchEvent<HTMLDivElement>) => {
+    if (touchStartX.current === null || touchStartY.current === null) {
+      return;
+    }
+
+    const dx = touchStartX.current - event.changedTouches[0].clientX;
+    const dy = touchStartY.current - event.changedTouches[0].clientY;
+
+    if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.3) {
+      switchStockByOffset(dx > 0 ? 1 : -1);
+    }
+
+    touchStartX.current = null;
+    touchStartY.current = null;
+  };
+
   return (
-    <div className="min-h-screen bg-[#09090b] pb-[280px]">
+    <div
+      ref={scrollContainerRef}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+      className="h-screen overflow-y-auto bg-[#09090b] pb-[280px]"
+    >
+      <div className={`fixed left-0 right-0 top-0 z-30 border-b border-white/5 bg-[#09090b]/94 px-4 py-3 backdrop-blur-xl transition-all duration-200 ${
+        showStickyQuote ? 'translate-y-0 opacity-100' : '-translate-y-full opacity-0 pointer-events-none'
+      }`}>
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <div className="truncate text-[15px] font-bold text-white">{selectedName}</div>
+            <div className="mt-0.5 text-[11px] text-[#8a8a93]">{selectedStock}</div>
+          </div>
+          <div className="flex shrink-0 items-end gap-3 text-right">
+            <div>
+              <div className="text-[10px] text-[#6a7282]">最新价</div>
+              <div className="font-mono text-[15px] font-bold text-white">{displayQuote.price.toFixed(2)}</div>
+            </div>
+            <div className={displayQuote.isUpTrend ? 'text-[#ef4444]' : 'text-[#10b981]'}>
+              <div className="text-[10px] opacity-70">涨跌额</div>
+              <div className="font-mono text-[13px] font-bold">{changeSign}{displayQuote.change.toFixed(2)}</div>
+            </div>
+            <div className={displayQuote.isUpTrend ? 'text-[#ef4444]' : 'text-[#10b981]'}>
+              <div className="text-[10px] opacity-70">涨跌幅</div>
+              <div className="font-mono text-[13px] font-bold">{changeSign}{displayQuote.changePercent.toFixed(2)}%</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <NavigationHeader
         selectedStock={selectedStock}
         onStockChange={setSelectedStock}
+        onProductsChange={setProducts}
       />
       <TradingChart
         countdown={countdown}
@@ -448,6 +596,7 @@ export function TradingDetail({
           setLatestPrice(price);
           setLatestTime(time);
         }}
+        onQuoteUpdate={setQuoteSummary}
         profitLoss={actualProfitLoss}
         showProfit={tradeStatus === 'completed' && !isSettling}
       />
@@ -475,6 +624,7 @@ export function TradingDetail({
         onGuideStepChange={setGuideStep}
       />
 
+      <MarketOverview stockCode={selectedStock} />
       <CoinIntroduction stockCode={selectedStock} />
       <TradingHours stockCode={selectedStock} />
 

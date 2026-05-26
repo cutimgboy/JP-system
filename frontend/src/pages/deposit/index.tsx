@@ -1,9 +1,8 @@
-import { ArrowLeft, ChevronRight, Building2, Plus } from 'lucide-react';
-import { BottomNav } from '../../components/BottomNav';
+import { ChevronLeft, ChevronRight, Landmark, PlusCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
 import { apiClient, extractData } from '../../utils/api';
-import { useAccount } from '../../contexts/AccountContext';
 import { Toast } from '../../components/Toast';
 
 interface BankCard {
@@ -16,7 +15,6 @@ interface BankCard {
 
 export function Deposit() {
   const navigate = useNavigate();
-  const { accountType } = useAccount();
   const [bankCards, setBankCards] = useState<BankCard[]>([]);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'warning' } | null>(null);
@@ -52,91 +50,86 @@ export function Deposit() {
   };
 
   const handleBankCardClick = (card: BankCard) => {
-    // 所有账户类型都可以充值
     navigate('/deposit/funds', { state: { userBankCard: card } });
   };
 
   return (
-    <div className="min-h-screen bg-[#1a1f2e] pb-16">
-      {/* Navigation Header */}
-      <div className="bg-[#141820] px-4 py-4 border-b border-gray-700/50">
-        <div className="flex items-center justify-center relative">
-          <button
-            onClick={() => navigate('/profile')}
-            className="absolute left-0 w-9 h-9 flex items-center justify-center hover:bg-gray-700/30 rounded-full transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5 text-gray-300" />
-          </button>
-          <h1 className="text-white text-base font-medium">入金</h1>
-        </div>
-      </div>
-
-      {/* Content */}
-      <div className="px-4 pt-6">
-        {/* Title */}
-        <h2 className="text-white text-lg font-medium mb-2">选择入金银行卡</h2>
-
-        {/* Description */}
-        <p className="text-gray-400 text-sm mb-6">
-          当前为您的账户银行卡：
-        </p>
-
-        {loading ? (
-          <div className="text-center text-gray-400 py-12">加载中...</div>
-        ) : bankCards.length === 0 ? (
-          <div className="text-center text-gray-400 py-12 mb-6">
-            <Building2 className="w-16 h-16 mx-auto mb-4 text-gray-600" />
-            <p>还没有添加银行卡</p>
-            <p className="text-sm mt-2">请先添加银行卡</p>
-          </div>
-        ) : (
-          /* Bank Cards List */
-          <div className="space-y-3 mb-4">
-            {bankCards.map((card) => (
-              <button
-                key={card.id}
-                onClick={() => handleBankCardClick(card)}
-                className="w-full bg-[#1f2633] rounded-xl p-4 border border-gray-700/50 hover:bg-[#252b3a] transition-colors"
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    {/* Bank Icon */}
-                    <div className="w-12 h-12 bg-[#141820] rounded-lg flex items-center justify-center">
-                      <Building2 className="w-6 h-6 text-blue-400" />
-                    </div>
-
-                    {/* Bank Info */}
-                    <div className="text-left">
-                      <div className="text-white font-medium mb-1">{card.bankName}</div>
-                      <div className="text-gray-400 text-sm">{card.accountName}</div>
-                      <div className="text-gray-400 text-sm">{maskAccountNumber(card.accountNumber)}</div>
-                    </div>
-                  </div>
-
-                  {/* Arrow */}
-                  <ChevronRight className="w-5 h-5 text-gray-400 flex-shrink-0" />
-                </div>
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* Add Bank Card Button */}
+    <div className="min-h-screen bg-[#09090b] text-white">
+      <div className="sticky top-0 z-20 flex h-[60px] items-center justify-between border-b border-white/5 bg-[#09090b]/90 px-4 backdrop-blur-md">
         <button
-          onClick={() => navigate('/my-bank')}
-          className="w-full bg-[#1f2633] rounded-xl p-4 border border-gray-700/50 hover:bg-[#252b3a] transition-colors"
+          onClick={() => navigate(-1)}
+          className="-ml-2 flex h-10 w-10 items-center justify-center rounded-full text-white transition-colors hover:bg-white/10"
         >
-          <div className="flex items-center justify-center gap-2 text-gray-300">
-            <Plus className="w-5 h-5" />
-            <span className="font-medium">添加银行卡</span>
-          </div>
+          <ChevronLeft size={24} />
         </button>
+        <h1 className="absolute left-1/2 -translate-x-1/2 text-[18px] font-medium text-white">入金</h1>
+        <div className="w-10" />
       </div>
 
-      {/* Bottom Navigation */}
-      <BottomNav />
+      <div className="px-5 pb-10 pt-8">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, ease: 'easeOut' }}
+        >
+          <h2 className="mb-2 text-[28px] font-bold tracking-tight">选择入金银行卡</h2>
+          <p className="mb-8 text-[14px] text-[#8a8a93]">当前为您账户银行卡：</p>
 
-      {/* Toast Notification */}
+          <div className="flex flex-col gap-4">
+            {loading ? (
+              <div className="rounded-[20px] border border-white/10 bg-[#14141c]/80 p-8 text-center text-[#8a8a93]">
+                加载中...
+              </div>
+            ) : bankCards.length === 0 ? (
+              <div className="rounded-[20px] border border-dashed border-white/10 bg-[#14141c]/80 px-6 py-10 text-center text-[#8a8a93]">
+                <Landmark size={48} className="mx-auto mb-4 text-white/20" />
+                <p className="text-[15px] font-medium text-white">还没有添加银行卡</p>
+                <p className="mt-2 text-[13px]">请先添加本人名下银行卡</p>
+              </div>
+            ) : (
+              bankCards.map((card, index) => (
+                <button
+                  key={card.id}
+                  type="button"
+                  onClick={() => handleBankCardClick(card)}
+                  className="group relative w-full overflow-hidden rounded-[20px] border border-white/10 bg-[#14141c]/80 p-5 text-left backdrop-blur-xl transition-all hover:bg-[#1a1a24]"
+                >
+                  <div
+                    className={`pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full blur-3xl transition-all ${
+                      index % 2 === 0 ? 'bg-[#6c48f5]/10 group-hover:bg-[#6c48f5]/20' : 'bg-[#10b981]/10 group-hover:bg-[#10b981]/20'
+                    }`}
+                  />
+                  <div className="relative z-10 flex items-center justify-between">
+                    <div className="flex min-w-0 items-start gap-4">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/10 bg-[#1a1a24]">
+                        <Landmark size={20} className={index % 2 === 0 ? 'text-white' : 'text-[#10b981]'} />
+                      </div>
+                      <div className="min-w-0">
+                        <h3 className="mb-2 truncate text-[18px] font-semibold text-white">{card.bankName}</h3>
+                        <div className="space-y-1 text-[14px] text-[#8a8a93]">
+                          <p>账户名称：{card.accountName}</p>
+                          <p className="font-mono">账户号码：{maskAccountNumber(card.accountNumber)}</p>
+                        </div>
+                      </div>
+                    </div>
+                    <ChevronRight size={20} className="shrink-0 text-[#8a8a93] transition-colors group-hover:text-white" />
+                  </div>
+                </button>
+              ))
+            )}
+
+            <button
+              type="button"
+              onClick={() => navigate('/my-bank/add')}
+              className="mt-2 flex items-center justify-center gap-2 rounded-[20px] border-[1.5px] border-dashed border-white/20 bg-transparent p-5 text-[#8a8a93] transition-all hover:border-white/40 hover:bg-white/5 hover:text-white"
+            >
+              <PlusCircle size={20} />
+              <span className="text-[16px] font-medium tracking-wide">添加银行卡</span>
+            </button>
+          </div>
+        </motion.div>
+      </div>
+
       {toast && (
         <Toast
           message={toast.message}

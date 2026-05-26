@@ -1,7 +1,7 @@
-import { ArrowLeft } from 'lucide-react';
-import { BottomNav } from '../../components/BottomNav';
+import { useMemo, useState } from 'react';
+import { ChevronLeft } from 'lucide-react';
+import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { useState } from 'react';
 import { apiClient, extractData } from '../../utils/api';
 import { Toast } from '../../components/Toast';
 
@@ -16,23 +16,26 @@ export function AddBankCard() {
     swiftCode: '',
   });
 
+  const isFormValid = useMemo(
+    () => Boolean(formData.bankName.trim() && formData.accountName.trim() && formData.accountNumber.trim()),
+    [formData.accountName, formData.accountNumber, formData.bankName],
+  );
+
   const handleSubmit = async () => {
-    // 验证表单
-    if (!formData.bankName || !formData.accountName || !formData.accountNumber) {
+    if (!isFormValid) {
       setToast({ message: '请填写完整的银行卡信息', type: 'warning' });
       return;
     }
 
     setLoading(true);
     try {
-      const response: any = await apiClient.post('/bank-card', formData);
-      console.log('添加银行卡响应:', response);
+      const response = await apiClient.post('/bank-card', formData);
       const result = extractData(response);
       if (result) {
         setToast({ message: '添加成功', type: 'success' });
         setTimeout(() => {
           navigate('/my-bank');
-        }, 1500);
+        }, 800);
       } else {
         setToast({ message: '添加失败', type: 'error' });
       }
@@ -44,106 +47,116 @@ export function AddBankCard() {
     }
   };
 
+  const updateField = (key: keyof typeof formData, value: string) => {
+    setFormData((prev) => ({ ...prev, [key]: value }));
+  };
+
   return (
-    <div className="min-h-screen bg-[#1a1f2e] pb-16">
-      {/* Toast Notification */}
-      {toast && (
-        <Toast
-          message={toast.message}
-          type={toast.type}
-          onClose={() => setToast(null)}
-        />
-      )}
+    <div className="min-h-screen bg-[#09090b] text-white">
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
-      {/* Navigation Header */}
-      <div className="bg-[#141820] px-4 py-4 border-b border-gray-700/50">
-        <div className="flex items-center justify-center relative">
-          <button
-            onClick={() => navigate(-1)}
-            className="absolute left-0 w-9 h-9 flex items-center justify-center hover:bg-gray-700/30 rounded-full transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5 text-gray-300" />
-          </button>
-          <h1 className="text-white text-base font-medium">添加银行卡</h1>
-        </div>
+      <div className="sticky top-0 z-20 flex h-[60px] items-center justify-between border-b border-white/5 bg-[#09090b]/90 px-4 backdrop-blur-md">
+        <button
+          onClick={() => navigate(-1)}
+          className="-ml-2 flex h-10 w-10 items-center justify-center rounded-full text-white transition-colors hover:bg-white/10"
+        >
+          <ChevronLeft size={24} />
+        </button>
+        <h1 className="absolute left-1/2 -translate-x-1/2 text-[18px] font-medium text-white">添加银行卡</h1>
+        <div className="w-10" />
       </div>
 
-      {/* Content */}
-      <div className="px-4 pt-6 pb-32">
-        <div className="space-y-4">
-          {/* Bank Name */}
-          <div>
-            <label className="block text-sm text-gray-300 mb-2">银行名称 *</label>
-            <input
-              type="text"
+      <div className="px-5 pb-[120px] pt-8">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4 }}
+        >
+          <h2 className="mb-2 text-[24px] font-bold tracking-tight">填写您的银行账户信息</h2>
+          <p className="mb-8 text-[13px] text-[#8a8a93]">请您使用本人名下的银行账户</p>
+
+          <div className="space-y-6">
+            <BankInput
+              label="银行名称"
               value={formData.bankName}
-              onChange={(e) => setFormData({ ...formData, bankName: e.target.value })}
               placeholder="请输入银行名称"
-              className="w-full bg-[#1f2633] text-white px-4 py-3 rounded-lg border border-gray-700/50 focus:border-blue-500 outline-none"
+              onChange={(value) => updateField('bankName', value)}
             />
-          </div>
-
-          {/* Account Name */}
-          <div>
-            <label className="block text-sm text-gray-300 mb-2">账户名称 *</label>
-            <input
-              type="text"
+            <BankInput
+              label="银行账户姓名"
               value={formData.accountName}
-              onChange={(e) => setFormData({ ...formData, accountName: e.target.value })}
-              placeholder="请输入账户名称"
-              className="w-full bg-[#1f2633] text-white px-4 py-3 rounded-lg border border-gray-700/50 focus:border-blue-500 outline-none"
+              placeholder="请输入账户姓名"
+              onChange={(value) => updateField('accountName', value)}
             />
-          </div>
-
-          {/* Account Number */}
-          <div>
-            <label className="block text-sm text-gray-300 mb-2">账户号码 *</label>
-            <input
-              type="text"
+            <BankInput
+              label="银行账户号码"
               value={formData.accountNumber}
-              onChange={(e) => setFormData({ ...formData, accountNumber: e.target.value })}
-              placeholder="请输入账户号码"
-              className="w-full bg-[#1f2633] text-white px-4 py-3 rounded-lg border border-gray-700/50 focus:border-blue-500 outline-none"
+              placeholder="请输入银行账户号码"
+              mono
+              onChange={(value) => updateField('accountNumber', value)}
             />
-          </div>
-
-          {/* SWIFT Code */}
-          <div>
-            <label className="block text-sm text-gray-300 mb-2">SWIFT代码（选填）</label>
-            <input
-              type="text"
+            <BankInput
+              label="SWIFT代码（选填）"
               value={formData.swiftCode}
-              onChange={(e) => setFormData({ ...formData, swiftCode: e.target.value })}
               placeholder="请输入SWIFT代码"
-              className="w-full bg-[#1f2633] text-white px-4 py-3 rounded-lg border border-gray-700/50 focus:border-blue-500 outline-none"
+              mono
+              onChange={(value) => updateField('swiftCode', value)}
             />
           </div>
-        </div>
 
-        {/* Tips */}
-        <div className="mt-6 bg-[#1f2633] rounded-lg p-4 border border-gray-700/50">
-          <h3 className="text-white text-sm font-medium mb-3">温馨提示</h3>
-          <div className="space-y-2 text-xs text-gray-400 leading-relaxed">
-            <p>1. 请确保银行卡信息准确无误，错误的信息可能导致转账失败</p>
-            <p>2. 账户名称需与您的实名认证信息一致</p>
-            <p>3. 如需国际转账，请填写SWIFT代码</p>
+          <div className="mt-8 rounded-2xl border border-[#6c48f5]/20 bg-[#6c48f5]/10 p-4">
+            <h3 className="mb-1.5 flex items-center gap-1.5 text-[13px] font-medium text-[#8c6bff]">
+              <span className="h-1.5 w-1.5 rounded-full bg-[#6c48f5]" />
+              温馨提示：
+            </h3>
+            <p className="text-[12px] leading-relaxed text-[#8a8a93]">
+              为了您的资金安全，请确保银行卡信息与实名认证信息保持一致，以避免入金失败，以及影响到到账速度
+            </p>
           </div>
-        </div>
+        </motion.div>
       </div>
 
-      {/* Submit Button - Fixed at bottom */}
-      <div className="fixed bottom-20 left-0 right-0 px-4">
+      <div className="fixed bottom-0 left-0 right-0 bg-gradient-to-t from-[#09090b] via-[#09090b]/95 to-transparent p-5 pt-10">
         <button
           onClick={handleSubmit}
-          disabled={loading || !formData.bankName || !formData.accountName || !formData.accountNumber}
-          className="w-full py-3.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-700 disabled:text-gray-500 disabled:cursor-not-allowed transition-colors font-medium"
+          disabled={loading || !isFormValid}
+          className={`h-[52px] w-full rounded-[16px] border text-[16px] font-medium transition-all ${
+            isFormValid
+              ? 'border-[#6c48f5]/50 bg-[#6c48f5] text-white shadow-[0_4px_16px_rgba(108,72,245,0.3)] hover:bg-[#5a3bd9]'
+              : 'cursor-not-allowed border-white/10 bg-[#1a1a24] text-white/30'
+          }`}
         >
           {loading ? '提交中...' : '确认添加'}
         </button>
       </div>
+    </div>
+  );
+}
 
-      {/* Bottom Navigation */}
-      <BottomNav />
+function BankInput({
+  label,
+  value,
+  placeholder,
+  mono = false,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  placeholder: string;
+  mono?: boolean;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div>
+      <label className="mb-3 block text-[14px] font-medium text-white/90">{label}</label>
+      <input
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+        className={`h-[56px] w-full rounded-[16px] border border-white/10 bg-[#14141c] px-4 text-white shadow-sm outline-none transition-colors placeholder:text-[#8a8a93] focus:border-[#6c48f5]/50 ${
+          mono ? 'font-mono' : ''
+        }`}
+      />
     </div>
   );
 }

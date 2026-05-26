@@ -35,6 +35,7 @@ interface HistoryRecord {
   closePrice: number;
   profitLoss: number;
   result: 'win' | 'loss' | 'draw';
+  openTime?: string;
   closeTime: string;
 }
 
@@ -234,26 +235,57 @@ export default function PositionsPage() {
     ...historyRecords.map(h => ({ ...h, type: 'history' as const }))
   ];
 
+  const isToday = (dateString?: string) => {
+    if (!dateString) return false;
+
+    const date = new Date(dateString);
+    if (Number.isNaN(date.getTime())) return false;
+
+    const today = new Date();
+    return date.getFullYear() === today.getFullYear()
+      && date.getMonth() === today.getMonth()
+      && date.getDate() === today.getDate();
+  };
+
+  const isTodayOrder = (order: (Position & { type: 'trading' }) | (HistoryRecord & { type: 'history' })) => {
+    if (order.type === 'trading') {
+      return isToday(order.openTime);
+    }
+
+    return isToday(order.closeTime) || isToday(order.openTime);
+  };
+
+  const isDrawOrder = (order: HistoryRecord) => {
+    const openPrice = Number(order.openPrice);
+    const closePrice = Number(order.closePrice);
+
+    return Number.isFinite(openPrice)
+      && Number.isFinite(closePrice)
+      && openPrice === closePrice;
+  };
+
+  const isProfitOrder = (order: HistoryRecord) => {
+    return Number(order.profitLoss) > 0 || isDrawOrder(order);
+  };
+
   // 过滤订单
   const filteredOrders = allOrders.filter(order => {
     if (activeTab === '全部') return true;
     if (activeTab === '交易中') return order.type === 'trading';
-    if (activeTab === '盈利') return order.type === 'history' && (order as HistoryRecord).profitLoss > 0;
+    if (activeTab === '盈利') return order.type === 'history' && isProfitOrder(order as HistoryRecord);
     if (activeTab === '亏损') return order.type === 'history' && (order as HistoryRecord).profitLoss < 0;
-    if (activeTab === '今日') return true; // 可以根据日期过滤
+    if (activeTab === '今日') return isTodayOrder(order);
     return true;
   });
 
   return (
-    <div className="min-h-screen bg-[#09090b] pb-28 relative">
-      {/* Scrollable Content */}
-      <div className="flex-1 overflow-y-auto" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-        <style>{`
-          .hide-scroll::-webkit-scrollbar { display: none; }
-        `}</style>
+    <div className="relative flex h-screen min-h-screen flex-col overflow-hidden bg-[#09090b]">
+      <style>{`
+        .hide-scroll::-webkit-scrollbar { display: none; }
+      `}</style>
 
-        {/* Top Account Module */}
-        <div className="bg-[#14141c] rounded-b-[32px] p-5 pt-[64px] shadow-[0_10px_30px_rgba(0,0,0,0.5)] relative z-20 border-b border-white/5">
+      {/* Top Account Module */}
+      <div className="relative z-20 flex-shrink-0 rounded-b-[32px] border-b border-white/5 bg-[#14141c] p-5 pt-6 shadow-[0_10px_30px_rgba(0,0,0,0.5)]">
           <div className="flex justify-between items-center mb-6" ref={dropdownRef}>
             <div
               className="flex items-center gap-2 cursor-pointer"
@@ -357,27 +389,30 @@ export default function PositionsPage() {
           </div>
         </div>
 
-        {/* Filter Tabs */}
-        <div className="pt-4 pb-2 px-6 sticky top-0 bg-[#09090b]/90 backdrop-blur-md z-10">
-          <div className="flex gap-2.5 overflow-x-auto hide-scroll">
-            {tabs.map(tab => (
-              <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                className={`px-4 py-1.5 rounded-[20px] text-[13px] whitespace-nowrap transition-all duration-300 font-medium shrink-0 ${
-                  activeTab === tab
-                    ? 'bg-[#6c48f5] text-white shadow-[0_4px_10px_rgba(108,72,245,0.3)]'
-                    : 'bg-[#1a1a24] text-[#8a8a93] hover:text-white hover:bg-[#2a2a36]'
-                }`}
-              >
-                {tab}
-              </button>
-            ))}
-          </div>
+      {/* Filter Tabs */}
+      <div className="z-10 flex-shrink-0 bg-[#09090b] px-6 pb-2 pt-4">
+        <div className="hide-scroll flex gap-2.5 overflow-x-auto">
+          {tabs.map(tab => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`px-4 py-1.5 rounded-[20px] text-[13px] whitespace-nowrap transition-all duration-300 font-medium shrink-0 ${
+                activeTab === tab
+                  ? 'bg-[#6c48f5] text-white shadow-[0_4px_10px_rgba(108,72,245,0.3)]'
+                  : 'bg-[#1a1a24] text-[#8a8a93] hover:text-white hover:bg-[#2a2a36]'
+              }`}
+            >
+              {tab}
+            </button>
+          ))}
         </div>
+      </div>
 
-        {/* Orders List */}
-        <div className="px-6 py-2 flex flex-col gap-3 pb-4">
+      {/* Orders List */}
+      <div
+        className="hide-scroll flex flex-1 flex-col gap-3 overflow-y-auto px-6 py-2 pb-[132px]"
+        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+      >
           <AnimatePresence mode="popLayout">
             {loading ? (
               <div className="text-center py-12 text-[#8a8a93]">加载中...</div>
@@ -481,7 +516,6 @@ export default function PositionsPage() {
               })
             )}
           </AnimatePresence>
-        </div>
       </div>
 
       <BottomNav />

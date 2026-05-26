@@ -108,6 +108,16 @@ export class UserService {
     return await this.findById(id);
   }
 
+  async isPhoneTaken(phone: string, excludeUserId?: number): Promise<boolean> {
+    const existingUser = await this.findByPhone(phone);
+    return Boolean(existingUser && existingUser.id !== excludeUserId);
+  }
+
+  async isEmailTaken(email: string, excludeUserId?: number): Promise<boolean> {
+    const existingUser = await this.findByEmail(email);
+    return Boolean(existingUser && existingUser.id !== excludeUserId);
+  }
+
   /**
    * 设置登录密码
    */

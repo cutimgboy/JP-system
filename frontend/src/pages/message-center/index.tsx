@@ -1,16 +1,15 @@
-import { useState, useEffect } from 'react';
-import { ArrowLeft, ChevronRight } from 'lucide-react';
-import { BottomNav } from '../../components/BottomNav';
+import { useEffect, useMemo, useState } from 'react';
+import { Bell, CheckCircle2, ChevronLeft, ChevronRight, CircleAlert, Gift, Megaphone } from 'lucide-react';
+import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { apiClient, extractData } from '../../utils/api';
 
 interface Message {
   id: number;
-  time?: string;
-  icon: string;
+  icon?: string;
   title: string;
   content: string;
-  actionText: string;
+  actionText?: string;
   type: 'success' | 'warning' | 'info' | 'celebration';
   createdAt?: string;
 }
@@ -21,96 +20,166 @@ export function MessageCenter() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchMessages();
+    void fetchMessages();
   }, []);
 
   const fetchMessages = async () => {
     try {
       setLoading(true);
       const response = await apiClient.get('/api/messages');
-      let data = extractData(response) || [];
-      if (!Array.isArray(data)) {
-        console.warn('消息列表不是数组,使用空数组');
-        data = [];
-      }
-      setMessages(data);
+      const data = extractData<Message[]>(response) || [];
+      setMessages(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('获取消息失败:', error);
+      setMessages([]);
     } finally {
       setLoading(false);
     }
   };
 
+  const unreadCount = useMemo(() => messages.length, [messages.length]);
+
   const formatTime = (dateStr?: string) => {
     if (!dateStr) return '';
     const date = new Date(dateStr);
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    const hours = String(date.getHours()).padStart(2, '0');
-    const minutes = String(date.getMinutes()).padStart(2, '0');
-    const seconds = String(date.getSeconds()).padStart(2, '0');
-    return `${month}-${day} ${hours}:${minutes}:${seconds}`;
+    return date.toLocaleString('zh-CN', {
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    });
   };
 
   return (
-    <div className="min-h-screen bg-[#1a1f2e] pb-16">
-      {/* Navigation Header */}
-      <div className="bg-[#141820] px-4 py-4 border-b border-gray-700/50">
-        <div className="flex items-center justify-center relative">
-          <button
-            onClick={() => navigate('/profile')}
-            className="absolute left-0 w-9 h-9 flex items-center justify-center hover:bg-gray-700/30 rounded-full transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5 text-gray-300" />
-          </button>
-          <h1 className="text-white text-base font-medium">消息中心</h1>
-        </div>
+    <div className="min-h-screen bg-[#09090b] text-white">
+      <div className="sticky top-0 z-20 flex h-[60px] items-center justify-between border-b border-white/5 bg-[#09090b]/90 px-4 backdrop-blur-md">
+        <button
+          onClick={() => navigate('/profile')}
+          className="-ml-2 flex h-10 w-10 items-center justify-center rounded-full transition-colors hover:bg-white/10"
+        >
+          <ChevronLeft size={24} />
+        </button>
+        <h1 className="absolute left-1/2 -translate-x-1/2 text-[18px] font-medium">消息中心</h1>
+        <div className="w-10" />
       </div>
 
-      {/* Messages List */}
-      <div className="px-4 pt-4 pb-24 space-y-3">
-        {loading ? (
-          <div className="text-center text-gray-400 py-8">加载中...</div>
-        ) : messages.length === 0 ? (
-          <div className="text-center text-gray-400 py-8">暂无消息</div>
-        ) : (
-          messages.map((message) => (
-            <div
-              key={message.id}
-              className="bg-[#1f2633] rounded-xl border border-gray-700/50 p-4 hover:border-gray-600/50 transition-colors"
-            >
-              {/* Time */}
-              <div className="text-xs text-gray-400 mb-3">
-                {formatTime(message.createdAt)}
-              </div>
-
-              {/* Icon and Title */}
-              <div className="flex items-start gap-2 mb-2">
-                <span className="text-xl leading-none">{message.icon}</span>
-                <h3 className="text-white font-medium flex-1">
-                  {message.title}
-                </h3>
-              </div>
-
-              {/* Content */}
-              <p className="text-gray-300 text-sm leading-relaxed mb-4">
-                {message.content}
-              </p>
-
-              {/* Action Button */}
-              <button className="flex items-center justify-between w-full text-left group">
-                <span className="text-sm text-yellow-500 group-hover:text-yellow-400 transition-colors">
-                  👉 {message.actionText}
-                </span>
-                <ChevronRight className="w-4 h-4 text-gray-500 group-hover:text-gray-400 transition-colors" />
-              </button>
+      <div className="px-5 pb-10 pt-6">
+        <div className="mb-6 rounded-[24px] border border-white/10 bg-[#14141c] p-5 shadow-[0_16px_40px_rgba(0,0,0,0.24)]">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-[13px] text-[#8a8a93]">账户通知</p>
+              <h2 className="mt-1 text-[24px] font-bold tracking-tight">您有 {unreadCount} 条消息</h2>
             </div>
-          ))
+            <div className="relative flex h-12 w-12 items-center justify-center rounded-full bg-[#6c48f5]/15 text-[#a58dff]">
+              <Bell size={22} />
+              {unreadCount > 0 ? <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-[#ef4444]" /> : null}
+            </div>
+          </div>
+        </div>
+
+        {loading ? (
+          <div className="rounded-[20px] border border-white/10 bg-[#14141c] py-12 text-center text-[#8a8a93]">加载中...</div>
+        ) : messages.length === 0 ? (
+          <div className="flex flex-col items-center justify-center rounded-[20px] border border-dashed border-white/10 bg-[#14141c] px-6 py-14 text-center">
+            <Bell size={44} className="mb-4 text-white/20" />
+            <p className="text-[15px] font-medium text-white">暂无消息</p>
+            <p className="mt-2 text-[13px] text-[#8a8a93]">新的账户通知会展示在这里</p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {messages.map((message, index) => {
+              const Icon = typeIcon(message.type);
+              const tone = typeTone(message.type);
+
+              return (
+                <motion.div
+                  key={message.id}
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.28, delay: Math.min(index * 0.03, 0.18) }}
+                  className="relative overflow-hidden rounded-[20px] border border-white/10 bg-[#14141c]/90 p-5 shadow-sm"
+                >
+                  <div className={`pointer-events-none absolute -right-10 -top-10 h-28 w-28 rounded-full ${tone.glow} blur-3xl`} />
+                  <div className="relative z-10">
+                    <div className="mb-4 flex items-center justify-between gap-3">
+                      <div className="flex min-w-0 items-center gap-3">
+                        <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${tone.bg} ${tone.text}`}>
+                          {message.icon && message.icon.length <= 2 ? <span className="text-[20px]">{message.icon}</span> : <Icon size={20} />}
+                        </div>
+                        <div className="min-w-0">
+                          <h3 className="truncate text-[16px] font-semibold text-white">{message.title}</h3>
+                          <p className="mt-0.5 text-[12px] text-[#8a8a93]">{formatTime(message.createdAt)}</p>
+                        </div>
+                      </div>
+                      <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] ${tone.badge}`}>{typeLabel(message.type)}</span>
+                    </div>
+
+                    <p className="mb-5 text-[14px] leading-6 text-white/72">{message.content}</p>
+
+                    {message.actionText ? (
+                      <button className="flex h-10 w-full items-center justify-between rounded-[14px] border border-white/10 bg-white/[0.03] px-3 text-left transition-colors hover:bg-white/[0.06]">
+                        <span className="text-[13px] font-medium text-[#a58dff]">{message.actionText}</span>
+                        <ChevronRight size={16} className="text-[#8a8a93]" />
+                      </button>
+                    ) : null}
+                  </div>
+                </motion.div>
+              );
+            })}
+          </div>
         )}
       </div>
-
-      {/* Bottom Navigation */}
-      <BottomNav />
     </div>
   );
+}
+
+function typeIcon(type: Message['type']) {
+  if (type === 'success') return CheckCircle2;
+  if (type === 'warning') return CircleAlert;
+  if (type === 'celebration') return Gift;
+  return Megaphone;
+}
+
+function typeLabel(type: Message['type']) {
+  if (type === 'success') return '成功';
+  if (type === 'warning') return '提醒';
+  if (type === 'celebration') return '活动';
+  return '通知';
+}
+
+function typeTone(type: Message['type']) {
+  if (type === 'success') {
+    return {
+      bg: 'bg-[#10b981]/10',
+      text: 'text-[#10b981]',
+      glow: 'bg-[#10b981]/10',
+      badge: 'border-[#10b981]/20 bg-[#10b981]/10 text-[#10b981]',
+    };
+  }
+
+  if (type === 'warning') {
+    return {
+      bg: 'bg-[#f59e0b]/10',
+      text: 'text-[#f59e0b]',
+      glow: 'bg-[#f59e0b]/10',
+      badge: 'border-[#f59e0b]/20 bg-[#f59e0b]/10 text-[#fbbf24]',
+    };
+  }
+
+  if (type === 'celebration') {
+    return {
+      bg: 'bg-[#6c48f5]/15',
+      text: 'text-[#a58dff]',
+      glow: 'bg-[#6c48f5]/15',
+      badge: 'border-[#6c48f5]/30 bg-[#6c48f5]/10 text-[#a58dff]',
+    };
+  }
+
+  return {
+    bg: 'bg-[#3b82f6]/10',
+    text: 'text-[#60a5fa]',
+    glow: 'bg-[#3b82f6]/10',
+    badge: 'border-[#3b82f6]/20 bg-[#3b82f6]/10 text-[#93c5fd]',
+  };
 }

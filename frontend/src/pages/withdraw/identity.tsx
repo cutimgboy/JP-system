@@ -2,6 +2,8 @@ import { useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Camera, Check, CheckCircle2, ChevronLeft, FileText, User } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
+import { apiClient } from '../../utils/api';
+import { Toast } from '../../components/Toast';
 
 type UploadType = 'idFront' | 'idBack' | 'selfie';
 
@@ -11,14 +13,16 @@ export function WithdrawIdentity() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [currentUploadType, setCurrentUploadType] = useState<UploadType | null>(null);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'warning' } | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     idNumber: '',
   });
-  const [images, setImages] = useState<Record<UploadType, boolean>>({
-    idFront: false,
-    idBack: false,
-    selfie: false,
+  const [images, setImages] = useState<Record<UploadType, string | null>>({
+    idFront: null,
+    idBack: null,
+    selfie: null,
   });
 
   const bank = location.state?.bank;
@@ -31,7 +35,16 @@ export function WithdrawIdentity() {
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files?.[0] && currentUploadType) {
-      setImages((prev) => ({ ...prev, [currentUploadType]: true }));
+      const file = event.target.files[0];
+      const targetType = currentUploadType;
+      const reader = new FileReader();
+      reader.onload = () => {
+        setImages((prev) => ({ ...prev, [targetType]: String(reader.result || '') }));
+      };
+      reader.onerror = () => {
+        setToast({ message: '图片读取失败，请重新上传', type: 'error' });
+      };
+      reader.readAsDataURL(file);
       event.target.value = '';
     }
   };
@@ -43,9 +56,26 @@ export function WithdrawIdentity() {
     images.idBack &&
     images.selfie;
 
-  const handleSubmit = () => {
-    if (isFormValid) {
+  const handleSubmit = async () => {
+    if (!isFormValid) {
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      await apiClient.post('/user/identity', {
+        name: formData.name,
+        idNumber: formData.idNumber,
+        idFrontImage: images.idFront,
+        idBackImage: images.idBack,
+        selfieImage: images.selfie,
+      });
       setShowSuccessModal(true);
+    } catch (error) {
+      console.error('提交身份信息失败:', error);
+      setToast({ message: '提交失败，请重试', type: 'error' });
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -69,9 +99,14 @@ export function WithdrawIdentity() {
     >
       {images[type] ? (
         <>
-          <div className="absolute inset-0 bg-gradient-to-br from-[#6c48f5]/20 to-transparent" />
-          <CheckCircle2 size={32} className="relative z-10 mb-2 text-[#6c48f5]" />
-          <span className="relative z-10 text-[13px] font-medium text-[#6c48f5]">上传成功</span>
+          <img src={images[type] || ''} alt={label} className="absolute inset-0 h-full w-full object-cover" />
+          <div className="absolute inset-0 bg-black/20" />
+          <div className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-[#6c48f5] shadow-lg">
+            <CheckCircle2 size={16} className="text-white" />
+          </div>
+          <span className="absolute bottom-2 rounded-full bg-black/60 px-2 py-1 text-[12px] font-medium text-white">
+            重新上传
+          </span>
         </>
       ) : (
         <>
@@ -89,6 +124,8 @@ export function WithdrawIdentity() {
 
   return (
     <div className="min-h-screen bg-[#09090b] text-white">
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+
       <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
 
       <div className="sticky top-0 z-20 flex h-[60px] items-center justify-between border-b border-white/5 bg-[#09090b]/90 px-4 backdrop-blur-md">
@@ -103,12 +140,12 @@ export function WithdrawIdentity() {
       </div>
 
       <div className="px-5 pb-32 pt-6">
-        <div className="mb-6 rounded-[18px] border border-[#6c48f5]/10 bg-[#6c48f5]/5 p-4">
-          <p className="text-[13px] leading-relaxed text-[#8a8a93]">
-            提取资金申请将进入人工审核。当前后端尚未接入正式提现申请接口，本流程会先完成信息采集和审核中状态。
+        <div className="mb-6">
+          <p className="text-[14px] leading-relaxed text-[#8a8a93]">
+            为了保障您的资金安全并符合监管要求，首次大额出金需完成身份信息补充。信息仅用于身份核实。
           </p>
           {bank && amount ? (
-            <p className="mt-3 text-[12px] text-white/60">
+            <p className="mt-3 rounded-[16px] border border-[#6c48f5]/10 bg-[#6c48f5]/5 p-3 text-[12px] text-white/60">
               {bank.bankName} 尾号 {String(bank.accountNumber || '').slice(-4)}，金额 {Number(amount).toLocaleString()} VND
             </p>
           ) : null}
@@ -149,14 +186,14 @@ export function WithdrawIdentity() {
       <div className="fixed bottom-0 left-0 right-0 bg-gradient-to-t from-[#09090b] via-[#09090b]/95 to-transparent p-5 pt-10">
         <button
           onClick={handleSubmit}
-          disabled={!isFormValid}
+          disabled={!isFormValid || submitting}
           className={`flex h-[52px] w-full items-center justify-center rounded-[16px] text-[16px] font-medium transition-all ${
             isFormValid
               ? 'bg-[#6c48f5] text-white shadow-[0_4px_16px_rgba(108,72,245,0.3)] hover:bg-[#5a3be0]'
               : 'cursor-not-allowed bg-[#1a1a24] text-white/30'
           }`}
         >
-          提交审核
+          {submitting ? '提交中...' : '提交审核'}
         </button>
       </div>
 

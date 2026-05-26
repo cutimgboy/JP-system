@@ -104,10 +104,10 @@ export default function CommunityPage() {
   return (
     <div className="min-h-screen bg-[#09090b] pb-28">
       {/* Header - Fixed */}
-      <PageHeader />
+      <PageHeader className="pt-6 pb-4" />
 
       {/* Content with top padding to account for fixed header */}
-      <div className="pt-[120px]">
+      <div className="pt-[92px]">
         {/* Header Section */}
         <div className="px-6 pb-4">
           <h1 className="text-[32px] font-bold tracking-tight mb-2 text-white">24小时交易</h1>
@@ -192,12 +192,12 @@ export default function CommunityPage() {
             {rest.length > 0 && (
               <div className="px-4">
                 {/* Table Header */}
-                <div className="flex items-center bg-[#1a1a24] rounded-t-[16px] px-4 py-3 text-[12px] text-[#8a8a93] font-medium border-b border-white/5">
-                  <div className="w-[40px]">#</div>
-                  <div className="flex-1">用户</div>
-                  <div className="w-[60px] text-center">笔数</div>
-                  <div className="w-[70px] text-center">胜率</div>
-                  <div className="w-[90px] text-right">盈利</div>
+                <div className="flex items-center bg-[#1a1a24] rounded-t-[16px] px-3 py-3 text-[12px] text-[#8a8a93] font-medium border-b border-white/5">
+                  <div className="w-7 shrink-0">#</div>
+                  <div className="min-w-0 flex-1">用户</div>
+                  <div className="w-10 shrink-0 text-center">笔数</div>
+                  <div className="w-12 shrink-0 text-center">胜率</div>
+                  <div className="ml-1 w-[112px] shrink-0 text-right">盈利</div>
                 </div>
 
                 {/* Table Body */}
@@ -208,13 +208,18 @@ export default function CommunityPage() {
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: 0.3 + idx * 0.05 }}
                       key={item.rank}
-                      className="flex items-center px-4 py-4 border-b border-white/5 last:border-none hover:bg-white/5 transition-colors"
+                      className="flex items-center px-3 py-4 border-b border-white/5 last:border-none hover:bg-white/5 transition-colors"
                     >
-                      <div className="w-[40px] font-bold text-[#8a8a93]">{item.rank}</div>
-                      <div className="flex-1 font-semibold text-[14px] text-white">{item.username}</div>
-                      <div className="w-[60px] text-center text-[13px] text-[#8a8a93]">{item.trades}</div>
-                      <div className="w-[70px] text-center text-[13px] text-[#8a8a93]">{Number(item.winRate).toFixed(2)}%</div>
-                      <div className="w-[90px] text-right font-bold text-[13px] text-[#10b981]">+₫{formatNumber(item.profit)}</div>
+                      <div className="w-7 shrink-0 font-bold text-[#8a8a93]">{item.rank}</div>
+                      <div className="min-w-0 flex-1 truncate font-semibold text-[14px] text-white">{item.username}</div>
+                      <div className="w-10 shrink-0 text-center text-[13px] text-[#8a8a93]">{item.trades}</div>
+                      <div className="w-12 shrink-0 text-center text-[13px] text-[#8a8a93]">{Number(item.winRate).toFixed(2)}%</div>
+                      <div
+                        className="ml-1 w-[112px] shrink-0 truncate text-right text-[13px] font-bold text-[#10b981]"
+                        title={`+₫${formatNumber(item.profit)}`}
+                      >
+                        +₫{formatNumber(item.profit)}
+                      </div>
                     </motion.div>
                   ))}
                 </div>

@@ -15,8 +15,6 @@ import {
   Info,
   TrendingUp,
   CircleDollarSign,
-  Gift,
-  Headphones
 } from 'lucide-react';
 import { BottomNav } from '../../components/BottomNav';
 import { PageHeader } from '../../components/PageHeader';
@@ -88,10 +86,18 @@ export default function ProfilePage() {
   const { isReversed, setIsReversed } = useTradeColors();
   const [currentSlide, setCurrentSlide] = useState(0);
 
+  const showPreviousSlide = () => {
+    setCurrentSlide((prev) => (prev - 1 + highlights.length) % highlights.length);
+  };
+
+  const showNextSlide = () => {
+    setCurrentSlide((prev) => (prev + 1) % highlights.length);
+  };
+
   // Auto-play carousel
   useEffect(() => {
     const timer = setInterval(() => {
-      setCurrentSlide((prev) => (prev + 1) % highlights.length);
+      showNextSlide();
     }, 4000);
     return () => clearInterval(timer);
   }, []);
@@ -99,10 +105,10 @@ export default function ProfilePage() {
   return (
     <div className="min-h-screen bg-[#09090b] pb-28">
       {/* Header - Fixed */}
-      <PageHeader />
+      <PageHeader className="pt-6 pb-4" />
 
       {/* Content with top padding to account for fixed header */}
-      <div className="pt-[120px]">
+      <div className="pt-[92px]">
         <div className="px-4 flex flex-col gap-4 mt-2">
 
           {/* Module 1: Highlights Carousel */}
@@ -125,6 +131,16 @@ export default function ProfilePage() {
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: -10 }}
                   transition={{ duration: 0.3 }}
+                  drag="x"
+                  dragConstraints={{ left: 0, right: 0 }}
+                  dragElastic={0.18}
+                  onDragEnd={(_, info) => {
+                    if (info.offset.x > 45) {
+                      showPreviousSlide();
+                    } else if (info.offset.x < -45) {
+                      showNextSlide();
+                    }
+                  }}
                   className="absolute inset-0 flex gap-5 items-center group"
                 >
                   {(() => {
@@ -144,8 +160,11 @@ export default function ProfilePage() {
             {/* Pagination Dots */}
             <div className="flex justify-center gap-2 mt-2.5">
               {highlights.map((_, idx) => (
-                <div
+                <button
                   key={idx}
+                  type="button"
+                  aria-label={`切换到第 ${idx + 1} 个尊享特权`}
+                  onClick={() => setCurrentSlide(idx)}
                   className={`h-1.5 rounded-full transition-all duration-300 ${
                     idx === currentSlide ? 'w-5 bg-white shadow-[0_0_8px_rgba(255,255,255,0.4)]' : 'w-1.5 bg-white/20'
                   }`}
@@ -192,7 +211,7 @@ export default function ProfilePage() {
             {[
               { icon: User, label: '个人资料', path: '/personal-info' },
               { icon: Bell, label: '消息中心', hasRedDot: true, path: '/message-center' },
-              { icon: Smartphone, label: 'APP (IOS&Android)', path: '/install-app' },
+              { icon: Smartphone, label: '安装APP', path: '/install-app' },
               { icon: Lock, label: '修改密码', path: '/change-password' },
               { icon: Globe, label: '切换语言', path: '/change-language' },
             ].map((item, idx) => (

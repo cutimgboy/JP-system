@@ -4,18 +4,24 @@ import api, { extractData } from '../../../utils/api';
 interface NavigationHeaderProps {
   selectedStock: string;
   onStockChange: (stockCode: string) => void;
+  onProductsChange?: (products: Product[]) => void;
 }
 
-interface Product {
+export interface Product {
   code: string;
   tradeCode: string;
   nameCn: string;
+  name?: string;
+  nameEn?: string;
   type: string;
   descriptionCn?: string;
   descriptionVn?: string;
+  price?: number;
+  change?: number;
+  changePercent?: number;
 }
 
-export function NavigationHeader({ selectedStock, onStockChange }: NavigationHeaderProps) {
+export function NavigationHeader({ selectedStock, onStockChange, onProductsChange }: NavigationHeaderProps) {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -48,6 +54,7 @@ export function NavigationHeader({ selectedStock, onStockChange }: NavigationHea
 
         console.log('获取到的产品数量:', quotesData.length);
         setProducts(quotesData);
+        onProductsChange?.(quotesData);
 
         // 如果当前选中的股票是默认值且产品列表不为空，自动选择第一个产品
         if (quotesData.length > 0 && (selectedStock === 'AAPL.US' || !quotesData.find((p: Product) => p.code === selectedStock))) {
@@ -56,6 +63,7 @@ export function NavigationHeader({ selectedStock, onStockChange }: NavigationHea
       } catch (error) {
         console.error('获取产品列表失败:', error);
         setProducts([]);
+        onProductsChange?.([]);
       } finally {
         setLoading(false);
       }
@@ -114,7 +122,7 @@ export function NavigationHeader({ selectedStock, onStockChange }: NavigationHea
   };
 
   return (
-    <div className="bg-[#09090b] pt-[48px] px-4">
+    <div className="bg-[#09090b] pt-6 px-4">
       {/* 产品列表 */}
       <div className="flex items-center justify-between gap-4">
         <button

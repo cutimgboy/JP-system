@@ -1,7 +1,7 @@
-import { ArrowLeft, Building2 } from 'lucide-react';
-import { BottomNav } from '../../components/BottomNav';
+import { ChevronLeft, Landmark } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
 import { apiClient, extractData } from '../../utils/api';
 
 interface BankCard {
@@ -77,20 +77,20 @@ export function DepositFunds() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#1a1f2e] flex items-center justify-center">
-        <div className="text-gray-400">加载中...</div>
+      <div className="flex min-h-screen items-center justify-center bg-[#09090b]">
+        <div className="text-[#8a8a93]">加载中...</div>
       </div>
     );
   }
 
   if (!systemBankCard) {
     return (
-      <div className="min-h-screen bg-[#1a1f2e] flex items-center justify-center px-4">
+      <div className="flex min-h-screen items-center justify-center bg-[#09090b] px-5 text-white">
         <div className="text-center">
-          <div className="text-gray-400 mb-4">暂无可用的收款银行卡</div>
+          <div className="mb-4 text-[#8a8a93]">暂无可用的收款银行卡</div>
           <button
             onClick={() => navigate(-1)}
-            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            className="rounded-[16px] border border-white/10 bg-[#2a2a36] px-6 py-3 text-white transition-colors hover:bg-[#3a3a46]"
           >
             返回
           </button>
@@ -100,117 +100,115 @@ export function DepositFunds() {
   }
 
   return (
-    <div className="min-h-screen bg-[#1a1f2e] pb-16">
-      {/* Navigation Header */}
-      <div className="bg-[#141820] px-4 py-4 border-b border-gray-700/50">
-        <div className="flex items-center justify-center relative">
-          <button
-            onClick={() => navigate(-1)}
-            className="absolute left-0 w-9 h-9 flex items-center justify-center hover:bg-gray-700/30 rounded-full transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5 text-gray-300" />
-          </button>
-          <h1 className="text-white text-base font-medium">存入资金</h1>
-        </div>
+    <div className="min-h-screen bg-[#09090b] text-white">
+      <div className="sticky top-0 z-20 flex h-[60px] items-center justify-between border-b border-white/5 bg-[#09090b]/90 px-4 backdrop-blur-md">
+        <button
+          onClick={() => navigate(-1)}
+          className="-ml-2 flex h-10 w-10 items-center justify-center rounded-full text-white transition-colors hover:bg-white/10"
+        >
+          <ChevronLeft size={24} />
+        </button>
+        <h1 className="absolute left-1/2 -translate-x-1/2 text-[18px] font-medium text-white">存入资金</h1>
+        <div className="w-10" />
       </div>
 
-      {/* Content */}
-      <div className="px-4 pt-6 pb-32">
-        {/* User Bank Card Section */}
-        <div className="mb-6">
-          <h2 className="text-sm text-gray-300 mb-3">扣款银行</h2>
-          <div className="bg-[#1f2633] rounded-xl p-4 border border-gray-700/50">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-[#141820] rounded-lg flex items-center justify-center">
-                <Building2 className="w-6 h-6 text-blue-400" />
+      <div className="px-5 pb-[120px] pt-8">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4 }}
+        >
+          <h2 className="mb-3 text-[16px] font-medium">扣款银行</h2>
+          <div className="relative mb-10 overflow-hidden rounded-[20px] border border-white/10 bg-[#14141c]/80 p-5 shadow-sm backdrop-blur-xl">
+            <div className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full bg-[#6c48f5]/10 blur-3xl" />
+            <div className="relative z-10 mb-3 flex items-center gap-4">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/10 bg-[#1a1a24]">
+                <Landmark size={20} className="text-white" />
               </div>
-              <div className="flex-1">
-                <div className="text-white font-medium mb-1">{userBankCard?.bankName}</div>
-                <div className="text-xs text-gray-400">
-                  <div>{userBankCard?.accountName}</div>
-                  <div>{userBankCard && maskAccountNumber(userBankCard.accountNumber)}</div>
-                </div>
-              </div>
+              <span className="text-[18px] font-semibold">{userBankCard?.bankName}</span>
             </div>
-          </div>
-        </div>
-
-        {/* Transfer Information Section */}
-        <div>
-          <h2 className="text-white font-medium mb-4">转账至J.P.银行</h2>
-
-          {/* Receiving Bank */}
-          <div className="mb-4">
-            <label className="block text-sm text-gray-300 mb-2">收款银行</label>
-            <div className="bg-[#1f2633] rounded-lg px-4 py-3 border border-gray-700/50 flex items-center justify-between">
-              <span className="text-white">{systemBankCard.bankName}</span>
-              <button
-                onClick={() => copyToClipboard(systemBankCard.bankName, 'bank')}
-                className="px-3 py-1 text-sm text-gray-300 border border-gray-600 rounded-md hover:bg-gray-700/30 transition-colors"
-              >
-                {copiedField === 'bank' ? '已复制' : '复制'}
-              </button>
+            <div className="relative z-10 flex items-center gap-4 pl-[56px] text-[14px] text-[#8a8a93]">
+              <span>{userBankCard?.accountName}</span>
+              <span className="font-mono">{userBankCard && maskAccountNumber(userBankCard.accountNumber)}</span>
             </div>
           </div>
 
-          {/* Account Number */}
-          <div className="mb-4">
-            <label className="block text-sm text-gray-300 mb-2">收款账号</label>
-            <div className="bg-[#1f2633] rounded-lg px-4 py-3 border border-gray-700/50 flex items-center justify-between">
-              <span className="text-white">{systemBankCard.accountNumber}</span>
-              <button
-                onClick={() => copyToClipboard(systemBankCard.accountNumber, 'account')}
-                className="px-3 py-1 text-sm text-gray-300 border border-gray-600 rounded-md hover:bg-gray-700/30 transition-colors"
-              >
-                {copiedField === 'account' ? '已复制' : '复制'}
-              </button>
-            </div>
-          </div>
+          <h2 className="mb-6 flex items-center gap-2 text-[22px] font-bold">转账至J.P.银行</h2>
 
-          {/* Account Holder Name */}
-          <div className="mb-4">
-            <label className="block text-sm text-gray-300 mb-2">收款人名称</label>
-            <div className="bg-[#1f2633] rounded-lg px-4 py-3 border border-gray-700/50 flex items-center justify-between">
-              <span className="text-white">{systemBankCard.accountName}</span>
-              <button
-                onClick={() => copyToClipboard(systemBankCard.accountName, 'name')}
-                className="px-3 py-1 text-sm text-gray-300 border border-gray-600 rounded-md hover:bg-gray-700/30 transition-colors"
-              >
-                {copiedField === 'name' ? '已复制' : '复制'}
-              </button>
-            </div>
+          <div className="space-y-6 rounded-[24px] border border-white/5 bg-[#14141c]/30 p-6">
+            <TransferField
+              label="收款银行"
+              value={systemBankCard.bankName}
+              copied={copiedField === 'bank'}
+              onCopy={() => copyToClipboard(systemBankCard.bankName, 'bank')}
+            />
+            <TransferField
+              label="收款账号"
+              value={systemBankCard.accountNumber}
+              copied={copiedField === 'account'}
+              mono
+              onCopy={() => copyToClipboard(systemBankCard.accountNumber, 'account')}
+            />
+            <TransferField
+              label="收款人名称"
+              value={systemBankCard.accountName}
+              copied={copiedField === 'name'}
+              onCopy={() => copyToClipboard(systemBankCard.accountName, 'name')}
+            />
+            {systemBankCard.swiftCode && (
+              <TransferField
+                label="SWIFT 代码"
+                value={systemBankCard.swiftCode}
+                copied={copiedField === 'swift'}
+                mono
+                noBorder
+                onCopy={() => copyToClipboard(systemBankCard.swiftCode!, 'swift')}
+              />
+            )}
           </div>
-
-          {/* SWIFT Code */}
-          {systemBankCard.swiftCode && (
-            <div className="mb-4">
-              <label className="block text-sm text-gray-300 mb-2">SWIFT 代码</label>
-              <div className="bg-[#1f2633] rounded-lg px-4 py-3 border border-gray-700/50 flex items-center justify-between">
-                <span className="text-white">{systemBankCard.swiftCode}</span>
-                <button
-                  onClick={() => copyToClipboard(systemBankCard.swiftCode!, 'swift')}
-                  className="px-3 py-1 text-sm text-gray-300 border border-gray-600 rounded-md hover:bg-gray-700/30 transition-colors"
-                >
-                  {copiedField === 'swift' ? '已复制' : '复制'}
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
+        </motion.div>
       </div>
 
-      {/* Confirm Button - Fixed at bottom */}
-      <div className="fixed bottom-20 left-0 right-0 px-4">
+      <div className="fixed bottom-0 left-0 right-0 bg-gradient-to-t from-[#09090b] via-[#09090b]/95 to-transparent p-5 pt-10">
         <button
           onClick={() => navigate('/deposit/upload', { state: { userBankCard, systemBankCard } })}
-          className="w-full py-3.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+          className="h-[52px] w-full rounded-[16px] border border-white/10 bg-[#2a2a36] text-[16px] font-medium text-white shadow-[0_4px_12px_rgba(0,0,0,0.2)] transition-colors hover:bg-[#3a3a46]"
         >
           我已转账，通知J.P.收款
         </button>
       </div>
+    </div>
+  );
+}
 
-      {/* Bottom Navigation */}
-      <BottomNav />
+function TransferField({
+  label,
+  value,
+  copied,
+  mono = false,
+  noBorder = false,
+  onCopy,
+}: {
+  label: string;
+  value: string;
+  copied: boolean;
+  mono?: boolean;
+  noBorder?: boolean;
+  onCopy: () => void;
+}) {
+  return (
+    <div className={`flex items-center justify-between gap-4 ${noBorder ? '' : 'border-b border-white/5 pb-4'}`}>
+      <div className="min-w-0">
+        <p className="mb-1 text-[13px] text-[#8a8a93]">{label}</p>
+        <p className={`truncate text-[16px] font-medium text-white ${mono ? 'font-mono' : ''}`}>{value}</p>
+      </div>
+      <button
+        type="button"
+        onClick={onCopy}
+        className="flex h-[32px] shrink-0 items-center justify-center rounded-full border border-white/20 px-4 text-[13px] text-white transition-colors hover:bg-white/10"
+      >
+        {copied ? '已复制' : '复制'}
+      </button>
     </div>
   );
 }

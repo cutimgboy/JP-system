@@ -10,11 +10,20 @@ interface TradingChartProps {
   entryTime?: number; // 买入时间（秒）
   tradeType?: 'bull' | 'bear' | null; // 交易方向
   onPriceUpdate?: (price: number, time: number) => void; // 价格更新回调
+  onQuoteUpdate?: (quote: TradingQuoteSummary) => void; // 行情摘要更新回调
   profitLoss?: number; // 交易收益
   showProfit?: boolean; // 是否显示收益
 }
 
-export function TradingChart({ countdown, stockCode = 'AAPL.US', entryPrice, entryTime, tradeType, onPriceUpdate, profitLoss, showProfit }: TradingChartProps) {
+export interface TradingQuoteSummary {
+  price: number;
+  change: number;
+  changePercent: number;
+  isUpTrend: boolean;
+  time: number;
+}
+
+export function TradingChart({ countdown, stockCode = 'AAPL.US', entryPrice, entryTime, tradeType, onPriceUpdate, onQuoteUpdate, profitLoss, showProfit }: TradingChartProps) {
   const {
     getTrendTone,
     getProfitTone,
@@ -30,6 +39,22 @@ export function TradingChart({ countdown, stockCode = 'AAPL.US', entryPrice, ent
   const pendingPointsRef = useRef<KLineData[]>([]);
   const flushTimerRef = useRef<number | null>(null);
   const latestPointRef = useRef<KLineData | null>(null);
+  const kLineDataRef = useRef<KLineData[]>([]);
+
+  const emitQuoteUpdate = (latestPoint: KLineData, series: KLineData[]) => {
+    const firstPoint = series[0] || latestPoint;
+    const change = latestPoint.price - firstPoint.price;
+    const changePercent = firstPoint.price === 0 ? 0 : (change / firstPoint.price) * 100;
+
+    onPriceUpdate?.(latestPoint.price, latestPoint.time);
+    onQuoteUpdate?.({
+      price: latestPoint.price,
+      change,
+      changePercent,
+      isUpTrend: change >= 0,
+      time: latestPoint.time,
+    });
+  };
 
   const flushPendingPoints = () => {
     const pending = pendingPointsRef.current;
@@ -41,12 +66,12 @@ export function TradingChart({ countdown, stockCode = 'AAPL.US', entryPrice, ent
     const latestPoint = pending[pending.length - 1];
     latestPointRef.current = latestPoint;
 
-    setKLineData(prev => {
-      const updated = [...prev, ...pending];
-      return updated.length > 20 * 60 ? updated.slice(-20 * 60) : updated;
-    });
+    const updated = [...kLineDataRef.current, ...pending];
+    const nextData = updated.length > 20 * 60 ? updated.slice(-20 * 60) : updated;
+    kLineDataRef.current = nextData;
+    setKLineData(nextData);
     setCurrentPrice(latestPoint.price);
-    onPriceUpdate?.(latestPoint.price, latestPoint.time);
+    emitQuoteUpdate(latestPoint, nextData);
   };
 
   // SSE 连接实时数据
@@ -61,6 +86,7 @@ export function TradingChart({ countdown, stockCode = 'AAPL.US', entryPrice, ent
     // 切换股票时清空旧数据
     setKLineData([]);
     setCurrentPrice(0);
+    kLineDataRef.current = [];
     pendingPointsRef.current = [];
     latestPointRef.current = null;
 
@@ -69,8 +95,12 @@ export function TradingChart({ countdown, stockCode = 'AAPL.US', entryPrice, ent
         const response = await apiClient.get(`/api/quote/kline/${stockCode}`, {
           params: { interval: '1s', limit: 300 },
         });
-        const payload = extractData<{ data?: KLineData[] }>(response);
-        const snapshot = Array.isArray(payload?.data) ? payload.data : [];
+        const payload = extractData<{ data?: KLineData[] } | KLineData[]>(response);
+        const snapshot = Array.isArray(payload)
+          ? payload
+          : Array.isArray(payload?.data)
+            ? payload.data
+            : [];
 
         if (cancelled || snapshot.length === 0) {
           return;
@@ -78,9 +108,10 @@ export function TradingChart({ countdown, stockCode = 'AAPL.US', entryPrice, ent
 
         const latestPoint = snapshot[snapshot.length - 1];
         latestPointRef.current = latestPoint;
+        kLineDataRef.current = snapshot;
         setKLineData(snapshot);
         setCurrentPrice(latestPoint.price);
-        onPriceUpdate?.(latestPoint.price, latestPoint.time);
+        emitQuoteUpdate(latestPoint, snapshot);
       } catch (error) {
         console.error('加载K线快照失败:', error);
       }
@@ -155,7 +186,7 @@ export function TradingChart({ countdown, stockCode = 'AAPL.US', entryPrice, ent
   const bearTone = getTradeTone('bear');
 
   return (
-    <div className="relative bg-[#09090b] h-[60vh] min-h-[400px] pb-4">
+    <div className="relative bg-[#09090b] h-[60vh] min-h-[420px] pb-4">
       {/* Overlaid Trading Pair Title and Price Info */}
       <div className="absolute top-0 left-0 right-0 z-10 px-4 pt-4 pb-2">
         <div className="flex items-start justify-between mb-3">
@@ -193,7 +224,7 @@ export function TradingChart({ countdown, stockCode = 'AAPL.US', entryPrice, ent
       </div>
 
       {/* Chart */}
-      <div className="absolute inset-0 pt-24">
+      <div className="absolute inset-0 pt-24 pb-12">
         {kLineData.length > 0 && (
           <KLineChart
             data={kLineData}
@@ -212,7 +243,7 @@ export function TradingChart({ countdown, stockCode = 'AAPL.US', entryPrice, ent
       </div>
 
       {/* Bull/Bear Progress Bar */}
-      <div className="absolute bottom-0 left-0 right-0 px-4 pb-3 pt-8 z-10">
+      <div className="absolute bottom-0 left-0 right-0 px-4 pb-3 pt-2 z-10">
         <div className="flex justify-between text-[12px] font-medium mb-2 px-1">
           <span className={getToneTextClass(bullTone)}>看涨 32.56%</span>
           <span className={getToneTextClass(bearTone)}>67.34% 看跌</span>

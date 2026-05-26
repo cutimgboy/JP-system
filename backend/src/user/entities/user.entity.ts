@@ -23,7 +23,7 @@ export class UserEntity {
   @Column({ type: 'varchar', length: 100, nullable: true, comment: '昵称' })
   nickname: string | null;
 
-  @Column({ type: 'text', nullable: true, comment: '头像' })
+  @Column({ type: 'longtext', nullable: true, comment: '头像' })
   avatar: string | null;
 
   @Column({ type: 'varchar', length: 50, unique: true, nullable: true, comment: 'Google ID' })

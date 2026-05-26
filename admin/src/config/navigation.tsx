@@ -4,6 +4,7 @@ import {
   CreditCard,
   Gift,
   MessageSquareText,
+  ShieldCheck,
   Trophy,
 } from 'lucide-react';
 
@@ -25,6 +26,12 @@ export const adminNavItems = [
     label: '收款银行卡',
     description: '维护系统收款账户，同一时间只启用一张',
     icon: CreditCard,
+  },
+  {
+    path: '/user-identities',
+    label: '身份信息',
+    description: '查看用户补充的证件资料和上传图片',
+    icon: ShieldCheck,
   },
   {
     path: '/reward-settings',

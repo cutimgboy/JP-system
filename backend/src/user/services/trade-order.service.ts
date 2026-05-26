@@ -139,18 +139,20 @@ export class TradeOrderService {
   private async ensureNoOpenOrder(
     userId: number,
     accountType: AccountType,
+    stockCode: string,
   ): Promise<void> {
     const existingOrder = await this.orderRepository.findOne({
       where: {
         userId,
         accountType,
+        stockCode,
         status: OrderStatus.OPEN,
       },
     });
 
     if (existingOrder) {
       throw new BadRequestException(
-        '您已有进行中的交易，请等待当前交易完成后再创建新订单',
+        '该品种已有进行中的交易，请等待当前交易完成后再创建新订单',
       );
     }
   }
@@ -173,7 +175,7 @@ export class TradeOrderService {
     }
 
     const accountType = await this.resolveOrderAccountType(userId, dto);
-    await this.ensureNoOpenOrder(userId, accountType);
+    await this.ensureNoOpenOrder(userId, accountType, dto.stockCode);
 
     // 获取当前价格
     const currentPrice = await this.getCurrentPrice(dto.stockCode);

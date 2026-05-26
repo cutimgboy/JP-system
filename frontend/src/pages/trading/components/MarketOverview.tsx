@@ -6,6 +6,19 @@ interface MarketOverviewProps {
 }
 
 interface ProductInfo {
+  code?: string;
+  tradeCode?: string;
+  nameCn?: string;
+  nameEn?: string;
+  type?: string;
+  currencyType?: string;
+  marginCurrency?: string;
+  market?: string;
+  decimalPlaces?: number;
+  contractSize?: number;
+  spread?: number;
+  minPriceChange?: number;
+  fixedLeverage?: number;
   marketCapRank?: number;
   marketCap?: string;
   fullyDilutedMarketCap?: string;
@@ -27,13 +40,7 @@ export function MarketOverview({ stockCode }: MarketOverviewProps) {
         setLoading(true);
         const response = await apiClient.get(`/api/products/${stockCode}`);
         const productData = extractData(response);
-
-        // 检查是否有市值排名（只有加密货币有这个字段）
-        if (productData?.marketCapRank) {
-          setProductInfo(productData);
-        } else {
-          setProductInfo(null);
-        }
+        setProductInfo(productData || null);
       } catch (error) {
         console.error('获取产品信息失败:', error);
         setProductInfo(null);
@@ -47,22 +54,38 @@ export function MarketOverview({ stockCode }: MarketOverviewProps) {
     }
   }, [stockCode]);
 
-  // 如果没有数据或正在加载，不显示组件
-  if (loading || !productInfo) {
+  if (loading) {
     return null;
   }
 
+  const formatValue = (value: unknown) => {
+    if (value === undefined || value === null || value === '') {
+      return '-';
+    }
+    return String(value);
+  };
+
   const overviewItems = [
-    { label: '市值排名', value: productInfo.marketCapRank ? `NO.${productInfo.marketCapRank}` : '-' },
-    { label: '市值', value: productInfo.marketCap || '-' },
-    { label: '完全稀释市值', value: productInfo.fullyDilutedMarketCap || '-' },
-    { label: '流通数量', value: productInfo.circulatingSupply || '-' },
-    { label: '最大供给量', value: productInfo.maxSupply || '-' },
-    { label: '总量', value: productInfo.totalSupply || '-' },
-    { label: '发行日期', value: productInfo.issueDate || '-' },
-    { label: '历史最高价', value: productInfo.allTimeHigh || '-' },
-    { label: '历史最低价', value: productInfo.allTimeLow || '-' },
-  ];
+    { label: '标的类型', value: formatValue(productInfo?.type) },
+    { label: '交易代码', value: formatValue(productInfo?.tradeCode || productInfo?.code || stockCode) },
+    { label: '名称', value: formatValue(productInfo?.nameCn || productInfo?.nameEn) },
+    { label: '所属市场', value: formatValue(productInfo?.market) },
+    { label: '货币类型', value: formatValue(productInfo?.currencyType) },
+    { label: '保证金货币', value: formatValue(productInfo?.marginCurrency) },
+    { label: '合约量', value: formatValue(productInfo?.contractSize) },
+    { label: '价差', value: formatValue(productInfo?.spread) },
+    { label: '最小变动', value: formatValue(productInfo?.minPriceChange) },
+    { label: '固定杠杆', value: formatValue(productInfo?.fixedLeverage) },
+    { label: '市值排名', value: productInfo?.marketCapRank ? `NO.${productInfo.marketCapRank}` : '-' },
+    { label: '市值', value: formatValue(productInfo?.marketCap) },
+    { label: '完全稀释市值', value: formatValue(productInfo?.fullyDilutedMarketCap) },
+    { label: '流通数量', value: formatValue(productInfo?.circulatingSupply) },
+    { label: '最大供给量', value: formatValue(productInfo?.maxSupply) },
+    { label: '总量', value: formatValue(productInfo?.totalSupply) },
+    { label: '发行日期', value: formatValue(productInfo?.issueDate) },
+    { label: '历史最高价', value: formatValue(productInfo?.allTimeHigh) },
+    { label: '历史最低价', value: formatValue(productInfo?.allTimeLow) },
+  ].filter((item) => item.value !== '-').slice(0, 10);
 
   return (
     <>
@@ -74,11 +97,11 @@ export function MarketOverview({ stockCode }: MarketOverviewProps) {
           <div className="w-1 h-4 bg-[#6c48f5] rounded-full"></div>
           标的概况
         </h3>
-        <div className="flex flex-col gap-3">
+        <div className="grid grid-cols-2 gap-x-4 gap-y-3 rounded-2xl border border-white/5 bg-[#14141c] p-4">
           {overviewItems.map((item, i) => (
-            <div key={i} className="flex justify-between items-center text-[13px]">
-              <span className="text-[#8a8a93]">{item.label}</span>
-              <span className="font-medium text-white">{item.value}</span>
+            <div key={i} className="min-w-0">
+              <div className="text-[11px] text-[#6a7282]">{item.label}</div>
+              <div className="mt-1 truncate text-[13px] font-medium text-white">{item.value}</div>
             </div>
           ))}
         </div>

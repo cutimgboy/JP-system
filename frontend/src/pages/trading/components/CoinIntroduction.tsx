@@ -8,7 +8,7 @@ interface CoinIntroductionProps {
 export function CoinIntroduction({ stockCode }: CoinIntroductionProps) {
   const [introduction, setIntroduction] = useState<string>('');
   const [loading, setLoading] = useState(true);
-  const [hasData, setHasData] = useState(false);
+  const [productName, setProductName] = useState('');
 
   useEffect(() => {
     const fetchProductInfo = async () => {
@@ -17,16 +17,12 @@ export function CoinIntroduction({ stockCode }: CoinIntroductionProps) {
         const response = await apiClient.get(`/api/products/${stockCode}`);
         const productData = extractData(response);
 
-        // 如果有简体介绍，则显示
-        if (productData?.descriptionCn) {
-          setIntroduction(productData.descriptionCn);
-          setHasData(true);
-        } else {
-          setHasData(false);
-        }
+        setProductName(productData?.nameCn || productData?.nameEn || stockCode);
+        setIntroduction(productData?.descriptionCn || '');
       } catch (error) {
         console.error('获取产品信息失败:', error);
-        setHasData(false);
+        setProductName(stockCode);
+        setIntroduction('');
       } finally {
         setLoading(false);
       }
@@ -37,14 +33,11 @@ export function CoinIntroduction({ stockCode }: CoinIntroductionProps) {
     }
   }, [stockCode]);
 
-  // 如果没有数据，不显示组件
-  if (!loading && !hasData) {
-    return null;
-  }
-
   if (loading) {
     return null;
   }
+
+  const displayText = introduction || `${productName || stockCode} 是当前可交易标的之一，可通过实时行情、价格波动和交易时间信息辅助判断短周期交易机会。`;
 
   return (
     <>
@@ -57,7 +50,7 @@ export function CoinIntroduction({ stockCode }: CoinIntroductionProps) {
           标的简介
         </h3>
         <p className="text-[13px] text-[#8a8a93] leading-relaxed text-justify">
-          {introduction}
+          {displayText}
         </p>
       </div>
     </>

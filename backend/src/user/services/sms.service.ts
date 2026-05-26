@@ -81,6 +81,27 @@ export class SmsService {
     return true;
   }
 
+  async assertSmsCode(phone: string, code: string): Promise<boolean> {
+    const fixedCode = this.getFixedCode();
+
+    if (fixedCode && code === fixedCode) {
+      return true;
+    }
+
+    const cacheKey = `sms:${phone}`;
+    const cachedCode = await this.redisService.get(cacheKey);
+
+    if (!cachedCode) {
+      throw new BadRequestException('验证码已过期或不存在');
+    }
+
+    if (cachedCode !== code) {
+      throw new BadRequestException('验证码错误');
+    }
+
+    return true;
+  }
+
   /**
    * 调用第三方短信服务商发送短信（示例）
    * 实际使用时需要替换为真实的短信服务商SDK

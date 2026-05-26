@@ -21,6 +21,16 @@ const PersonalInfo = lazy(() =>
     default: module.PersonalInfo,
   })),
 );
+const BindPhone = lazy(() =>
+  import('./pages/bind-phone').then((module) => ({
+    default: module.BindPhone,
+  })),
+);
+const BindEmail = lazy(() =>
+  import('./pages/bind-email').then((module) => ({
+    default: module.BindEmail,
+  })),
+);
 const MessageCenter = lazy(() =>
   import('./pages/message-center').then((module) => ({
     default: module.MessageCenter,
@@ -214,6 +224,22 @@ function App() {
           element={
             <ProtectedRoute>
               <PersonalInfo />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/bind-phone"
+          element={
+            <ProtectedRoute>
+              <BindPhone />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/bind-email"
+          element={
+            <ProtectedRoute>
+              <BindEmail />
             </ProtectedRoute>
           }
         />

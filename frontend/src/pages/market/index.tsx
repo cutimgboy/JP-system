@@ -22,7 +22,7 @@ interface Market {
 export default function MarketPage() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('股票');
-  const { accountType } = useAccount();
+  const { accountType, setAccountType } = useAccount();
   const [markets, setMarkets] = useState<Market[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -87,15 +87,25 @@ export default function MarketPage() {
     fetchMarkets();
   }, [activeTab]); // 切换分类时重新获取数据
 
+  const promoCoins = [
+    { name: 'Chainlink', symbol: 'LINK', logo: '/logo/LINK.svg', className: 'left-[31px] top-0 bg-[rgba(45,49,86,0.4)]' },
+    { name: 'Bitcoin', symbol: 'BTC', logo: '/logo/BTC.svg', className: 'left-[11px] top-[34px] bg-[rgba(45,49,86,0.6)]' },
+    { name: 'Ethereum', symbol: 'ETH', logo: '/logo/ETH.svg', className: 'left-[-8px] top-[67px] bg-gradient-to-r from-[rgba(108,72,245,0.86)] to-[rgba(67,38,184,0.86)] shadow-[0px_8px_32px_0px_rgba(108,72,245,0.3)]' },
+  ];
+
   return (
     <div className="min-h-screen bg-[#0a0a0c] pb-28 relative">
       {/* Header - Fixed */}
-      <PageHeader />
+      <PageHeader
+        accountType={accountType}
+        onAccountSwitch={setAccountType}
+        className="pt-6 pb-4"
+      />
 
       {/* Content with top padding to account for fixed header */}
-      <div className="pt-[120px]">
+      <div className="pt-[92px]">
         {/* Title */}
-        <div className="px-6 pb-6">
+        <div className="px-6 pb-4">
           <h1 className="text-white text-[30px] font-semibold leading-[36px] tracking-[0.4px]">
             你好 交易者~
           </h1>
@@ -109,6 +119,11 @@ export default function MarketPage() {
         >
           {/* Background with gradient */}
           <div className="absolute inset-0 bg-[#0f0f1a]">
+            <img
+              src="/market-promo-bg.png"
+              alt=""
+              className="absolute inset-0 h-full w-full object-cover opacity-40"
+            />
             {/* Decorative blur */}
             <div className="absolute left-[120px] top-[2px] w-[256px] h-[152px] bg-[#6c48f5] opacity-40 rounded-full blur-[100px]" />
           </div>
@@ -129,23 +144,39 @@ export default function MarketPage() {
               </span>
             </div>
           </div>
+
+          <div className="absolute right-[-35px] top-8 h-[137px] w-[180px] sm:right-[-18px]">
+            {promoCoins.map((coin) => (
+              <div
+                key={coin.symbol}
+                className={`absolute flex h-[46px] w-[180px] items-center gap-2 rounded-[16px] border border-white/10 px-3 py-1 shadow-[0px_10px_15px_0px_rgba(0,0,0,0.12)] ${coin.className}`}
+              >
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white/10">
+                  <img src={coin.logo} alt="" className="h-full w-full rounded-full object-cover" />
+                </span>
+                <span className="text-[12px] font-semibold leading-4 text-white">
+                  {coin.name}
+                </span>
+              </div>
+            ))}
+          </div>
         </button>
       </div>
 
         {/* Categories */}
         <div className="px-6 pb-4">
-        <div className="flex gap-2.5 overflow-x-auto scrollbar-hide pb-1">
+        <div className="flex gap-1 overflow-x-auto scrollbar-hide pb-1">
           {categories.map((category) => (
             <button
               key={category}
               onClick={() => setActiveTab(category)}
-              className={`flex shrink-0 items-center justify-center rounded-[20px] px-[18px] py-2 transition-all duration-200 ${
+              className={`flex shrink-0 items-center justify-center rounded-[20px] px-2.5 py-2 transition-all duration-200 ${
                 activeTab === category
                   ? 'bg-[#1a1a24] text-white border border-white/10 shadow-[0px_4px_10px_0px_rgba(0,0,0,0.2)]'
                   : 'bg-transparent text-[#6a7282] border border-transparent hover:text-white'
               }`}
             >
-              <span className="text-[14px] font-medium whitespace-nowrap">
+              <span className="text-[13px] font-medium whitespace-nowrap">
                 {category}
               </span>
             </button>

@@ -45,7 +45,7 @@ export class DepositRecordEntity {
   @Column({ type: 'varchar', length: 50, comment: '系统收款账户号码' })
   systemAccountNumber: string;
 
-  @Column({ type: 'text', nullable: true, comment: '转账凭证图片URLs，JSON数组' })
+  @Column({ type: 'longtext', nullable: true, comment: '转账凭证图片URLs，JSON数组' })
   receiptImages: string | null;
 
   @Column({ type: 'tinyint', default: 0, comment: '审核状态：0-待审核，1-审核通过，2-审核拒绝' })

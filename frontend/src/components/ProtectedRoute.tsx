@@ -12,10 +12,10 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
   // 加载中显示 loading
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#1a1f2e] flex items-center justify-center">
+      <div className="flex min-h-screen items-center justify-center bg-[#09090b]">
         <div className="text-center">
-          <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
-          <p className="mt-4 text-gray-400">加载中...</p>
+          <div className="inline-block h-12 w-12 animate-spin rounded-full border-b-2 border-t-2 border-[#6c48f5]"></div>
+          <p className="mt-4 text-[#8a8a93]">加载中...</p>
         </div>
       </div>
     );

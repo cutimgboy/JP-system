@@ -22,8 +22,7 @@ export function PersonalInfo() {
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'warning' } | null>(null);
   const [editForm, setEditForm] = useState({
     nickname: '',
-    email: '',
-    phone: '',
+    avatar: '',
   });
 
   useEffect(() => {
@@ -35,8 +34,7 @@ export function PersonalInfo() {
           setUserInfo(userData);
           setEditForm({
             nickname: userData.nickname || '',
-            email: userData.email || '',
-            phone: userData.phone || '',
+            avatar: userData.avatar || '',
           });
         }
       } catch (error) {
@@ -51,8 +49,7 @@ export function PersonalInfo() {
     setIsEditing(false);
     setEditForm({
       nickname: userInfo?.nickname || '',
-      email: userInfo?.email || '',
-      phone: userInfo?.phone || '',
+      avatar: userInfo?.avatar || '',
     });
   };
 
@@ -74,6 +71,20 @@ export function PersonalInfo() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleAvatarChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      setEditForm((prev) => ({ ...prev, avatar: String(reader.result || '') }));
+    };
+    reader.onerror = () => {
+      setToast({ message: '头像读取失败，请重新上传', type: 'error' });
+    };
+    reader.readAsDataURL(file);
+    event.target.value = '';
   };
 
   const handleCopy = async (text: string) => {
@@ -131,16 +142,19 @@ export function PersonalInfo() {
       <div className="px-5 pb-28 pt-4">
         <div className="mb-4 rounded-[20px] border border-white/5 bg-[#14141c] px-4 py-2 shadow-sm">
           <InfoRow label="头像" noBorder={false}>
-            <div className="flex items-center gap-3">
+            <label className={`flex items-center gap-3 ${isEditing ? 'cursor-pointer' : ''}`}>
+              {isEditing ? (
+                <input type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
+              ) : null}
               <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-full border border-white/10 bg-gradient-to-br from-[#6c48f5]/40 to-[#14141c]">
-                {userInfo?.avatar ? (
-                  <img src={userInfo.avatar} alt="avatar" className="h-full w-full object-cover" />
+                {(isEditing ? editForm.avatar : userInfo?.avatar) ? (
+                  <img src={(isEditing ? editForm.avatar : userInfo?.avatar) || ''} alt="avatar" className="h-full w-full object-cover" />
                 ) : (
                   <span className="text-[18px] font-bold">{avatarText}</span>
                 )}
               </div>
-              <ChevronRight size={16} className="text-[#8a8a93]" />
-            </div>
+              {isEditing ? <ChevronRight size={16} className="text-[#8a8a93]" /> : null}
+            </label>
           </InfoRow>
 
           <InfoRow label="UID">
@@ -181,28 +195,24 @@ export function PersonalInfo() {
             <span className="rounded-full border border-[#10b981]/20 bg-[#10b981]/10 px-2 py-0.5 text-[13px] text-[#10b981]">已认证</span>
           </InfoRow>
           <InfoRow label="手机绑定">
-            {isEditing ? (
-              <input
-                value={editForm.phone}
-                onChange={(event) => setEditForm((prev) => ({ ...prev, phone: event.target.value }))}
-                placeholder="请输入手机号"
-                className="w-[180px] rounded-[12px] border border-white/10 bg-[#09090b] px-3 py-2 text-right text-[14px] text-white outline-none focus:border-[#6c48f5]/50"
-              />
-            ) : (
-              <span className="text-[14px] text-[#8a8a93]">{userInfo?.phone || '未绑定'}</span>
-            )}
+            <button
+              type="button"
+              onClick={() => navigate('/bind-phone')}
+              className="flex items-center gap-2 text-right text-[14px] text-[#8a8a93] transition-colors hover:text-white"
+            >
+              <span>{userInfo?.phone || '未绑定'}</span>
+              <ChevronRight size={16} />
+            </button>
           </InfoRow>
           <InfoRow label="邮箱绑定" noBorder>
-            {isEditing ? (
-              <input
-                value={editForm.email}
-                onChange={(event) => setEditForm((prev) => ({ ...prev, email: event.target.value }))}
-                placeholder="请输入邮箱"
-                className="w-[180px] rounded-[12px] border border-white/10 bg-[#09090b] px-3 py-2 text-right text-[14px] text-white outline-none focus:border-[#6c48f5]/50"
-              />
-            ) : (
-              <span className="text-[14px] text-[#8a8a93]">{maskEmail(userInfo?.email)}</span>
-            )}
+            <button
+              type="button"
+              onClick={() => navigate('/bind-email')}
+              className="flex items-center gap-2 text-right text-[14px] text-[#8a8a93] transition-colors hover:text-white"
+            >
+              <span>{maskEmail(userInfo?.email)}</span>
+              <ChevronRight size={16} />
+            </button>
           </InfoRow>
         </div>
 

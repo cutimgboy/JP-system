@@ -26,6 +26,7 @@ import { PostsEntity } from './posts/entities/posts.entity';
 import { UserEntity } from './user/entities/user.entity';
 import { UserAccountEntity } from './user/entities/user-account.entity';
 import { TradeOrderEntity } from './user/entities/trade-order.entity';
+import { UserIdentityEntity } from './user/entities/user-identity.entity';
 import { TradingSettingsEntity } from './cfd/entities/trading-settings.entity';
 import { StockInfoEntity } from './cfd/entities/stock-info.entity';
 import { CryptoInfoEntity } from './cfd/entities/crypto-info.entity';
@@ -68,6 +69,7 @@ import { MigrationEntity } from './migration/entities/migration.entity';
             UserEntity,
             UserAccountEntity,
             TradeOrderEntity,
+            UserIdentityEntity,
             TradingSettingsEntity,
             StockInfoEntity,
             CryptoInfoEntity,

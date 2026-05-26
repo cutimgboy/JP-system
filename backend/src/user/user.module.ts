@@ -8,16 +8,19 @@ import { RewardModule } from '../reward/reward.module';
 import { UserEntity } from './entities/user.entity';
 import { UserAccountEntity } from './entities/user-account.entity';
 import { TradeOrderEntity } from './entities/trade-order.entity';
+import { UserIdentityEntity } from './entities/user-identity.entity';
 import { UserService } from './services/user.service';
 import { AuthService } from './services/auth.service';
 import { SmsService } from './services/sms.service';
 import { EmailService } from './services/email.service';
 import { AccountService } from './services/account.service';
 import { TradeOrderService } from './services/trade-order.service';
+import { UserIdentityService } from './services/user-identity.service';
 import { AuthController } from './auth.controller';
 import { UserController } from './user.controller';
 import { AccountController } from './controllers/account.controller';
 import { TradeOrderController } from './controllers/trade-order.controller';
+import { AdminUserIdentityController, UserIdentityController } from './controllers/user-identity.controller';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { GoogleStrategy } from './strategies/google.strategy';
 import { FacebookStrategy } from './strategies/facebook.strategy';
@@ -25,7 +28,7 @@ import { getJwtSecret } from '../config/security';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([UserEntity, UserAccountEntity, TradeOrderEntity]),
+    TypeOrmModule.forFeature([UserEntity, UserAccountEntity, TradeOrderEntity, UserIdentityEntity]),
     RewardModule,
     PassportModule,
     JwtModule.registerAsync({
@@ -39,7 +42,14 @@ import { getJwtSecret } from '../config/security';
       }),
     }),
   ],
-  controllers: [AuthController, UserController, AccountController, TradeOrderController],
+  controllers: [
+    AuthController,
+    UserController,
+    AccountController,
+    TradeOrderController,
+    UserIdentityController,
+    AdminUserIdentityController,
+  ],
   providers: [
     UserService,
     AuthService,
@@ -47,10 +57,11 @@ import { getJwtSecret } from '../config/security';
     EmailService,
     AccountService,
     TradeOrderService,
+    UserIdentityService,
     JwtStrategy,
     GoogleStrategy,
     FacebookStrategy,
   ],
-  exports: [UserService, AuthService, AccountService, TradeOrderService],
+  exports: [UserService, AuthService, AccountService, TradeOrderService, UserIdentityService],
 })
 export class UserModule {}
