@@ -69,6 +69,11 @@ interface DashboardSummary {
 }
 
 type PositionTab = 'all' | 'today' | 'trading' | 'profit' | 'loss';
+type OrderListItem = (Position & {
+  type: 'trading';
+}) | (HistoryRecord & {
+  type: 'history';
+});
 
 const positionTabs: Array<{ key: PositionTab; labelKey: string }> = [
   { key: 'all', labelKey: '全部' },
@@ -108,12 +113,40 @@ export default function PositionsPage() {
   const [claiming, setClaiming] = useState(false);
   const [isAccountOpen, setIsAccountOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const isToday = (dateString?: string, referenceDate = new Date()) => {
+    if (!dateString) return false;
+    const date = new Date(dateString);
+    if (Number.isNaN(date.getTime())) return false;
+    return date.getFullYear() === referenceDate.getFullYear() && date.getMonth() === referenceDate.getMonth() && date.getDate() === referenceDate.getDate();
+  };
+  const isTodayOrder = (order: OrderListItem, referenceDate = new Date()) => {
+    if (order.type === 'trading') {
+      return isToday(order.openTime, referenceDate);
+    }
+    return isToday(order.closeTime, referenceDate) || isToday(order.openTime, referenceDate);
+  };
+  const getTodayStats = (dashboardData: DashboardSummary) => {
+    const serverDate = dashboardData.serverTime ? new Date(dashboardData.serverTime) : new Date();
+    const openOrders = Array.isArray(dashboardData.openOrders) ? dashboardData.openOrders : [];
+    const historyOrders = Array.isArray(dashboardData.historyOrders) ? dashboardData.historyOrders : [];
+    const todayOpenOrders = openOrders.filter(order => isToday(order.openTime, serverDate));
+    const todayHistoryOrders = historyOrders.filter(order => isToday(order.closeTime, serverDate) || isToday(order.openTime, serverDate));
+    const todayClosedOrders = todayHistoryOrders.filter(order => order.result === 'win' || order.result === 'loss' || order.result === 'draw');
+    const todayWins = todayClosedOrders.filter(order => order.result === 'win' || Number(order.profitLoss) > 0).length;
+    const todayTradeCount = todayOpenOrders.length + todayHistoryOrders.length;
+    const todayWinRate = todayClosedOrders.length > 0 ? todayWins / todayClosedOrders.length * 100 : 0;
+    return {
+      todayTradeCount,
+      todayWinRate
+    };
+  };
   const applyDashboardData = (dashboardData: DashboardSummary) => {
+    const todayStats = getTodayStats(dashboardData);
     setPositions(Array.isArray(dashboardData.openOrders) ? dashboardData.openOrders : []);
     setHistoryRecords(Array.isArray(dashboardData.historyOrders) ? dashboardData.historyOrders : []);
     setTodayProfitLoss(Number(dashboardData.stats?.todayProfitLoss || 0));
-    setTodayTradeCount(Number(dashboardData.stats?.totalOrders || 0));
-    setTodayWinRate(Number(dashboardData.stats?.winRate || 0));
+    setTodayTradeCount(todayStats.todayTradeCount);
+    setTodayWinRate(todayStats.todayWinRate);
     setAvailableBalance(Number(dashboardData.balances?.current?.availableBalance || 0));
     setDemoBalance(Number(dashboardData.balances?.demo?.availableBalance || 0));
     setRealBalance(Number(dashboardData.balances?.real?.availableBalance || 0));
@@ -236,23 +269,6 @@ export default function PositionsPage() {
     ...h,
     type: 'history' as const
   }))];
-  const isToday = (dateString?: string) => {
-    if (!dateString) return false;
-    const date = new Date(dateString);
-    if (Number.isNaN(date.getTime())) return false;
-    const today = new Date();
-    return date.getFullYear() === today.getFullYear() && date.getMonth() === today.getMonth() && date.getDate() === today.getDate();
-  };
-  const isTodayOrder = (order: (Position & {
-    type: 'trading';
-  }) | (HistoryRecord & {
-    type: 'history';
-  })) => {
-    if (order.type === 'trading') {
-      return isToday(order.openTime);
-    }
-    return isToday(order.closeTime) || isToday(order.openTime);
-  };
   const isDrawOrder = (order: HistoryRecord) => {
     const openPrice = Number(order.openPrice);
     const closePrice = Number(order.closePrice);

@@ -1,4 +1,4 @@
-import { Activity, Bitcoin, ChevronLeft, Download, Share, ShieldCheck, TrendingDown, TrendingUp, X } from 'lucide-react';
+import { ChevronLeft, Download, Share, ShieldCheck, TrendingDown, TrendingUp, X } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useState, useEffect, useRef } from 'react';
 import { useAccount } from '../../contexts/AccountContext';
@@ -189,7 +189,7 @@ export default function OrderDetail() {
       const link = document.createElement('a');
       const safeOrderNo = order ? getOrderDisplayNo(order).replace(/[^a-z0-9-]/gi, '') : 'order';
       link.href = dataUrl;
-      link.download = `nexus-trade-${safeOrderNo}.png`;
+      link.download = `jmp-trading-${safeOrderNo}.png`;
       link.click();
       setToast({
         message: tx("分享图已保存"),
@@ -331,21 +331,20 @@ export default function OrderDetail() {
           y: 20
         }} className="relative flex w-full max-w-[320px] flex-col overflow-hidden rounded-[24px] border border-[#6c48f5]/30 bg-[#14141c]/80 shadow-[0_0_40px_rgba(108,72,245,0.4)] backdrop-blur-2xl">
               <div className="relative z-10 flex items-center gap-2 px-6 pb-2 pt-6">
-                <div className="flex h-6 w-6 items-center justify-center rounded bg-[#6c48f5] shadow-[0_0_10px_rgba(108,72,245,0.6)]">
-                  <Activity size={14} className="text-white" />
+                <div className="h-8 w-8 overflow-hidden rounded-[8px] bg-[#6c48f5] shadow-[0_0_10px_rgba(108,72,245,0.6)]">
+                  <img src="/icons/icon-192.png" alt="JMP Trading" className="h-full w-full object-cover" />
                 </div>
-                <span className="text-sm font-bold tracking-wider text-white drop-shadow-md">NEXUS TRADE</span>
+                <span className="text-sm font-bold tracking-wider text-white drop-shadow-md">JMP Trading</span>
               </div>
 
               <div className="relative z-10 px-6 pb-4">
                 <div className="mb-5 text-center">
                   <div className="mb-1 text-[13px] text-[#8a8a93]">{getDurationLabel(order)}{tx("交易收益")}</div>
-                  <div className={`font-mono text-[48px] font-bold leading-none tracking-tight ${pnlTextClass} ${pnlGlowClass}`}>
-                    {formatSignedRate(profitRate)}
-                    <span className="text-[24px]">%</span>
-                  </div>
-                  <div className={`mt-2 font-mono text-[16px] ${pnlTextClass}`}>
+                  <div className={`font-mono text-[42px] font-bold leading-none tracking-tight ${pnlTextClass} ${pnlGlowClass}`}>
                     {formatSignedNumber(displayProfitLoss)} VND
+                  </div>
+                  <div className={`mt-2 font-mono text-[18px] ${pnlTextClass}`}>
+                    {formatSignedRate(profitRate)}<span className="text-[13px]">%</span>
                   </div>
                 </div>
 
@@ -353,9 +352,14 @@ export default function OrderDetail() {
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-[#8a8a93]">{tx("交易品种")}</span>
                     <div className="flex items-center gap-1.5">
-                      <div className="flex h-5 w-5 items-center justify-center rounded-full bg-[#f7931a]">
-                        <Bitcoin size={14} className="text-white" />
-                      </div>
+                      <img src={`/logo/${order.stockCode}.svg`} alt={assetName} className="h-5 w-5 rounded-full bg-white object-cover" onError={event => {
+                    const target = event.currentTarget;
+                    if (target.src.endsWith('.svg')) {
+                      target.src = `/logo/${order.stockCode}.png`;
+                    } else {
+                      target.style.display = 'none';
+                    }
+                  }} />
                       <span className="font-medium text-white">{assetName}</span>
                     </div>
                   </div>
@@ -368,7 +372,7 @@ export default function OrderDetail() {
 
               <div className="relative mt-2 h-[140px] w-full">
                 <div className="absolute inset-0 z-10 bg-gradient-to-br from-[#6c48f5]/20 to-transparent mix-blend-overlay" />
-                <img src="/order-share-ad.png" alt="" crossOrigin="anonymous" className="h-full w-full object-cover opacity-80 mix-blend-screen" />
+                <img src="/trad.png" alt="" crossOrigin="anonymous" className="h-full w-full object-contain opacity-90 mix-blend-screen" />
                 <div className="absolute inset-0 z-10 bg-gradient-to-t from-[#14141c] via-[#14141c]/40 to-transparent" />
               </div>
 
@@ -379,7 +383,7 @@ export default function OrderDetail() {
                     <span className="mt-0.5 text-xs text-[#8a8a93]">{tx("交易全球资产 获取全球收益")}</span>
                   </div>
                   <div className="h-[52px] w-[52px] shrink-0 overflow-hidden rounded-[10px] border-2 border-white bg-white p-1 shadow-lg">
-                    {qrCodeDataUrl ? <img src={qrCodeDataUrl} alt={tx("扫码打开 NEXUS TRADE")} className="h-full w-full object-cover" /> : <div className="h-full w-full rounded-[6px] bg-[#09090b]/10" />}
+                    {qrCodeDataUrl ? <img src={qrCodeDataUrl} alt={tx("扫码打开 JMP Trading")} className="h-full w-full object-cover" /> : <div className="h-full w-full rounded-[6px] bg-[#09090b]/10" />}
                   </div>
                 </div>
               </div>

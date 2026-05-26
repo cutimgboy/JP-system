@@ -12,6 +12,7 @@ import { apiClient, extractData } from '../../utils/api';
 import { useAccount } from '../../contexts/AccountContext';
 import { AnimatePresence, motion } from 'framer-motion';
 import { tx } from "../../i18n/text";
+import { getFallbackProductInfo, getLocalizedProductName } from './productInfo';
 interface TradingDetailProps {
   onBack: () => void;
   initialStock?: string;
@@ -40,6 +41,7 @@ export function TradingDetail({
   const [currentOrderId, setCurrentOrderId] = useState<number | null>(null);
   const [actualProfitLoss, setActualProfitLoss] = useState(0);
   const [isSettling, setIsSettling] = useState(false);
+  const [completedTradeType, setCompletedTradeType] = useState<'bull' | 'bear' | null>(null);
   const [alertDialog, setAlertDialog] = useState({
     isOpen: false,
     title: '',
@@ -65,7 +67,13 @@ export function TradingDetail({
   const [quoteSummary, setQuoteSummary] = useState<TradingQuoteSummary | null>(null);
   const [showStickyQuote, setShowStickyQuote] = useState(false);
   const selectedProduct = products.find(product => product.code === selectedStock);
-  const selectedName = selectedProduct?.nameCn || selectedProduct?.name || selectedProduct?.nameEn || selectedStock;
+  const selectedFallbackProduct = getFallbackProductInfo(selectedStock);
+  const selectedName = getLocalizedProductName(selectedProduct || selectedFallbackProduct, selectedStock);
+  const activeTradeType = tradeStatus === 'bull' || tradeStatus === 'bear'
+    ? tradeStatus
+    : tradeStatus === 'completed'
+      ? completedTradeType
+      : null;
   const displayQuote = quoteSummary || {
     price: selectedProduct?.price || latestPrice || 0,
     change: selectedProduct?.change || 0,
@@ -92,6 +100,7 @@ export function TradingDetail({
     setActualProfitLoss(0);
     closeTriggeredRef.current = false;
     setIsSettling(false);
+    setCompletedTradeType(null);
     setEntryPrice(undefined);
     setEntryTime(undefined);
     setTargetTime(null);
@@ -326,6 +335,7 @@ export function TradingDetail({
       }));
       closeTriggeredRef.current = false;
       setIsSettling(false);
+      setCompletedTradeType(null);
       setCountdown(seconds);
       setTradeStatus('bull');
       // 保存买入价和买入时间 - 使用K线图的最新价格和时间
@@ -422,6 +432,7 @@ export function TradingDetail({
       }));
       closeTriggeredRef.current = false;
       setIsSettling(false);
+      setCompletedTradeType(null);
       setCountdown(seconds);
       setTradeStatus('bear');
       // 保存买入价和买入时间 - 使用K线图的最新价格和时间
@@ -455,6 +466,7 @@ export function TradingDetail({
   };
   const applySettledOrder = (orderData: any) => {
     setActualProfitLoss(Number(orderData?.profitLoss ?? 0));
+    setCompletedTradeType(orderData?.tradeType || (tradeStatus === 'bull' || tradeStatus === 'bear' ? tradeStatus : null));
     setTradeStatus('completed');
     setIsSettling(false);
     setActiveOrderByStock(prev => {
@@ -571,29 +583,17 @@ export function TradingDetail({
   return <div ref={scrollContainerRef} onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd} className="h-screen overflow-y-auto bg-[#09090b] pb-[280px]">
       <div className={`fixed left-0 right-0 top-0 z-30 border-b border-white/5 bg-[#09090b]/94 px-4 py-3 backdrop-blur-xl transition-all duration-200 ${showStickyQuote ? 'translate-y-0 opacity-100' : '-translate-y-full opacity-0 pointer-events-none'}`}>
         <div className="flex items-center justify-between gap-3">
-          <div className="min-w-0">
-            <div className="truncate text-[15px] font-bold text-white">{selectedName}</div>
-            <div className="mt-0.5 text-[11px] text-[#8a8a93]">{selectedStock}</div>
-          </div>
-          <div className="flex shrink-0 items-end gap-3 text-right">
-            <div>
-              <div className="text-[10px] text-[#6a7282]">{tx("最新价")}</div>
-              <div className="font-mono text-[15px] font-bold text-white">{displayQuote.price.toFixed(2)}</div>
-            </div>
-            <div className={displayQuote.isUpTrend ? 'text-[#ef4444]' : 'text-[#10b981]'}>
-              <div className="text-[10px] opacity-70">{tx("涨跌额")}</div>
-              <div className="font-mono text-[13px] font-bold">{changeSign}{displayQuote.change.toFixed(2)}</div>
-            </div>
-            <div className={displayQuote.isUpTrend ? 'text-[#ef4444]' : 'text-[#10b981]'}>
-              <div className="text-[10px] opacity-70">{tx("涨跌幅")}</div>
-              <div className="font-mono text-[13px] font-bold">{changeSign}{displayQuote.changePercent.toFixed(2)}%</div>
-            </div>
+          <div className="min-w-0 truncate text-[15px] font-bold text-white">{selectedName}</div>
+          <div className="grid shrink-0 grid-cols-3 gap-3 text-right font-mono">
+            <div className="text-[15px] font-bold text-white">{displayQuote.price.toFixed(2)}</div>
+            <div className={`text-[13px] font-bold ${displayQuote.isUpTrend ? 'text-[#ef4444]' : 'text-[#10b981]'}`}>{changeSign}{displayQuote.change.toFixed(2)}</div>
+            <div className={`text-[13px] font-bold ${displayQuote.isUpTrend ? 'text-[#ef4444]' : 'text-[#10b981]'}`}>{changeSign}{displayQuote.changePercent.toFixed(2)}%</div>
           </div>
         </div>
       </div>
 
       <NavigationHeader selectedStock={selectedStock} onStockChange={setSelectedStock} onProductsChange={setProducts} />
-      <TradingChart countdown={countdown} stockCode={selectedStock} entryPrice={entryPrice} entryTime={entryTime} tradeType={tradeStatus === 'bull' || tradeStatus === 'bear' ? tradeStatus : null} onPriceUpdate={(price, time) => {
+      <TradingChart countdown={countdown} stockCode={selectedStock} entryPrice={entryPrice} entryTime={entryTime} tradeType={activeTradeType} onPriceUpdate={(price, time) => {
       setLatestPrice(price);
       setLatestTime(time);
     }} onQuoteUpdate={setQuoteSummary} profitLoss={actualProfitLoss} showProfit={tradeStatus === 'completed' && !isSettling} />

@@ -25,6 +25,7 @@ export function DepositUpload() {
   } | null>(null);
   const userBankCard = location.state?.userBankCard as BankCard | undefined;
   const systemBankCard = location.state?.systemBankCard as BankCard | undefined;
+  const maxReceiptImages = 8;
   useEffect(() => {
     if (!userBankCard || !systemBankCard) {
       navigate('/deposit');
@@ -38,8 +39,16 @@ export function DepositUpload() {
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
     if (!files) return;
-    const remainingSlots = Math.max(3 - uploadedImages.length, 0);
+    const remainingSlots = Math.max(maxReceiptImages - uploadedImages.length, 0);
     const selectedFiles = Array.from(files).slice(0, remainingSlots);
+    if (selectedFiles.length === 0) {
+      setToast({
+        message: tx("最多可上传8张凭证"),
+        type: 'warning'
+      });
+      event.target.value = '';
+      return;
+    }
     Promise.all(selectedFiles.map(readFileAsDataUrl)).then(newImages => {
       setUploadedImages(prev => [...prev, ...newImages]);
     }).catch(() => {
@@ -164,8 +173,10 @@ export function DepositUpload() {
                 </button>
               </div>)}
 
-            {uploadedImages.length < 3 && <label className="flex h-[100px] w-[100px] cursor-pointer items-center justify-center rounded-[16px] border-[1.5px] border-dashed border-white/20 transition-all hover:border-white/40 hover:bg-white/5">
-                <input type="file" accept="image/*" multiple onChange={handleImageUpload} className="hidden" />
+            {uploadedImages.length < maxReceiptImages && <label className="flex h-[100px] w-[100px] cursor-pointer items-center justify-center rounded-[16px] border-[1.5px] border-dashed border-white/20 transition-all hover:border-white/40 hover:bg-white/5">
+                <input type="file" accept="image/*" multiple onClick={event => {
+              event.currentTarget.value = '';
+            }} onChange={handleImageUpload} className="hidden" />
                 {uploadedImages.length === 0 ? <ImageIcon size={32} className="text-[#8a8a93]" /> : <Plus size={32} className="text-[#8a8a93]" />}
               </label>}
           </div>

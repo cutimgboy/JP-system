@@ -1,32 +1,9 @@
 import { useState, useEffect } from 'react';
 import { apiClient, extractData } from '../../../utils/api';
 import { tx } from "../../../i18n/text";
+import { getLocalizedCountry, getLocalizedMarket, mergeProductInfo, type ProductInfo } from '../productInfo';
 interface MarketOverviewProps {
   stockCode: string;
-}
-interface ProductInfo {
-  code?: string;
-  tradeCode?: string;
-  nameCn?: string;
-  nameEn?: string;
-  type?: string;
-  currencyType?: string;
-  marginCurrency?: string;
-  market?: string;
-  decimalPlaces?: number;
-  contractSize?: number;
-  spread?: number;
-  minPriceChange?: number;
-  fixedLeverage?: number;
-  marketCapRank?: number;
-  marketCap?: string;
-  fullyDilutedMarketCap?: string;
-  circulatingSupply?: string;
-  maxSupply?: string;
-  totalSupply?: string;
-  issueDate?: string;
-  allTimeHigh?: string;
-  allTimeLow?: string;
 }
 export function MarketOverview({
   stockCode
@@ -39,10 +16,10 @@ export function MarketOverview({
         setLoading(true);
         const response = await apiClient.get(`/api/products/${stockCode}`);
         const productData = extractData(response);
-        setProductInfo(productData || null);
+        setProductInfo(mergeProductInfo(stockCode, productData));
       } catch (error) {
         console.error(tx("获取产品信息失败:"), error);
-        setProductInfo(null);
+        setProductInfo(mergeProductInfo(stockCode));
       } finally {
         setLoading(false);
       }
@@ -60,18 +37,20 @@ export function MarketOverview({
     }
     return String(value);
   };
-  const overviewItems = [{
+  const productType = productInfo?.type || '';
+  const isStock = productType === '股票';
+  const isCrypto = productType === 'Crypto' || productType === '数字货币';
+  const sectionTitle = isStock ? tx("公司信息") : isCrypto ? tx("币种信息") : tx("产品概况");
+  const sectionAccent = isStock ? 'bg-[#3b82f6]' : isCrypto ? 'bg-[#f7931a]' : 'bg-[#6c48f5]';
+  const generalItems = [{
     label: tx("标的类型"),
-    value: formatValue(productInfo?.type)
+    value: formatValue(productType)
   }, {
     label: tx("交易代码"),
     value: formatValue(productInfo?.tradeCode || productInfo?.code || stockCode)
   }, {
     label: tx("名称"),
     value: formatValue(productInfo?.nameCn || productInfo?.nameEn)
-  }, {
-    label: tx("所属市场"),
-    value: formatValue(productInfo?.market)
   }, {
     label: tx("货币类型"),
     value: formatValue(productInfo?.currencyType)
@@ -90,7 +69,39 @@ export function MarketOverview({
   }, {
     label: tx("固定杠杆"),
     value: formatValue(productInfo?.fixedLeverage)
+  }];
+  const stockItems = [{
+    label: tx("公司名称"),
+    value: formatValue(productInfo?.companyName || productInfo?.nameCn)
   }, {
+    label: tx("上市日期"),
+    value: formatValue(productInfo?.listingDate)
+  }, {
+    label: tx("发行价格"),
+    value: formatValue(productInfo?.issuePrice)
+  }, {
+    label: tx("ISIN代码"),
+    value: formatValue(productInfo?.isinCode)
+  }, {
+    label: tx("成立日期"),
+    value: formatValue(productInfo?.foundedYear)
+  }, {
+    label: tx("CEO"),
+    value: formatValue(productInfo?.ceo)
+  }, {
+    label: tx("所属市场"),
+    value: formatValue(getLocalizedMarket(productInfo))
+  }, {
+    label: tx("员工数量"),
+    value: formatValue(productInfo?.employees)
+  }, {
+    label: tx("国家"),
+    value: formatValue(getLocalizedCountry(productInfo))
+  }, {
+    label: tx("网址"),
+    value: formatValue(productInfo?.website)
+  }];
+  const cryptoItems = [{
     label: tx("市值排名"),
     value: productInfo?.marketCapRank ? `NO.${productInfo.marketCapRank}` : '-'
   }, {
@@ -117,14 +128,18 @@ export function MarketOverview({
   }, {
     label: tx("历史最低价"),
     value: formatValue(productInfo?.allTimeLow)
-  }].filter(item => item.value !== '-').slice(0, 10);
+  }];
+  const overviewItems = (isStock ? stockItems : isCrypto ? cryptoItems : generalItems).filter(item => item.value !== '-').slice(0, 10);
+  if (overviewItems.length === 0) {
+    return null;
+  }
   return <>
       {/* Separator */}
       <div className="h-[8px] bg-[#14141c] w-full my-2"></div>
 
       <div className="px-5 py-4">
         <h3 className="text-[16px] font-bold mb-4 flex items-center gap-2 text-white">
-          <div className="w-1 h-4 bg-[#6c48f5] rounded-full"></div>{tx("标的概况")}</h3>
+          <div className={`w-1 h-4 ${sectionAccent} rounded-full`}></div>{sectionTitle}</h3>
         <div className="grid grid-cols-2 gap-x-4 gap-y-3 rounded-2xl border border-white/5 bg-[#14141c] p-4">
           {overviewItems.map((item, i) => <div key={i} className="min-w-0">
               <div className="text-[11px] text-[#6a7282]">{item.label}</div>

@@ -276,7 +276,7 @@ export function KLineChart({
       const animatedLatestPrice = transitionRef.current.latestTime === latestPoint.time ? transitionRef.current.previousPrice + (latestPoint.price - transitionRef.current.previousPrice) * easedProgress : latestPoint.price;
       const chartPadding = {
         top: 12,
-        right: 10,
+        right: 28,
         bottom: 30,
         left: 8
       };
@@ -435,16 +435,19 @@ export function KLineChart({
       if (typeof renderEntryPrice === 'number' && typeof renderEntryTime === 'number' && renderTradeType) {
         const isBull = renderTradeType === 'bull';
         const tradeColor = renderTradeColor(renderTradeType);
-        let entryX = fixedX - slotWidth * 3;
+        const visibleTimeMin = Math.min(...points.map(point => point.time));
+        const visibleTimeMax = Math.max(...points.map(point => point.time));
+        const timeRange = Math.max(1, visibleTimeMax - visibleTimeMin);
+        let entryX = chartPadding.left + ((renderEntryTime - visibleTimeMin) / timeRange) * (fixedX - chartPadding.left);
         const closestPoint = points.reduce((closest, point) => {
           const currentDistance = Math.abs(point.time - renderEntryTime);
           const closestDistance = Math.abs(closest.time - renderEntryTime);
           return currentDistance < closestDistance ? point : closest;
         }, points[0]);
-        if (closestPoint) {
+        if (closestPoint && Math.abs(closestPoint.time - renderEntryTime) <= 2) {
           entryX = closestPoint.x;
         }
-        entryX = clamp(entryX, chartPadding.left, fixedX);
+        entryX = clamp(entryX, chartPadding.left + 12, fixedX - 8);
         const entryY = clamp(priceToY(renderEntryPrice), chartPadding.top, bottomY);
         ctx.save();
         ctx.strokeStyle = tradeColor;
@@ -485,15 +488,15 @@ export function KLineChart({
       if (renderShowProfit && typeof renderProfitLoss === 'number') {
         const isProfit = renderProfitLoss >= 0;
         const color = renderProfitColor(renderProfitLoss);
-        const boxWidth = 118;
-        const boxHeight = 54;
-        const boxX = clamp(fixedX - boxWidth / 2, 8, logicalWidth - boxWidth - 8);
-        const boxY = clamp(currentPoint.y - boxHeight - 18, 8, bottomY - boxHeight);
+        const boxWidth = 136;
+        const boxHeight = 64;
+        const boxX = clamp(fixedX - boxWidth - 16, 8, logicalWidth - boxWidth - 8);
+        const boxY = clamp(currentPoint.y - boxHeight / 2, chartPadding.top, bottomY - boxHeight);
         ctx.save();
         ctx.shadowColor = color;
         ctx.shadowBlur = 24;
-        roundRect(ctx, boxX, boxY, boxWidth, boxHeight, 14);
-        ctx.fillStyle = isProfit ? 'rgba(16, 185, 129, 0.28)' : 'rgba(239, 68, 68, 0.28)';
+        roundRect(ctx, boxX, boxY, boxWidth, boxHeight, 12);
+        ctx.fillStyle = isProfit ? 'rgba(16, 185, 129, 0.22)' : 'rgba(239, 68, 68, 0.22)';
         ctx.fill();
         ctx.strokeStyle = color;
         ctx.lineWidth = 1.5;
@@ -503,10 +506,10 @@ export function KLineChart({
         ctx.font = '600 11px sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(isProfit ? tx("盈利") : tx("亏损"), boxX + boxWidth / 2, boxY + 17);
+        ctx.fillText(isProfit ? tx("盈利") : tx("亏损"), boxX + boxWidth / 2, boxY + 19);
         ctx.fillStyle = color;
-        ctx.font = '800 18px ui-monospace, SFMono-Regular, Menlo, monospace';
-        ctx.fillText(`${isProfit ? '+' : ''}${Math.floor(renderProfitLoss).toLocaleString()}`, boxX + boxWidth / 2, boxY + 36);
+        ctx.font = '800 22px ui-monospace, SFMono-Regular, Menlo, monospace';
+        ctx.fillText(`${isProfit ? '+' : ''}${Math.floor(renderProfitLoss).toLocaleString()}`, boxX + boxWidth / 2, boxY + 42);
       }
     };
     const animate = (now: number) => {
