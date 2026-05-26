@@ -83,6 +83,28 @@ function formatSignedRate(value: number) {
   if (value < 0) return `-${formatted}`;
   return '0.00';
 }
+function formatShareMoney(value: number) {
+  const formatted = formatNumber(Math.abs(value || 0), {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  });
+  if (value > 0) return `+${formatted}`;
+  if (value < 0) return `-${formatted}`;
+  return formatted;
+}
+function formatShareAmount(value: number) {
+  return formatNumber(Math.abs(value || 0), {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  });
+}
+function formatShareRate(value: number) {
+  const absoluteRate = Math.abs(value);
+  const formatted = Number.isInteger(absoluteRate) ? absoluteRate.toFixed(0) : absoluteRate.toFixed(2);
+  if (value > 0) return `+${formatted}`;
+  if (value < 0) return `-${formatted}`;
+  return formatted;
+}
 function getDurationLabel(order: OrderDetail) {
   const duration = Number(order.durationSeconds || 0);
   const fallbackSeconds = Math.max(0, Math.round((new Date(order.expectedCloseTime || order.closeTime).getTime() - new Date(order.openTime).getTime()) / 1000));
@@ -227,6 +249,9 @@ export default function OrderDetail() {
   const directionText = order.tradeType === 'bull' ? tx("买涨") : tx("买跌");
   const directionClass = order.tradeType === 'bull' ? 'text-[#10b981]' : 'text-[#ef4444]';
   const directionBgClass = order.tradeType === 'bull' ? 'bg-[#10b981]/10 text-[#10b981]' : 'bg-[#ef4444]/10 text-[#ef4444]';
+  const shareProfitText = formatShareMoney(displayProfitLoss);
+  const shareProfitTextSize = shareProfitText.length > 12 ? 'text-[32px]' : shareProfitText.length > 10 ? 'text-[36px]' : 'text-[42px]';
+  const assetInitial = (assetName || order.stockCode || '?').trim().charAt(0).toUpperCase();
   return <div className="absolute inset-0 z-50 flex flex-col overflow-hidden bg-[#09090b] text-white">
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
@@ -329,55 +354,55 @@ export default function OrderDetail() {
         }} exit={{
           scale: 0.9,
           y: 20
-        }} className="relative flex w-full max-w-[320px] flex-col overflow-hidden rounded-[24px] border border-[#6c48f5]/30 bg-[#14141c]/80 shadow-[0_0_40px_rgba(108,72,245,0.4)] backdrop-blur-2xl">
-              <div className="relative z-10 flex items-center gap-2 px-6 pb-2 pt-6">
-                <div className="h-8 w-8 overflow-hidden rounded-[8px] bg-[#6c48f5] shadow-[0_0_10px_rgba(108,72,245,0.6)]">
-                  <img src="/icons/icon-192.png" alt="JMP Trading" className="h-full w-full object-cover" />
+        }} className="relative flex w-full max-w-[320px] flex-col overflow-hidden rounded-[24px] border border-[#6c48f5]/30 bg-[#111119] shadow-[0_0_40px_rgba(108,72,245,0.4)]">
+              <div className="relative z-10 flex items-center gap-3 px-6 pb-3 pt-6">
+                <div className="flex h-8 w-8 items-center justify-center rounded-[8px] bg-[#6c48f5] shadow-[0_0_14px_rgba(108,72,245,0.65)]">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path d="M4 12h3l2-7 4 14 2-7h5" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
                 </div>
                 <span className="text-sm font-bold tracking-wider text-white drop-shadow-md">JMP Trading</span>
               </div>
 
-              <div className="relative z-10 px-6 pb-4">
-                <div className="mb-5 text-center">
+              <div className="relative z-10 px-6">
+                <div className="mb-6 text-center">
                   <div className="mb-1 text-[13px] text-[#8a8a93]">{getDurationLabel(order)}{tx("交易收益")}</div>
-                  <div className={`font-mono text-[42px] font-bold leading-none tracking-tight ${pnlTextClass} ${pnlGlowClass}`}>
-                    {formatSignedNumber(displayProfitLoss)} VND
+                  <div className={`flex items-end justify-center gap-1 whitespace-nowrap font-mono font-bold leading-none tracking-normal ${pnlTextClass} ${pnlGlowClass}`}>
+                    <span className={shareProfitTextSize}>{shareProfitText}</span>
+                    <span className="pb-1 text-[20px]">VND</span>
                   </div>
-                  <div className={`mt-2 font-mono text-[18px] ${pnlTextClass}`}>
-                    {formatSignedRate(profitRate)}<span className="text-[13px]">%</span>
+                  <div className={`mt-3 flex justify-center gap-2 font-mono text-[17px] ${pnlTextClass}`}>
+                    <span>{tx("收益率")}</span>
+                    <span>{formatShareRate(profitRate)}%</span>
                   </div>
                 </div>
 
-                <div className="mb-4 space-y-3 border-t border-white/10 pt-4">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-[#8a8a93]">{tx("交易品种")}</span>
-                    <div className="flex items-center gap-1.5">
-                      <img src={`/logo/${order.stockCode}.svg`} alt={assetName} className="h-5 w-5 rounded-full bg-white object-cover" onError={event => {
-                    const target = event.currentTarget;
-                    if (target.src.endsWith('.svg')) {
-                      target.src = `/logo/${order.stockCode}.png`;
-                    } else {
-                      target.style.display = 'none';
-                    }
-                  }} />
-                      <span className="font-medium text-white">{assetName}</span>
+                <div className="mb-5 flex min-h-[84px] items-center justify-between gap-3 rounded-[16px] bg-[#1c1c24] px-4 py-3">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#6c48f5] text-[18px] font-bold text-white shadow-[0_0_12px_rgba(108,72,245,0.3)]">
+                      {assetInitial}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="truncate text-[15px] font-bold text-white">{assetName}</div>
+                      <div className="mt-0.5 truncate text-[12px] text-[#8a8a93]">{order.stockCode}</div>
                     </div>
                   </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-[#8a8a93]">{tx("交易方向")}</span>
-                    <span className={`font-medium ${directionClass}`}>{directionText}</span>
+                  <div className="shrink-0 text-right">
+                    <div className={`text-[13px] font-bold ${directionClass}`}>
+                      <span className="mr-1">{order.tradeType === 'bull' ? '↗' : '↘'}</span>{directionText}
+                    </div>
+                    <div className="mt-1 font-mono text-[16px] font-bold text-white">{formatShareAmount(order.investmentAmount)}</div>
                   </div>
                 </div>
               </div>
 
-              <div className="relative mt-2 h-[140px] w-full">
-                <div className="absolute inset-0 z-10 bg-gradient-to-br from-[#6c48f5]/20 to-transparent mix-blend-overlay" />
-                <img src="/trad.png" alt="" crossOrigin="anonymous" className="h-full w-full object-contain opacity-90 mix-blend-screen" />
-                <div className="absolute inset-0 z-10 bg-gradient-to-t from-[#14141c] via-[#14141c]/40 to-transparent" />
+              <div className="relative h-[260px] w-full px-6">
+                <img src="/trad.png" alt="" crossOrigin="anonymous" className="h-full w-full rounded-[12px] object-cover object-center opacity-95" />
+                <div className="pointer-events-none absolute inset-x-6 bottom-0 h-20 rounded-b-[12px] bg-gradient-to-t from-[#111119] to-transparent" />
               </div>
 
-              <div className="relative z-10 -mt-8 px-6 pb-6">
-                <div className="flex items-center justify-between rounded-xl border border-white/10 bg-white/5 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.1)] backdrop-blur-md">
+              <div className="relative z-10 px-6 pb-6 pt-5">
+                <div className="flex items-center justify-between gap-3 rounded-[14px] border border-white/10 bg-white/5 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.1)] backdrop-blur-md">
                   <div className="flex flex-col">
                     <span className="text-sm font-medium text-white">{tx("扫码加入交易")}</span>
                     <span className="mt-0.5 text-xs text-[#8a8a93]">{tx("交易全球资产 获取全球收益")}</span>
