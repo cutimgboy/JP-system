@@ -41,7 +41,7 @@ export function InstallApp() {
         >
           <ChevronLeft size={24} />
         </button>
-        <h1 className="absolute left-1/2 -translate-x-1/2 text-[18px] font-medium">安装 APP 应用</h1>
+        <h1 className="absolute left-1/2 -translate-x-1/2 text-[18px] font-medium">安装APP应用</h1>
         <div className="w-10" />
       </div>
 
@@ -62,7 +62,7 @@ export function InstallApp() {
               browser === 'safari' ? 'text-white' : 'text-[#8a8a93] hover:text-white/80'
             }`}
           >
-            Safari 浏览器
+            Safari浏览器
           </button>
           <button
             onClick={() => setBrowser('chrome')}

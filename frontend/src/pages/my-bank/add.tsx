@@ -13,7 +13,6 @@ export function AddBankCard() {
     bankName: '',
     accountName: '',
     accountNumber: '',
-    swiftCode: '',
   });
 
   const isFormValid = useMemo(
@@ -95,13 +94,6 @@ export function AddBankCard() {
               mono
               onChange={(value) => updateField('accountNumber', value)}
             />
-            <BankInput
-              label="SWIFT代码（选填）"
-              value={formData.swiftCode}
-              placeholder="请输入SWIFT代码"
-              mono
-              onChange={(value) => updateField('swiftCode', value)}
-            />
           </div>
 
           <div className="mt-8 rounded-2xl border border-[#6c48f5]/20 bg-[#6c48f5]/10 p-4">
@@ -120,9 +112,9 @@ export function AddBankCard() {
         <button
           onClick={handleSubmit}
           disabled={loading || !isFormValid}
-          className={`h-[52px] w-full rounded-[16px] border text-[16px] font-medium transition-all ${
+          className={`h-[52px] w-full rounded-[16px] border text-[16px] font-medium transition-colors ${
             isFormValid
-              ? 'border-[#6c48f5]/50 bg-[#6c48f5] text-white shadow-[0_4px_16px_rgba(108,72,245,0.3)] hover:bg-[#5a3bd9]'
+              ? 'border-white/10 bg-[#2a2a36] text-white shadow-[0_4px_12px_rgba(0,0,0,0.2)] hover:bg-[#3a3a46]'
               : 'cursor-not-allowed border-white/10 bg-[#1a1a24] text-white/30'
           }`}
         >

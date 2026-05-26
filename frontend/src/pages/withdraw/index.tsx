@@ -50,27 +50,21 @@ export function Withdraw() {
         >
           <ChevronLeft size={24} />
         </button>
-        <h1 className="absolute left-1/2 -translate-x-1/2 text-[18px] font-medium">选择提取银行卡</h1>
+        <h1 className="absolute left-1/2 -translate-x-1/2 text-[18px] font-medium">选择出金银行卡</h1>
         <div className="w-10" />
       </div>
 
       <div className="px-5 pb-[120px] pt-6">
         <div className="mb-6 flex items-center justify-between">
-          <div>
-            <h2 className="text-[20px] font-bold tracking-tight">请选择要提取资金的银行卡</h2>
-            <p className="mt-2 text-[13px] text-[#8a8a93]">
-              提现后端正式申请接口待补齐，当前先完成前端流程和审核中状态。
-            </p>
-          </div>
+          <h2 className="text-[20px] font-bold tracking-tight">请选择要出金的银行卡</h2>
         </div>
 
         {loading ? (
           <div className="py-16 text-center text-[#8a8a93]">加载中...</div>
         ) : bankCards.length === 0 ? (
-          <div className="flex flex-col items-center justify-center rounded-[22px] border border-dashed border-white/10 bg-[#14141c] px-6 py-12 text-center">
-            <Landmark size={48} className="mb-4 text-white/20" />
-            <p className="text-[15px] font-medium text-white">暂无银行卡</p>
-            <p className="mt-2 text-[13px] text-[#8a8a93]">添加银行卡后即可发起提取资金申请</p>
+          <div className="flex flex-col items-center justify-center py-12 text-[#8a8a93]">
+            <Landmark size={48} className="mb-4 opacity-20" />
+            <p className="text-[14px]">暂无银行卡</p>
           </div>
         ) : (
           <div className="space-y-4">
@@ -101,7 +95,7 @@ export function Withdraw() {
                         </div>
                         <div>
                           <div className="mb-0.5 text-[16px] font-bold text-white">{bank.bankName}</div>
-                          <div className="text-[12px] text-white/60">持卡人: {bank.accountName}</div>
+                          <div className="text-[12px] text-white/60">持卡人：{bank.accountName}</div>
                         </div>
                       </div>
                       <ChevronRight size={20} className="text-white/40" />

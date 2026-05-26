@@ -1,5 +1,16 @@
 import { useEffect, useState } from 'react';
-import { ArrowRight, ChevronLeft, History, TrendingDown, TrendingUp } from 'lucide-react';
+import {
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  Download,
+  History,
+  TrendingDown,
+  TrendingUp,
+  Upload,
+  XCircle,
+} from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { apiClient, extractData } from '../../utils/api';
@@ -11,6 +22,8 @@ interface FundRecord {
   status: number;
   time: string;
   description: string;
+  tradeType?: 'bull' | 'bear';
+  profitLoss?: number;
   targetPath?: string;
   targetState?: Record<string, unknown>;
 }
@@ -65,10 +78,12 @@ export function FundRecords() {
                 .map((trade) => ({
                   id: trade.id,
                   type: Number(trade.profitLoss || 0) >= 0 ? ('profit' as const) : ('loss' as const),
-                  amount: Math.abs(Number(trade.profitLoss || 0)),
+                  amount: Math.abs(Number(trade.investmentAmount || trade.amount || 0)),
+                  profitLoss: Number(trade.profitLoss || 0),
                   status: 1,
                   time: trade.closeTime || trade.updatedAt || trade.createdAt,
-                  description: `${trade.stockName || trade.stockCode} ${trade.tradeType === 'bull' ? '看涨' : '看跌'}`,
+                  description: trade.stockName || trade.stockCode,
+                  tradeType: trade.tradeType,
                   targetPath: `/positions/order/${trade.id}`,
                 })),
             );
@@ -97,18 +112,21 @@ export function FundRecords() {
     return record.type === 'profit' || record.type === 'loss';
   });
 
-  const getStatusText = (status: number) => {
-    if (status === 1) return '已完成';
-    if (status === 0) return '审核中';
-    if (status === 2) return '已拒绝';
-    return '未知';
-  };
+  const getStatusDisplay = (record: FundRecord) => {
+    if (record.type === 'profit' || record.type === 'loss') {
+      return <span className="flex items-center gap-1 text-[#8a8a93]"><CheckCircle2 size={12} /> 已结算</span>;
+    }
 
-  const getStatusColor = (status: number) => {
-    if (status === 1) return 'text-[#10b981]';
-    if (status === 0) return 'text-[#f59e0b]';
-    if (status === 2) return 'text-[#ef4444]';
-    return 'text-[#8a8a93]';
+    if (record.status === 1) {
+      return <span className="flex items-center gap-1 text-[#10b981]"><CheckCircle2 size={12} /> 成功</span>;
+    }
+    if (record.status === 0) {
+      return <span className="flex items-center gap-1 text-[#f59e0b]"><Clock size={12} /> 处理中</span>;
+    }
+    if (record.status === 2) {
+      return <span className="flex items-center gap-1 text-[#ef4444]"><XCircle size={12} /> 失败</span>;
+    }
+    return <span className="flex items-center gap-1 text-[#8a8a93]"><Clock size={12} /> 未知</span>;
   };
 
   const formatDate = (dateString: string) => {
@@ -121,7 +139,7 @@ export function FundRecords() {
         hour: '2-digit',
         minute: '2-digit',
       })
-      .replace(/\//g, '-');
+        .replace(/\//g, '-');
   };
 
   const handleRecordClick = (record: FundRecord) => {
@@ -132,86 +150,110 @@ export function FundRecords() {
 
   return (
     <div className="min-h-screen bg-[#09090b] text-white">
-      <div className="sticky top-0 z-20 border-b border-white/5 bg-[#09090b]/90 backdrop-blur-md">
-        <div className="relative flex h-[60px] items-center justify-center px-4">
-          <button
-            onClick={() => navigate(-1)}
-            className="absolute left-4 flex h-10 w-10 items-center justify-center rounded-full transition-colors hover:bg-white/10"
-          >
-            <ChevronLeft size={24} />
-          </button>
-          <h1 className="text-[18px] font-medium">资金记录</h1>
-        </div>
-        <div className="flex gap-2 overflow-x-auto px-5 pb-4">
+      <div className="sticky top-0 z-20 flex h-[60px] items-center justify-between border-b border-white/5 bg-[#09090b]/90 px-4 backdrop-blur-md">
+        <button
+          onClick={() => navigate(-1)}
+          className="-ml-2 flex h-10 w-10 items-center justify-center rounded-full transition-colors hover:bg-white/10"
+        >
+          <ChevronLeft size={24} />
+        </button>
+        <h1 className="absolute left-1/2 -translate-x-1/2 text-[18px] font-medium">资金记录</h1>
+        <div className="w-10" />
+      </div>
+
+      <div className="flex shrink-0 items-center gap-2 overflow-x-auto border-b border-white/5 px-4 py-3">
           {tabs.map((tab) => (
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
-              className={`shrink-0 rounded-[20px] px-4 py-1.5 text-[13px] font-medium transition-all ${
+              className={`h-[32px] shrink-0 rounded-full px-4 text-[13px] font-medium transition-all ${
                 activeTab === tab.key
-                  ? 'bg-[#6c48f5] text-white shadow-[0_4px_10px_rgba(108,72,245,0.3)]'
-                  : 'bg-[#1a1a24] text-[#8a8a93] hover:bg-[#2a2a36] hover:text-white'
+                  ? 'bg-[#6c48f5] text-white shadow-[0_2px_8px_rgba(108,72,245,0.3)]'
+                  : 'border border-white/5 bg-[#14141c] text-[#8a8a93] hover:bg-white/5 hover:text-white'
               }`}
             >
               {tab.label}
             </button>
           ))}
-        </div>
       </div>
 
-      <div className="px-5 py-4">
+      <div className="space-y-3 px-4 py-4">
         <AnimatePresence mode="popLayout">
           {loading ? (
             <div className="py-16 text-center text-[#8a8a93]">加载中...</div>
           ) : filteredRecords.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-24 text-[#8a8a93]">
-              <History size={48} strokeWidth={1} className="mb-4 opacity-20" />
-              <p className="text-[14px]">暂无资金记录</p>
+            <div className="flex flex-col items-center justify-center py-20 text-[#8a8a93]">
+              <History size={48} className="mb-4 opacity-20" />
+              <p className="text-[14px]">暂无相关记录</p>
             </div>
           ) : (
-            <div className="space-y-3">
-              {filteredRecords.map((record) => {
-                const isPositive = record.type === 'deposit' || record.type === 'profit';
-                const Icon = isPositive ? TrendingUp : TrendingDown;
-                const color = isPositive ? '#10b981' : '#ef4444';
+            filteredRecords.map((record) => {
+              const isTrade = record.type === 'profit' || record.type === 'loss';
+              const isPositive = record.type === 'deposit' || record.type === 'profit';
+              const Icon = record.type === 'deposit'
+                ? Download
+                : record.type === 'withdraw'
+                  ? Upload
+                  : isPositive
+                    ? TrendingUp
+                    : TrendingDown;
+              const iconClass = record.type === 'deposit'
+                ? 'bg-[#10b981]/10 text-[#10b981]'
+                : record.type === 'withdraw'
+                  ? 'bg-[#ef4444]/10 text-[#ef4444]'
+                  : isPositive
+                    ? 'bg-[#10b981]/10 text-[#10b981]'
+                    : 'bg-[#ef4444]/10 text-[#ef4444]';
+              const amountText = isTrade
+                ? `${(record.profitLoss || 0) >= 0 ? '+' : ''}${Number(record.profitLoss || 0).toLocaleString()}`
+                : `${isPositive ? '+' : '-'}${record.amount.toLocaleString()}`;
+              const amountClass = isTrade
+                ? Number(record.profitLoss || 0) >= 0 ? 'text-[#10b981]' : 'text-[#ef4444]'
+                : isPositive ? 'text-[#10b981]' : 'text-white';
 
-                return (
-                  <motion.button
-                    key={`${record.type}-${record.id}`}
-                    type="button"
-                    layout
-                    initial={{ opacity: 0, y: 16 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.96 }}
-                    onClick={() => handleRecordClick(record)}
-                    className="w-full rounded-[20px] border border-white/5 bg-[#14141c] p-4 text-left shadow-sm transition-colors hover:border-white/10"
-                  >
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex min-w-0 items-start gap-3">
-                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px]" style={{ backgroundColor: `${color}18` }}>
-                          <Icon size={20} color={color} />
-                        </div>
-                        <div className="min-w-0">
-                          <div className="truncate text-[15px] font-medium text-white">{record.description}</div>
-                          <div className="mt-1 text-[12px] text-[#8a8a93]">{formatDate(record.time)}</div>
-                        </div>
-                      </div>
-                      <div className="shrink-0 text-right">
-                        <div className={`font-mono text-[16px] font-bold ${isPositive ? 'text-[#10b981]' : 'text-[#ef4444]'}`}>
-                          {isPositive ? '+' : '-'}{record.amount.toLocaleString()}
-                        </div>
-                        <div className={`mt-1 text-[12px] ${getStatusColor(record.status)}`}>{getStatusText(record.status)}</div>
+              return (
+                <motion.button
+                  key={`${record.type}-${record.id}`}
+                  type="button"
+                  layout
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  transition={{ duration: 0.2 }}
+                  onClick={() => handleRecordClick(record)}
+                  className="group flex w-full items-center gap-3 overflow-hidden rounded-[16px] border border-white/5 bg-[#14141c] p-4 text-left transition-colors hover:bg-[#1a1a24]"
+                >
+                  <div className={`flex h-[40px] w-[40px] shrink-0 items-center justify-center rounded-full ${iconClass}`}>
+                    <Icon size={20} />
+                  </div>
+
+                  <div className="min-w-0 flex-1">
+                    <div className="mb-1 flex items-center justify-between gap-3">
+                      <span className="flex min-w-0 items-center gap-1.5 truncate text-[15px] font-medium text-white/90">
+                        <span className="truncate">{record.description}</span>
+                        {isTrade && (
+                          <span className={`shrink-0 rounded-[4px] px-1.5 py-0.5 text-[10px] font-medium ${
+                            record.tradeType === 'bull' ? 'bg-[#10b981]/20 text-[#10b981]' : 'bg-[#ef4444]/20 text-[#ef4444]'
+                          }`}>
+                            买{record.tradeType === 'bull' ? '涨' : '跌'}
+                          </span>
+                        )}
+                      </span>
+                      <span className={`shrink-0 font-mono text-[15px] font-bold ${amountClass}`}>
+                        {amountText}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="font-mono text-[12px] text-[#8a8a93]">{formatDate(record.time)}</span>
+                      <div className="flex items-center gap-2 text-[12px]">
+                        {getStatusDisplay(record)}
+                        <ChevronRight size={14} className="text-[#8a8a93] opacity-50 transition-opacity group-hover:opacity-100" />
                       </div>
                     </div>
-                    {record.targetPath ? (
-                      <div className="mt-4 flex items-center justify-end gap-1 text-[12px] text-[#8a8a93]">
-                        查看详情 <ArrowRight size={13} />
-                      </div>
-                    ) : null}
-                  </motion.button>
-                );
-              })}
-            </div>
+                  </div>
+                </motion.button>
+              );
+            })
           )}
         </AnimatePresence>
       </div>

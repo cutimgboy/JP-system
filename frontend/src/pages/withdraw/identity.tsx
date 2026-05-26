@@ -167,7 +167,7 @@ export function WithdrawIdentity() {
             <input
               value={formData.idNumber}
               onChange={(event) => setFormData((prev) => ({ ...prev, idNumber: event.target.value }))}
-              placeholder="请输入证件号码"
+              placeholder="请输入身份证号"
               className="h-[52px] w-full rounded-[14px] border border-white/10 bg-[#14141c] pl-12 pr-4 text-[15px] text-white outline-none transition-colors placeholder:text-white/20 focus:border-[#6c48f5]/50"
             />
           </div>
@@ -176,10 +176,10 @@ export function WithdrawIdentity() {
         <div className="space-y-4">
           <h2 className="text-[16px] font-bold text-white">上传证件照片</h2>
           <div className="grid grid-cols-2 gap-4">
-            <UploadBox type="idFront" label="证件正面" icon={FileText} />
-            <UploadBox type="idBack" label="证件反面" icon={FileText} />
+            <UploadBox type="idFront" label="身份证正面" icon={FileText} />
+            <UploadBox type="idBack" label="身份证反面" icon={FileText} />
           </div>
-          <UploadBox type="selfie" label="手持证件自拍照" icon={User} />
+          <UploadBox type="selfie" label="手持身份证自拍照" icon={User} />
         </div>
       </div>
 
@@ -193,7 +193,7 @@ export function WithdrawIdentity() {
               : 'cursor-not-allowed bg-[#1a1a24] text-white/30'
           }`}
         >
-          {submitting ? '提交中...' : '提交审核'}
+          {submitting ? '提交中...' : '下一步'}
         </button>
       </div>
 
@@ -218,7 +218,7 @@ export function WithdrawIdentity() {
               </div>
               <h3 className="mb-2 text-[20px] font-bold text-white">审核中</h3>
               <p className="mb-8 text-[14px] leading-relaxed text-[#8a8a93]">
-                您的提取资金申请已提交。我们将在 1-3 个工作日内完成审核并处理。
+                您的出金申请及身份信息已提交成功，我们将在1-3个工作日内完成审核并处理您的出金。
               </p>
               <button
                 onClick={() => {

@@ -102,7 +102,7 @@ export function AboutUs() {
   return (
     <div className="min-h-screen bg-[#09090b] text-white flex flex-col">
       {/* Header */}
-      <div className="fixed top-0 left-0 right-0 h-[60px] flex items-center justify-between px-6 shrink-0 z-20 bg-[#09090b]/80 backdrop-blur-md border-b border-white/5 pt-2 pb-4 box-content">
+      <div className="fixed top-0 left-0 right-0 h-[60px] flex items-center justify-between px-6 shrink-0 z-20 bg-[#09090b]/80 backdrop-blur-md border-b border-white/5">
         <button
           onClick={() => navigate(-1)}
           className="w-10 h-10 flex items-center justify-center -ml-3 rounded-full hover:bg-white/10 transition-colors"
@@ -113,7 +113,7 @@ export function AboutUs() {
         <div className="w-10" />
       </div>
 
-      <div className="flex-1 overflow-y-auto pb-10 pt-[108px]">
+      <div className="flex-1 overflow-y-auto pb-10 pt-[84px]">
         {/* Module 1: Who are we */}
         <div className="px-5 mt-6 mb-8">
           <div className="flex items-center gap-3 mb-4">

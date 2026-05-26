@@ -1,217 +1,202 @@
-import { useMemo, useState } from 'react';
-import { ArrowLeft, Eye, EyeOff } from 'lucide-react';
+import { useState } from 'react';
+import { AlertCircle, ChevronLeft, Eye, EyeOff } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { AnimatePresence, motion } from 'framer-motion';
 import { apiClient, extractMessage } from '../../utils/api';
+import { Toast } from '../../components/Toast';
 
 const passwordRule =
   /^(?=.{8,20}$)(?:(?=.*[A-Za-z])(?=.*\d)|(?=.*[A-Za-z])(?=.*[^A-Za-z\d])|(?=.*\d)(?=.*[^A-Za-z\d]))\S+$/;
 
 export function ChangePassword() {
   const navigate = useNavigate();
-  const [currentPassword, setCurrentPassword] = useState('');
+  const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
-  const [showNewPassword, setShowNewPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState('');
-  const [successMessage, setSuccessMessage] = useState('');
+  const [showOld, setShowOld] = useState(false);
+  const [showNew, setShowNew] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'warning' } | null>(null);
 
-  const passwordChecks = useMemo(
-    () => [
-      {
-        label: '密码至少8个字符',
-        passed: newPassword.length >= 8,
-      },
-      {
-        label: '字母、数字或标点至少包含2种',
-        passed: passwordRule.test(newPassword),
-      },
-      {
-        label: '两次输入的新密码需要一致',
-        passed: Boolean(newPassword) && newPassword === confirmPassword,
-      },
-    ],
-    [confirmPassword, newPassword],
-  );
-
-  const validateForm = () => {
-    if (!currentPassword.trim()) {
-      return '请输入旧密码';
+  const handleSpacePrevention = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === ' ') {
+      event.preventDefault();
+      setToast({ message: '不可输入空格', type: 'warning' });
     }
-
-    if (!passwordRule.test(newPassword)) {
-      return '新密码至少8位，且需包含字母、数字、特殊字符中的至少2种';
-    }
-
-    if (newPassword !== confirmPassword) {
-      return '两次输入的新密码不一致';
-    }
-
-    if (currentPassword === newPassword) {
-      return '新密码不能与旧密码相同';
-    }
-
-    return '';
   };
 
-  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const validationMessage = validateForm();
-
-    if (validationMessage) {
-      setError(validationMessage);
-      setSuccessMessage('');
-      return;
+  const validate = () => {
+    if (!oldPassword) {
+      setError('请输入当前密码');
+      return false;
+    }
+    if (!newPassword) {
+      setError('请输入新密码');
+      return false;
+    }
+    if (!confirmPassword) {
+      setError('请再次输入新密码');
+      return false;
+    }
+    if (!passwordRule.test(newPassword)) {
+      setError('密码需包含字母、数字或标点中的至少两种，长度不小于8位');
+      return false;
+    }
+    if (newPassword !== confirmPassword) {
+      setError('两次输入的密码不一致');
+      return false;
+    }
+    if (oldPassword === newPassword) {
+      setError('新密码不能与当前密码相同');
+      return false;
     }
 
-    try {
-      setSubmitting(true);
-      setError('');
-      setSuccessMessage('');
+    setError(null);
+    return true;
+  };
 
+  const handleSubmit = async () => {
+    if (!validate()) return;
+
+    setIsSubmitting(true);
+    try {
       await apiClient.put('/user/password/change', {
-        currentPassword,
+        currentPassword: oldPassword,
         newPassword,
       });
-
-      setSuccessMessage('密码修改成功');
-      setCurrentPassword('');
-      setNewPassword('');
-      setConfirmPassword('');
-      window.setTimeout(() => {
-        navigate('/profile');
-      }, 900);
+      setToast({ message: '密码修改成功，请重新登录', type: 'success' });
+      window.setTimeout(() => navigate('/profile'), 900);
     } catch (err: any) {
-      setError(extractMessage(err.response?.data, '密码修改失败'));
+      setError(extractMessage(err.response?.data, '网络异常，请检查网络后重试'));
     } finally {
-      setSubmitting(false);
+      setIsSubmitting(false);
     }
   };
 
   return (
     <div className="min-h-screen bg-[#09090b] text-white">
-      <div className="relative mx-auto min-h-screen w-full max-w-md overflow-hidden bg-[#09090b] px-5 pb-32 pt-6">
-        <div className="pointer-events-none absolute left-1/2 top-0 h-56 w-56 -translate-x-1/2 rounded-full bg-[#6c48f5]/18 blur-[90px]" />
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-48 bg-gradient-to-b from-white/[0.02] to-transparent" />
-        <div className="relative mt-1">
-          <button
-            type="button"
-            onClick={() => navigate('/profile')}
-            className="flex h-10 w-10 items-center justify-center rounded-full text-white/80 transition hover:bg-white/[0.06]"
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </button>
-        </div>
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
-        <div className="relative mt-8">
-          <h1 className="text-[28px] font-semibold leading-[1.2] tracking-[-0.03em] text-white">
-            修改登录密码
-          </h1>
-          <p className="mt-4 text-[14px] leading-6 text-white/55">
-            为了保障账户安全，修改密码前需要先验证当前登录密码。
+      <div className="sticky top-0 z-20 flex h-[60px] items-center justify-between border-b border-white/5 bg-[#09090b]/90 px-4 backdrop-blur-md">
+        <button
+          onClick={() => navigate(-1)}
+          className="-ml-2 flex h-10 w-10 items-center justify-center rounded-full text-white transition-colors hover:bg-white/10"
+        >
+          <ChevronLeft size={24} />
+        </button>
+        <h1 className="absolute left-1/2 -translate-x-1/2 text-[18px] font-medium text-white">修改登录密码</h1>
+        <div className="w-10" />
+      </div>
+
+      <div className="px-5 pb-[120px] pt-6">
+        <div className="mb-8">
+          <p className="text-[13px] leading-relaxed text-[#8a8a93]">
+            为了您的账号安全，请定期更换密码。密码需包含字母、数字或标点中的至少两种，长度不小于8位。
           </p>
         </div>
 
-        <form id="change-password-form" onSubmit={handleSubmit} className="relative mt-9">
-          <div>
-            <label className="mb-3 block text-[14px] font-medium text-white/72">旧密码</label>
-            <div className="relative rounded-[20px] border border-white/5 bg-[#14141c] px-4 py-4 shadow-[0_12px_24px_rgba(0,0,0,0.2)]">
-              <input
-                type={showCurrentPassword ? 'text' : 'password'}
-                autoComplete="current-password"
-                value={currentPassword}
-                onChange={(event) => setCurrentPassword(event.target.value)}
-                placeholder="请输入旧密码"
-                className="w-full bg-transparent pr-10 text-[17px] font-medium text-white outline-none placeholder:text-white/25"
-              />
-              <button
-                type="button"
-                onClick={() => setShowCurrentPassword((value) => !value)}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-[#a58dff]"
+        <div className="space-y-6">
+          <InputField
+            label="当前密码"
+            placeholder="请输入当前登录密码"
+            value={oldPassword}
+            setValue={setOldPassword}
+            show={showOld}
+            setShow={setShowOld}
+            onKeyDown={handleSpacePrevention}
+          />
+          <InputField
+            label="新密码"
+            placeholder="请输入新密码"
+            value={newPassword}
+            setValue={setNewPassword}
+            show={showNew}
+            setShow={setShowNew}
+            onKeyDown={handleSpacePrevention}
+          />
+          <InputField
+            label="确认新密码"
+            placeholder="请再次输入新密码"
+            value={confirmPassword}
+            setValue={setConfirmPassword}
+            show={showConfirm}
+            setShow={setShowConfirm}
+            onKeyDown={handleSpacePrevention}
+          />
+
+          <AnimatePresence>
+            {error && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="overflow-hidden"
               >
-                {showCurrentPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-              </button>
-            </div>
-          </div>
-
-          <div className="mt-6">
-            <label className="mb-3 block text-[14px] font-medium text-white/72">新密码</label>
-            <div className="relative rounded-[20px] border border-white/5 bg-[#14141c] px-4 py-4 shadow-[0_12px_24px_rgba(0,0,0,0.2)]">
-              <input
-                type={showNewPassword ? 'text' : 'password'}
-                autoComplete="new-password"
-                value={newPassword}
-                onChange={(event) => setNewPassword(event.target.value)}
-                placeholder="请输入新密码"
-                className="w-full bg-transparent pr-10 text-[17px] font-medium text-white outline-none placeholder:text-white/25"
-              />
-              <button
-                type="button"
-                onClick={() => setShowNewPassword((value) => !value)}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-[#a58dff]"
-              >
-                {showNewPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-              </button>
-            </div>
-          </div>
-
-          <div className="mt-6">
-            <label className="mb-3 block text-[14px] font-medium text-white/72">确认新密码</label>
-            <div className="relative rounded-[20px] border border-white/5 bg-[#14141c] px-4 py-4 shadow-[0_12px_24px_rgba(0,0,0,0.2)]">
-              <input
-                type={showConfirmPassword ? 'text' : 'password'}
-                autoComplete="new-password"
-                value={confirmPassword}
-                onChange={(event) => setConfirmPassword(event.target.value)}
-                placeholder="请再次输入新密码"
-                className="w-full bg-transparent pr-10 text-[17px] font-medium text-white outline-none placeholder:text-white/25"
-              />
-              <button
-                type="button"
-                onClick={() => setShowConfirmPassword((value) => !value)}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-[#a58dff]"
-              >
-                {showConfirmPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-              </button>
-            </div>
-          </div>
-
-          <div className="mt-6 space-y-2 text-[14px] leading-6 text-white/42">
-            {passwordChecks.map((item) => (
-              <div key={item.label} className="flex items-start gap-2">
-                <span className={`mt-2 h-1.5 w-1.5 rounded-full ${item.passed ? 'bg-[#a58dff]' : 'bg-white/20'}`} />
-                <span className={item.passed ? 'text-white/76' : ''}>{item.label}</span>
-              </div>
-            ))}
-          </div>
-
-          {error && (
-            <div className="mt-5 rounded-[14px] border border-[#7f1d1d]/60 bg-[#2a1115] px-4 py-3 text-sm text-[#fca5a5]">
-              {error}
-            </div>
-          )}
-
-          {successMessage && (
-            <div className="mt-5 rounded-[14px] border border-[#14532d]/60 bg-[#0f2418] px-4 py-3 text-sm text-[#86efac]">
-              {successMessage}
-            </div>
-          )}
-        </form>
+                <div className="mt-2 flex items-center gap-1.5 text-[13px] text-[#ef4444]">
+                  <AlertCircle size={14} className="shrink-0" />
+                  <span>{error}</span>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
       </div>
 
-      <div className="fixed inset-x-0 bottom-0 z-20 bg-gradient-to-t from-[#09090b] via-[#09090b] to-transparent">
-        <div className="mx-auto w-full max-w-md px-5 pb-6 pt-4">
-          <button
-            type="submit"
-            form="change-password-form"
-            disabled={submitting}
-            className="h-14 w-full rounded-[16px] bg-[linear-gradient(135deg,#6c48f5_0%,#8b5cf6_100%)] text-[18px] font-semibold text-white shadow-[0_14px_30px_rgba(108,72,245,0.36)] transition disabled:bg-[#26262d] disabled:shadow-none disabled:text-white/30"
-          >
-            {submitting ? '提交中...' : '确认修改'}
-          </button>
-        </div>
+      <div className="fixed bottom-0 left-0 right-0 bg-gradient-to-t from-[#09090b] via-[#09090b]/95 to-transparent p-5 pt-10">
+        <button
+          onClick={handleSubmit}
+          disabled={isSubmitting}
+          className={`flex h-[52px] w-full items-center justify-center rounded-[16px] text-[16px] font-medium transition-all ${
+            isSubmitting
+              ? 'cursor-not-allowed bg-[#1a1a24] text-white/50'
+              : 'bg-[#6c48f5] text-white shadow-[0_4px_16px_rgba(108,72,245,0.3)] hover:bg-[#5a3be0]'
+          }`}
+        >
+          {isSubmitting ? '提交中...' : '确认修改'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function InputField({
+  label,
+  placeholder,
+  value,
+  setValue,
+  show,
+  setShow,
+  onKeyDown,
+}: {
+  label: string;
+  placeholder: string;
+  value: string;
+  setValue: (value: string) => void;
+  show: boolean;
+  setShow: (value: boolean) => void;
+  onKeyDown: (event: React.KeyboardEvent<HTMLInputElement>) => void;
+}) {
+  return (
+    <div>
+      <label className="mb-2 block text-[15px] font-medium text-white">{label}</label>
+      <div className="flex items-center justify-between border-b border-white/10 pb-3 transition-colors focus-within:border-[#6c48f5]/50">
+        <input
+          type={show ? 'text' : 'password'}
+          value={value}
+          onChange={(event) => setValue(event.target.value.replace(/\s/g, ''))}
+          onKeyDown={onKeyDown}
+          placeholder={placeholder}
+          className="w-full bg-transparent text-[15px] text-white outline-none placeholder:text-[#8a8a93]"
+        />
+        <button
+          type="button"
+          onClick={() => setShow(!show)}
+          className="ml-2 shrink-0 text-[#8a8a93] transition-colors hover:text-white"
+        >
+          {show ? <Eye size={18} /> : <EyeOff size={18} />}
+        </button>
       </div>
     </div>
   );

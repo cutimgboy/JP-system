@@ -57,8 +57,8 @@ export function WithdrawAmount() {
     if (!amount) return '';
     const numericAmount = Number(amount);
     if (!Number.isFinite(numericAmount) || numericAmount <= 0) return '请输入有效的金额';
-    if (numericAmount < minAmount) return '单次提取资金最低金额为 100 VND。';
-    if (numericAmount > availableBalance) return '超出当前可提取余额。';
+    if (numericAmount < minAmount) return '因银行监管需求，单次出金申请的最低金额为100USD，在您提交出金申请后，相应金额会从您账户余额中扣除。';
+    if (numericAmount > availableBalance) return '超出可出金额上限';
     return '';
   }, [amount, availableBalance]);
 
@@ -84,13 +84,13 @@ export function WithdrawAmount() {
         >
           <ChevronLeft size={24} />
         </button>
-        <h1 className="absolute left-1/2 -translate-x-1/2 text-[18px] font-medium">输入提取金额</h1>
+        <h1 className="absolute left-1/2 -translate-x-1/2 text-[18px] font-medium">输入出金金额</h1>
         <div className="w-10" />
       </div>
 
       <div className="px-5 pb-32 pt-6">
         <div className="mb-8">
-          <label className="mb-3 block text-[14px] text-[#8a8a93]">提取账户</label>
+          <label className="mb-3 block text-[14px] text-[#8a8a93]">出金账户</label>
           <div className="flex items-center justify-between rounded-[16px] border border-white/5 bg-[#14141c] p-4 shadow-sm">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10">
@@ -114,11 +114,11 @@ export function WithdrawAmount() {
 
         <div>
           <div className="mb-3 flex items-end justify-between gap-3">
-            <label className="text-[14px] text-[#8a8a93]">提取金额 (VND)</label>
+            <label className="text-[14px] text-[#8a8a93]">出金金额 (USD)</label>
             <div className="text-right text-[13px] text-white/60">
-              可提取:{' '}
+              可出金余额:{' '}
               <span className="font-medium text-white">
-                {loadingBalance ? '加载中' : availableBalance.toLocaleString()}
+                {loadingBalance ? '加载中' : `$${availableBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}`}
               </span>
             </div>
           </div>
@@ -132,7 +132,7 @@ export function WithdrawAmount() {
               inputMode="decimal"
               value={amount}
               onChange={(event) => setAmount(event.target.value)}
-              placeholder="0"
+              placeholder="0.00"
               className="h-[64px] w-full bg-transparent pl-12 pr-20 text-[28px] font-bold text-white outline-none placeholder:text-white/20"
             />
             <button
@@ -166,7 +166,7 @@ export function WithdrawAmount() {
               : 'cursor-not-allowed bg-[#1a1a24] text-white/30'
           }`}
         >
-          下一步
+          立即出金
         </button>
       </div>
     </div>

@@ -12,7 +12,7 @@ interface PageHeaderProps {
 export function PageHeader({
   accountType: accountTypeProp,
   onAccountSwitch,
-  className = 'pt-12 pb-6',
+  className = 'pt-6 pb-4',
 }: PageHeaderProps = {}) {
   const navigate = useNavigate();
   const { accountType, setAccountType } = useAccount();

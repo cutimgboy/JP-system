@@ -7,21 +7,25 @@ import i18n from '../../i18n/config';
 interface Language {
   code: string;
   name: string;
-  nativeName: string;
 }
 
 const languages: Language[] = [
-  { code: 'zh-CN', name: 'Chinese (Simplified)', nativeName: '简体中文' },
-  { code: 'en-US', name: 'English', nativeName: 'English' },
-  { code: 'vi', name: 'Vietnamese', nativeName: 'Tiếng Việt' },
+  { code: 'en', name: 'English' },
+  { code: 'zh-CN', name: '简体中文' },
+  { code: 'zh-TW', name: '繁體中文' },
+  { code: 'vi', name: 'Tiếng Việt' },
+  { code: 'th', name: 'ไทย' },
+  { code: 'ms', name: 'Bahasa Melayu' },
+  { code: 'id', name: 'Bahasa Indonesia' },
 ];
 
 export function ChangeLanguage() {
   const navigate = useNavigate();
-  const [selectedLanguage, setSelectedLanguage] = useState(() => localStorage.getItem('i18nextLng') || i18n.language || 'zh-CN');
+  const normalizeLanguage = (code: string) => (code === 'en-US' ? 'en' : code);
+  const [selectedLanguage, setSelectedLanguage] = useState(() => normalizeLanguage(localStorage.getItem('i18nextLng') || i18n.language || 'zh-CN'));
 
   useEffect(() => {
-    const savedLanguage = localStorage.getItem('i18nextLng') || i18n.language || 'zh-CN';
+    const savedLanguage = normalizeLanguage(localStorage.getItem('i18nextLng') || i18n.language || 'zh-CN');
     setSelectedLanguage(savedLanguage);
     if (i18n.language !== savedLanguage) {
       void i18n.changeLanguage(savedLanguage);
@@ -60,20 +64,13 @@ export function ChangeLanguage() {
                 index !== languages.length - 1 ? 'border-b border-white/5' : ''
               }`}
             >
-              <div>
-                <div className={`text-[15px] ${selectedLanguage === language.code ? 'font-medium text-[#6c48f5]' : 'text-white/90'}`}>
-                  {language.nativeName}
-                </div>
-                <div className="mt-0.5 text-[12px] text-[#8a8a93]">{language.name}</div>
-              </div>
+              <span className={`text-[15px] ${selectedLanguage === language.code ? 'font-medium text-[#6c48f5]' : 'text-white/90'}`}>
+                {language.name}
+              </span>
               {selectedLanguage === language.code ? <Check size={18} className="text-[#6c48f5]" strokeWidth={2.5} /> : null}
             </motion.button>
           ))}
         </div>
-
-        <p className="mt-4 px-1 text-[12px] leading-relaxed text-[#8a8a93]">
-          当前仅展示已配置翻译资源的语言。新增语言需要先补齐对应的资源文件。
-        </p>
       </div>
     </div>
   );

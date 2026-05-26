@@ -72,16 +72,15 @@ export function MyBank() {
       <div className="px-5 pb-[120px] pt-6">
         <div className="mb-6 flex items-center justify-between">
           <h2 className="text-[20px] font-bold tracking-tight">已添加的银行卡</h2>
-          <span className="text-[13px] text-[#8a8a93]">{bankCards.length} 张</span>
+          <span className="text-[13px] text-[#8a8a93]">{bankCards.length}张</span>
         </div>
 
         {loading ? (
           <div className="py-16 text-center text-[#8a8a93]">加载中...</div>
         ) : bankCards.length === 0 ? (
-          <div className="flex flex-col items-center justify-center rounded-[22px] border border-dashed border-white/10 bg-[#14141c] px-6 py-12 text-center">
-            <Landmark size={48} className="mb-4 text-white/20" />
-            <p className="text-[15px] font-medium text-white">暂无银行卡</p>
-            <p className="mt-2 text-[13px] text-[#8a8a93]">添加银行卡后可用于入金和提取资金</p>
+          <div className="flex flex-col items-center justify-center py-12 text-[#8a8a93]">
+            <Landmark size={48} className="mb-4 opacity-20" />
+            <p className="text-[14px]">暂无银行卡</p>
           </div>
         ) : (
           <div className="space-y-4">
@@ -110,7 +109,7 @@ export function MyBank() {
                         </div>
                         <div>
                           <div className="mb-0.5 text-[16px] font-bold text-white">{bank.bankName}</div>
-                          <div className="text-[12px] text-white/60">持卡人: {bank.accountName}</div>
+                          <div className="text-[12px] text-white/60">持卡人：{bank.accountName}</div>
                         </div>
                       </div>
                       <button
@@ -124,9 +123,6 @@ export function MyBank() {
                     <div className="font-mono text-[20px] font-medium tracking-[0.2em] text-white/90">
                       **** **** **** {getLast4(bank.accountNumber)}
                     </div>
-                    {bank.swiftCode ? (
-                      <div className="mt-3 text-[11px] text-white/45">SWIFT: {bank.swiftCode}</div>
-                    ) : null}
                   </motion.div>
                 );
               })}
