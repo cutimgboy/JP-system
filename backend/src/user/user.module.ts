@@ -9,6 +9,7 @@ import { UserEntity } from './entities/user.entity';
 import { UserAccountEntity } from './entities/user-account.entity';
 import { TradeOrderEntity } from './entities/trade-order.entity';
 import { UserIdentityEntity } from './entities/user-identity.entity';
+import { ProductEntity } from '../cfd/entities/product.entity';
 import { UserService } from './services/user.service';
 import { AuthService } from './services/auth.service';
 import { SmsService } from './services/sms.service';
@@ -28,7 +29,13 @@ import { getJwtSecret } from '../config/security';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([UserEntity, UserAccountEntity, TradeOrderEntity, UserIdentityEntity]),
+    TypeOrmModule.forFeature([
+      UserEntity,
+      UserAccountEntity,
+      TradeOrderEntity,
+      UserIdentityEntity,
+      ProductEntity,
+    ]),
     RewardModule,
     PassportModule,
     JwtModule.registerAsync({

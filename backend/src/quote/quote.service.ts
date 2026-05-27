@@ -122,6 +122,17 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
     return this.productsCache.map((p) => p.code);
   }
 
+  /**
+   * 获取行情源订阅代码。内部统一用产品 code 存储，外部行情源使用 tradeCode。
+   */
+  private async getSubscriptionSymbols(): Promise<string[]> {
+    if (this.productsCache.length === 0) {
+      await this.loadProductsFromDatabase();
+    }
+
+    return this.productsCache.map((product) => product.tradeCode || product.code);
+  }
+
   // 序列号计数器
   private sequenceId: number = 1;
 
@@ -214,6 +225,51 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
       this.logger.error('加载产品列表失败:', error);
       this.productsCache = [];
     }
+  }
+
+  private normalizeQuoteCodeKey(code: string): string {
+    return code.trim().toUpperCase();
+  }
+
+  private getHeuristicCanonicalCode(code: string): string {
+    const trimmedCode = code.trim();
+    const upperCode = trimmedCode.toUpperCase();
+
+    if (upperCode.endsWith('USDT') && upperCode.length > 4) {
+      return upperCode.slice(0, -4);
+    }
+
+    if (trimmedCode.includes('.')) {
+      return trimmedCode.split('.')[0].toUpperCase();
+    }
+
+    return trimmedCode;
+  }
+
+  private resolveQuoteCodeFromCache(code: string): string | null {
+    const quoteCodeKey = this.normalizeQuoteCodeKey(code);
+
+    for (const product of this.productsCache) {
+      if (this.normalizeQuoteCodeKey(product.code) === quoteCodeKey) {
+        return product.code;
+      }
+
+      if (this.normalizeQuoteCodeKey(product.tradeCode) === quoteCodeKey) {
+        return product.code;
+      }
+    }
+
+    return null;
+  }
+
+  private async resolveQuoteCode(code: string): Promise<string> {
+    if (this.productsCache.length === 0) {
+      await this.loadProductsFromDatabase();
+    }
+
+    return (
+      this.resolveQuoteCodeFromCache(code) || this.getHeuristicCanonicalCode(code)
+    );
   }
 
   private async loadTradingSettingsCache(): Promise<void> {
@@ -330,8 +386,8 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
     this.startHeartbeat();
     this.logger.log('心跳机制已启动');
 
-    // 订阅数据库中的股票
-    const targetSymbols = await this.getTargetSymbols();
+    // 订阅数据库中的行情源代码
+    const targetSymbols = await this.getSubscriptionSymbols();
     this.subscribe(targetSymbols);
     this.logger.log(`已订阅目标股票: ${targetSymbols.join(', ')}`);
   }
@@ -633,7 +689,7 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
    */
   private async processPriceChange(tickData: StockTickData): Promise<void> {
     try {
-      const code = tickData.code;
+      const code = await this.resolveQuoteCode(tickData.code);
       const newPrice = parseFloat(tickData.price);
       const cachedQuote = await this.getCachedQuote(code);
       const cachedPrice =
@@ -646,7 +702,14 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
       const priceChanged =
         cachedPrice === null || Math.abs(cachedPrice - newPrice) >= 0.0001;
 
-      this.scheduleDatabaseWrite(tickData, cachedPrice, priceChanged);
+      this.scheduleDatabaseWrite(
+        {
+          ...tickData,
+          code,
+        },
+        cachedPrice,
+        priceChanged,
+      );
 
       if (!priceChanged) {
         return;
@@ -1265,11 +1328,12 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
    */
   async getRealtimeQuote(code: string): Promise<any> {
     try {
-      const cachedData = await this.getCachedQuote(code);
+      const resolvedCode = await this.resolveQuoteCode(code);
+      const cachedData = await this.getCachedQuote(resolvedCode);
 
       if (cachedData) {
         return {
-          code: cachedData.code,
+          code,
           buy_price: cachedData.buy_price,
           sale_price: cachedData.sale_price,
         };
@@ -1321,10 +1385,11 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
   ): Promise<any> {
     const intervalSeconds = this.parseKlineInterval(interval);
     const limitNumber = this.parseKlineLimit(limit);
+    const resolvedCode = await this.resolveQuoteCode(code);
 
     const klineRows = await this.stockKlineRepository.find({
       where: {
-        code,
+        code: resolvedCode,
         interval_sec: intervalSeconds,
       },
       order: {
@@ -1356,7 +1421,7 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
       };
     }
 
-    const latestQuote = await this.getCachedQuote(code);
+    const latestQuote = await this.getCachedQuote(resolvedCode);
     const fallbackPrice =
       typeof latestQuote?.realtime_price === 'number'
         ? latestQuote.realtime_price
@@ -1611,32 +1676,52 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
     this.logger.log(`客户端订阅 SSE 流: ${code}`);
 
     return new Observable<MessageEvent>((observer) => {
-      // 发送初始连接消息
-      observer.next({
-        data: { type: 'connected', code, timestamp: new Date().toISOString() },
-      } as any);
+      let active = true;
+      let subscription: { unsubscribe: () => void } | null = null;
 
-      // 订阅 tick 数据流
-      const subscription = this.tickSubject
-        .pipe(
-          filter((tick) => tick.code === code),
-          map(
-            (tick) =>
-              ({
-                data: {
-                  type: 'tick',
-                  ...tick.data,
-                },
-              }) as any,
-          ),
-        )
-        .subscribe({
-          next: (event) => observer.next(event),
-          error: (err) => {
-            this.logger.error(`SSE 流错误 (${code}):`, err);
-            observer.error(err);
+      const setupSubscription = async () => {
+        const resolvedCode = await this.resolveQuoteCode(code);
+        if (!active || observer.closed) {
+          return;
+        }
+
+        // 发送初始连接消息
+        observer.next({
+          data: {
+            type: 'connected',
+            code,
+            resolvedCode,
+            timestamp: new Date().toISOString(),
           },
-        });
+        } as any);
+
+        // 订阅 tick 数据流
+        subscription = this.tickSubject
+          .pipe(
+            filter((tick) => tick.code === resolvedCode),
+            map(
+              (tick) =>
+                ({
+                  data: {
+                    type: 'tick',
+                    ...tick.data,
+                  },
+                }) as any,
+            ),
+          )
+          .subscribe({
+            next: (event) => observer.next(event),
+            error: (err) => {
+              this.logger.error(`SSE 流错误 (${code}):`, err);
+              observer.error(err);
+            },
+          });
+      };
+
+      void setupSubscription().catch((error) => {
+        this.logger.error(`SSE 流初始化失败 (${code}):`, error);
+        observer.error(error);
+      });
 
       // 定期发送心跳（每30秒）
       const heartbeatInterval = setInterval(() => {
@@ -1650,8 +1735,9 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
 
       // 清理函数
       return () => {
+        active = false;
         this.logger.log(`客户端断开 SSE 流: ${code}`);
-        subscription.unsubscribe();
+        subscription?.unsubscribe();
         clearInterval(heartbeatInterval);
       };
     });

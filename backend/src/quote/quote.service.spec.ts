@@ -55,13 +55,28 @@ describe('QuoteService', () => {
     trade_direction: 1,
   };
 
+  const mockProducts = [
+    {
+      code: 'NVDA',
+      tradeCode: 'NVDA.US',
+      type: '股票',
+      isActive: true,
+    },
+    {
+      code: 'BTC',
+      tradeCode: 'BTCUSDT',
+      type: 'Crypto',
+      isActive: true,
+    },
+  ] as ProductEntity[];
+
   beforeEach(async () => {
     jest.clearAllMocks();
     mockConfigService.get.mockImplementation(
       (_key: string, defaultValue?: string) => defaultValue,
     );
     mockTradingSettingsRepository.find.mockResolvedValue([]);
-    mockProductRepository.find.mockResolvedValue([]);
+    mockProductRepository.find.mockResolvedValue(mockProducts);
     mockStockKlineRepository.find.mockResolvedValue([]);
     mockStockKlineRepository.query.mockResolvedValue(undefined);
     mockStockTickRepository.query.mockResolvedValue({ affectedRows: 0 });
@@ -165,7 +180,7 @@ describe('QuoteService', () => {
         ],
       });
       expect(mockStockKlineRepository.find).toHaveBeenCalledWith({
-        where: { code: 'NVDA.US', interval_sec: 1 },
+        where: { code: 'NVDA', interval_sec: 1 },
         order: { bucket_time: 'DESC' },
         take: 300,
       });
@@ -173,7 +188,7 @@ describe('QuoteService', () => {
 
     it('应该在没有K线历史时返回缓存价格作为快照', async () => {
       mockRedisService.getStockQuote.mockResolvedValue({
-        code: 'NVDA.US',
+        code: 'NVDA',
         realtime_price: 145.67,
         volume: 100,
         turnover: 14567,
@@ -186,6 +201,32 @@ describe('QuoteService', () => {
       expect(result.data).toHaveLength(1);
       expect(result.data[0].price).toBe(145.67);
       expect(result.data[0].turnover).toBe(14567);
+      expect(mockRedisService.getStockQuote).toHaveBeenCalledWith('NVDA');
+    });
+
+    it('应该兼容 tradeCode 请求并读取内部 code 的K线数据', async () => {
+      mockStockKlineRepository.find.mockResolvedValue([
+        {
+          bucket_time: new Date('2024-01-01T10:30:00.000Z'),
+          open: '145.100000',
+          high: '145.900000',
+          low: '145.000000',
+          close: '145.670000',
+          volume: '300',
+          turnover: '43701',
+          trade_count: 3,
+        },
+      ]);
+
+      const result = await service.getKlineSnapshot('NVDA.US', '1s', '300');
+
+      expect(result.code).toBe('NVDA.US');
+      expect(result.data).toHaveLength(1);
+      expect(mockStockKlineRepository.find).toHaveBeenCalledWith({
+        where: { code: 'NVDA', interval_sec: 1 },
+        order: { bucket_time: 'DESC' },
+        take: 300,
+      });
     });
   });
 
@@ -250,7 +291,7 @@ describe('QuoteService', () => {
     const serviceWithRawTicks = module.get<QuoteService>(QuoteService);
 
     mockRedisService.getStockQuote.mockResolvedValue({
-      code: 'NVDA.US',
+      code: 'NVDA',
       realtime_price: 145.67,
     });
 
@@ -262,7 +303,7 @@ describe('QuoteService', () => {
 
     expect(queryBuilder.values).toHaveBeenCalledWith([
       expect.objectContaining({
-        code: 'NVDA.US',
+        code: 'NVDA',
         seq: '12345',
         price: 145.67,
       }),
@@ -273,7 +314,7 @@ describe('QuoteService', () => {
     it('应该正确计算买入价格和卖出价格', async () => {
       mockRedisService.getStockQuote.mockResolvedValue(null);
       mockTradingSettingsRepository.findOne.mockResolvedValue({
-        code: 'NVDA.US',
+        code: 'NVDA',
         bidSpread: 0.2,
         askSpread: 0.2,
       } as TradingSettingsEntity);
@@ -281,17 +322,18 @@ describe('QuoteService', () => {
       await (service as any).processPriceChange(mockTickData);
 
       const quoteOperation = mockRedisService.batchSet.mock.calls[0][0].find(
-        (operation: { key: string }) => operation.key === 'stock:quote:NVDA.US',
+        (operation: { key: string }) => operation.key === 'stock:quote:NVDA',
       );
       const payload = JSON.parse(quoteOperation.value);
 
+      expect(payload.code).toBe('NVDA');
       expect(payload.buy_price).toBeCloseTo(145.87, 2);
       expect(payload.sale_price).toBeCloseTo(145.47, 2);
     });
 
     it('应该在价格没有变化时跳过处理', async () => {
       mockRedisService.getStockQuote.mockResolvedValue({
-        code: 'NVDA.US',
+        code: 'NVDA',
         realtime_price: 145.67,
       });
 
@@ -302,7 +344,7 @@ describe('QuoteService', () => {
 
     it('默认不写原始tick，但仍更新K线缓冲', async () => {
       mockRedisService.getStockQuote.mockResolvedValue({
-        code: 'NVDA.US',
+        code: 'NVDA',
         realtime_price: 145.67,
       });
 
@@ -312,7 +354,7 @@ describe('QuoteService', () => {
       expect(mockStockTickRepository.createQueryBuilder).not.toHaveBeenCalled();
       expect(mockStockKlineRepository.query).toHaveBeenCalledWith(
         expect.stringContaining('INSERT INTO stock_klines'),
-        expect.arrayContaining(['NVDA.US', 1, expect.any(Date), 145.67]),
+        expect.arrayContaining(['NVDA', 1, expect.any(Date), 145.67]),
       );
     });
 
@@ -337,10 +379,11 @@ describe('QuoteService', () => {
       await (service as any).processPriceChange(mockTickData);
 
       const quoteOperation = mockRedisService.batchSet.mock.calls[0][0].find(
-        (operation: { key: string }) => operation.key === 'stock:quote:NVDA.US',
+        (operation: { key: string }) => operation.key === 'stock:quote:NVDA',
       );
       const payload = JSON.parse(quoteOperation.value);
 
+      expect(payload.code).toBe('NVDA');
       expect(payload.buy_price).toBe(145.67);
       expect(payload.sale_price).toBe(145.67);
     });
@@ -366,7 +409,7 @@ describe('QuoteService', () => {
 
     it('应该返回单个股票的实时行情', async () => {
       mockRedisService.getStockQuote.mockResolvedValue({
-        code: 'NVDA.US',
+        code: 'NVDA',
         realtime_price: 145.67,
         buy_price: 145.87,
         sale_price: 145.47,
@@ -379,7 +422,25 @@ describe('QuoteService', () => {
         buy_price: 145.87,
         sale_price: 145.47,
       });
-      expect(mockRedisService.getStockQuote).toHaveBeenCalledWith('NVDA.US');
+      expect(mockRedisService.getStockQuote).toHaveBeenCalledWith('NVDA');
+    });
+
+    it('应该用 tradeCode 入参读取内部 code 的实时行情缓存', async () => {
+      mockRedisService.getStockQuote.mockResolvedValue({
+        code: 'NVDA',
+        realtime_price: 145.67,
+        buy_price: 145.87,
+        sale_price: 145.47,
+      });
+
+      const result = await service.getRealtimeQuote('NVDA.US');
+
+      expect(result).toEqual({
+        code: 'NVDA.US',
+        buy_price: 145.87,
+        sale_price: 145.47,
+      });
+      expect(mockRedisService.getStockQuote).toHaveBeenCalledWith('NVDA');
     });
 
     it('应该在缓存不存在时返回默认值', async () => {
@@ -397,7 +458,7 @@ describe('QuoteService', () => {
 
   it('应该缓存查询到的交易设置', async () => {
     mockTradingSettingsRepository.findOne.mockResolvedValue({
-      code: 'NVDA.US',
+      code: 'NVDA',
       bidSpread: 0.3,
       askSpread: 0.1,
     } as TradingSettingsEntity);
@@ -407,5 +468,11 @@ describe('QuoteService', () => {
 
     expect(firstResult).toEqual(secondResult);
     expect(tradingSettingsRepository.findOne).toHaveBeenCalledTimes(1);
+  });
+
+  it('订阅真实行情源时应该使用 tradeCode', async () => {
+    const symbols = await (service as any).getSubscriptionSymbols();
+
+    expect(symbols).toEqual(['NVDA.US', 'BTCUSDT']);
   });
 });

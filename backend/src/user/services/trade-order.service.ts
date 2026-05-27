@@ -19,6 +19,7 @@ import { UserAccountEntity } from '../entities/user-account.entity';
 import { AccountService } from './account.service';
 import { RedisService } from '../../redis/redis.service';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { ProductEntity } from '../../cfd/entities/product.entity';
 
 const MAX_USER_ORDER_LIMIT = 100;
 const MAX_ADMIN_ORDER_LIMIT = 100;
@@ -80,6 +81,8 @@ export class TradeOrderService {
   constructor(
     @InjectRepository(TradeOrderEntity)
     private orderRepository: Repository<TradeOrderEntity>,
+    @InjectRepository(ProductEntity)
+    private productRepository: Repository<ProductEntity>,
     private accountService: AccountService,
     private redisService: RedisService,
     private dataSource: DataSource,
@@ -614,7 +617,8 @@ export class TradeOrderService {
    */
   private async getCurrentPrice(stockCode: string): Promise<number | null> {
     try {
-      const cacheKey = `stock:quote:${stockCode}`;
+      const resolvedCode = await this.resolveQuoteCode(stockCode);
+      const cacheKey = `stock:quote:${resolvedCode}`;
       const data = await this.redisService.get(cacheKey);
 
       if (data) {
@@ -628,5 +632,30 @@ export class TradeOrderService {
       this.logger.error(`获取价格失败: ${stockCode}, ${error.message}`);
       return null;
     }
+  }
+
+  private async resolveQuoteCode(stockCode: string): Promise<string> {
+    const trimmedCode = stockCode.trim();
+    const product = await this.productRepository.findOne({
+      where: [
+        { code: trimmedCode, isActive: true },
+        { tradeCode: trimmedCode, isActive: true },
+      ],
+    });
+
+    if (product) {
+      return product.code;
+    }
+
+    const upperCode = trimmedCode.toUpperCase();
+    if (upperCode.endsWith('USDT') && upperCode.length > 4) {
+      return upperCode.slice(0, -4);
+    }
+
+    if (trimmedCode.includes('.')) {
+      return trimmedCode.split('.')[0].toUpperCase();
+    }
+
+    return trimmedCode;
   }
 }
