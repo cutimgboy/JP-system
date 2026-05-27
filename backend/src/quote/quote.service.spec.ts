@@ -4,8 +4,6 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { QuoteService } from './quote.service';
 import { RedisService } from '../redis/redis.service';
-import { StockRealtimePriceEntity } from './entities/stock-realtime-price.entity';
-import { StockPriceChangeEntity } from './entities/stock-price-change.entity';
 import { StockKlineEntity } from './entities/stock-kline.entity';
 import { TradingSettingsEntity } from '../cfd/entities/trading-settings.entity';
 import { ProductEntity } from '../cfd/entities/product.entity';
@@ -29,18 +27,9 @@ describe('QuoteService', () => {
     findOne: jest.fn(),
   };
 
-  const mockStockRealtimePriceRepository = {
-    insert: jest.fn(),
-    createQueryBuilder: jest.fn(),
-    query: jest.fn(),
-  };
-
-  const mockStockPriceChangeRepository = {
-    insert: jest.fn(),
-  };
-
   const mockStockTickRepository = {
     createQueryBuilder: jest.fn(),
+    query: jest.fn(),
   };
 
   const mockStockKlineRepository = {
@@ -68,13 +57,14 @@ describe('QuoteService', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
-    mockConfigService.get.mockImplementation((_key: string, defaultValue?: string) => defaultValue);
+    mockConfigService.get.mockImplementation(
+      (_key: string, defaultValue?: string) => defaultValue,
+    );
     mockTradingSettingsRepository.find.mockResolvedValue([]);
     mockProductRepository.find.mockResolvedValue([]);
-    mockStockRealtimePriceRepository.createQueryBuilder.mockReset();
-    mockStockRealtimePriceRepository.query.mockReset();
     mockStockKlineRepository.find.mockResolvedValue([]);
     mockStockKlineRepository.query.mockResolvedValue(undefined);
+    mockStockTickRepository.query.mockResolvedValue({ affectedRows: 0 });
     mockStockTickRepository.createQueryBuilder.mockReturnValue({
       insert: jest.fn().mockReturnThis(),
       into: jest.fn().mockReturnThis(),
@@ -97,14 +87,6 @@ describe('QuoteService', () => {
         {
           provide: getRepositoryToken(TradingSettingsEntity),
           useValue: mockTradingSettingsRepository,
-        },
-        {
-          provide: getRepositoryToken(StockRealtimePriceEntity),
-          useValue: mockStockRealtimePriceRepository,
-        },
-        {
-          provide: getRepositoryToken(StockPriceChangeEntity),
-          useValue: mockStockPriceChangeRepository,
         },
         {
           provide: getRepositoryToken(StockTickEntity),
@@ -187,72 +169,14 @@ describe('QuoteService', () => {
         order: { bucket_time: 'DESC' },
         take: 300,
       });
-      expect(mockStockRealtimePriceRepository.createQueryBuilder).not.toHaveBeenCalled();
     });
 
-    it('应该按周期聚合历史价格流水', async () => {
-      const getRawOne = jest.fn().mockResolvedValue({
-        tick_time: new Date('2024-01-01T10:30:02.000Z'),
-      });
-      const addOrderBy = jest.fn().mockReturnValue({ getRawOne });
-      const orderBy = jest.fn().mockReturnValue({ addOrderBy });
-      const where = jest.fn().mockReturnValue({ orderBy });
-      const select = jest.fn().mockReturnValue({ where });
-
-      mockStockRealtimePriceRepository.createQueryBuilder.mockReturnValue({
-        select,
-      });
-      mockStockRealtimePriceRepository.query.mockResolvedValue([
-        {
-          time: 1704105000,
-          open: '145.100000',
-          high: '145.900000',
-          low: '145.000000',
-          close: '145.670000',
-          volume: '300',
-          trade_count: '3',
-        },
-      ]);
-
-      const result = await service.getKlineSnapshot('NVDA.US', '1s', '300');
-
-      expect(result).toEqual({
-        code: 'NVDA.US',
-        interval: '1s',
-        data: [
-          {
-            time: 1704105000,
-            open: 145.1,
-            high: 145.9,
-            low: 145,
-            close: 145.67,
-            price: 145.67,
-            volume: 300,
-            turnover: 0,
-            trade_count: 3,
-          },
-        ],
-      });
-      expect(mockStockRealtimePriceRepository.query).toHaveBeenCalledWith(
-        expect.stringContaining('WITH filtered AS'),
-        expect.arrayContaining([1, 'NVDA.US']),
-      );
-    });
-
-    it('应该在没有历史流水时返回缓存价格作为快照', async () => {
-      const getRawOne = jest.fn().mockResolvedValue(null);
-      const addOrderBy = jest.fn().mockReturnValue({ getRawOne });
-      const orderBy = jest.fn().mockReturnValue({ addOrderBy });
-      const where = jest.fn().mockReturnValue({ orderBy });
-      const select = jest.fn().mockReturnValue({ where });
-
-      mockStockRealtimePriceRepository.createQueryBuilder.mockReturnValue({
-        select,
-      });
+    it('应该在没有K线历史时返回缓存价格作为快照', async () => {
       mockRedisService.getStockQuote.mockResolvedValue({
         code: 'NVDA.US',
         realtime_price: 145.67,
         volume: 100,
+        turnover: 14567,
       });
 
       const result = await service.getKlineSnapshot('NVDA.US', '5m', '300');
@@ -261,7 +185,7 @@ describe('QuoteService', () => {
       expect(result.interval).toBe('300s');
       expect(result.data).toHaveLength(1);
       expect(result.data[0].price).toBe(145.67);
-      expect(mockStockRealtimePriceRepository.query).not.toHaveBeenCalled();
+      expect(result.data[0].turnover).toBe(14567);
     });
   });
 
@@ -286,6 +210,63 @@ describe('QuoteService', () => {
 
   it('should be defined', () => {
     expect(service).toBeDefined();
+  });
+
+  it('开启原始tick写入时应该保留短期调试流水', async () => {
+    mockConfigService.get.mockImplementation(
+      (key: string, defaultValue?: string) =>
+        key === 'QUOTE_WRITE_RAW_TICKS' ? 'true' : defaultValue,
+    );
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        QuoteService,
+        {
+          provide: ConfigService,
+          useValue: mockConfigService,
+        },
+        {
+          provide: RedisService,
+          useValue: mockRedisService,
+        },
+        {
+          provide: getRepositoryToken(TradingSettingsEntity),
+          useValue: mockTradingSettingsRepository,
+        },
+        {
+          provide: getRepositoryToken(StockTickEntity),
+          useValue: mockStockTickRepository,
+        },
+        {
+          provide: getRepositoryToken(StockKlineEntity),
+          useValue: mockStockKlineRepository,
+        },
+        {
+          provide: getRepositoryToken(ProductEntity),
+          useValue: mockProductRepository,
+        },
+      ],
+    }).compile();
+    const serviceWithRawTicks = module.get<QuoteService>(QuoteService);
+
+    mockRedisService.getStockQuote.mockResolvedValue({
+      code: 'NVDA.US',
+      realtime_price: 145.67,
+    });
+
+    await (serviceWithRawTicks as any).processPriceChange(mockTickData);
+    await (serviceWithRawTicks as any).flushDatabaseBuffers(true);
+
+    const queryBuilder =
+      mockStockTickRepository.createQueryBuilder.mock.results[0].value;
+
+    expect(queryBuilder.values).toHaveBeenCalledWith([
+      expect.objectContaining({
+        code: 'NVDA.US',
+        seq: '12345',
+        price: 145.67,
+      }),
+    ]);
   });
 
   describe('价格计算逻辑测试', () => {
@@ -319,7 +300,7 @@ describe('QuoteService', () => {
       expect(mockRedisService.batchSet).not.toHaveBeenCalled();
     });
 
-    it('应该在价格没有变化时仍保留原始tick并更新K线缓冲', async () => {
+    it('默认不写原始tick，但仍更新K线缓冲', async () => {
       mockRedisService.getStockQuote.mockResolvedValue({
         code: 'NVDA.US',
         realtime_price: 145.67,
@@ -328,30 +309,25 @@ describe('QuoteService', () => {
       await (service as any).processPriceChange(mockTickData);
       await (service as any).flushDatabaseBuffers(true);
 
-      const queryBuilder = mockStockTickRepository.createQueryBuilder.mock.results[0].value;
-
-      expect(queryBuilder.values).toHaveBeenCalledWith([
-        expect.objectContaining({
-          code: 'NVDA.US',
-          seq: '12345',
-          price: 145.67,
-        }),
-      ]);
+      expect(mockStockTickRepository.createQueryBuilder).not.toHaveBeenCalled();
       expect(mockStockKlineRepository.query).toHaveBeenCalledWith(
         expect.stringContaining('INSERT INTO stock_klines'),
         expect.arrayContaining(['NVDA.US', 1, expect.any(Date), 145.67]),
       );
-      expect(mockStockRealtimePriceRepository.insert).not.toHaveBeenCalled();
-      expect(mockStockPriceChangeRepository.insert).not.toHaveBeenCalled();
     });
 
     it('应该正确解析ISO、秒级和毫秒级tick时间', () => {
-      expect((service as any).parseTickTime('2024-01-01T10:30:00.123Z').toISOString())
-        .toBe('2024-01-01T10:30:00.123Z');
-      expect((service as any).parseTickTime('1704105000').toISOString())
-        .toBe('2024-01-01T10:30:00.000Z');
-      expect((service as any).parseTickTime('1704105000123').toISOString())
-        .toBe('2024-01-01T10:30:00.123Z');
+      expect(
+        (service as any)
+          .parseTickTime('2024-01-01T10:30:00.123Z')
+          .toISOString(),
+      ).toBe('2024-01-01T10:30:00.123Z');
+      expect((service as any).parseTickTime('1704105000').toISOString()).toBe(
+        '2024-01-01T10:30:00.000Z',
+      );
+      expect(
+        (service as any).parseTickTime('1704105000123').toISOString(),
+      ).toBe('2024-01-01T10:30:00.123Z');
     });
 
     it('应该在没有价差设置时使用默认值', async () => {

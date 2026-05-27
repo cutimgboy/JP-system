@@ -1,6 +1,5 @@
--- 新增原始 tick 表和 K 线聚合表。
--- 当前项目的 MigrationService 仍未自动读取 backend/migrations/*.sql；
--- 部署时需要显式执行该脚本，或将迁移链路统一后纳入正式迁移。
+-- 新增可选原始 tick 表和 K 线聚合表。
+-- stock_ticks 默认不写入，仅在 QUOTE_WRITE_RAW_TICKS=true 时作为短期调试流水使用。
 
 CREATE TABLE IF NOT EXISTS `stock_ticks` (
   `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,

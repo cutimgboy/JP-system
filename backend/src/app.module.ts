@@ -31,8 +31,6 @@ import { TradingSettingsEntity } from './cfd/entities/trading-settings.entity';
 import { StockInfoEntity } from './cfd/entities/stock-info.entity';
 import { CryptoInfoEntity } from './cfd/entities/crypto-info.entity';
 import { ProductEntity } from './cfd/entities/product.entity';
-import { StockRealtimePriceEntity } from './quote/entities/stock-realtime-price.entity';
-import { StockPriceChangeEntity } from './quote/entities/stock-price-change.entity';
 import { StockTickEntity } from './quote/entities/stock-tick.entity';
 import { StockKlineEntity } from './quote/entities/stock-kline.entity';
 import { BankCardEntity } from './bank-card/entities/bank-card.entity';
@@ -59,8 +57,10 @@ import { MigrationEntity } from './migration/entities/migration.entity';
       useFactory: async (configService: ConfigService) => {
         const isProduction = configService.get('NODE_ENV') === 'production';
         const shouldSynchronize =
-          configService.get('DB_SYNCHRONIZE', isProduction ? 'false' : 'true') ===
-          'true';
+          configService.get(
+            'DB_SYNCHRONIZE',
+            isProduction ? 'false' : 'true',
+          ) === 'true';
 
         return {
           type: 'mysql', // 数据库类型
@@ -74,8 +74,6 @@ import { MigrationEntity } from './migration/entities/migration.entity';
             StockInfoEntity,
             CryptoInfoEntity,
             ProductEntity,
-            StockRealtimePriceEntity,
-            StockPriceChangeEntity,
             StockTickEntity,
             StockKlineEntity,
             BankCardEntity,
@@ -99,6 +97,7 @@ import { MigrationEntity } from './migration/entities/migration.entity';
       },
     }),
     RedisModule,
+    MigrationModule,
     PostsModule,
     UserModule,
     CfdModule,
@@ -110,7 +109,6 @@ import { MigrationEntity } from './migration/entities/migration.entity';
     RewardModule,
     CommunityModule,
     MessageModule,
-    MigrationModule,
   ],
   controllers: [AppController],
   // 注册为全局守卫（已暂时关闭）

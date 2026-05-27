@@ -9,12 +9,13 @@ AllTick WebSocket
   -> QuoteService.handleTickData()
   -> processPriceChange()
   -> Redis 最新报价缓存
-  -> DB buffer 批量落库 stock_ticks / stock_klines / stock_realtime_price / stock_price_change
+  -> DB buffer 批量落库 stock_klines
+  -> 可选短期调试流水 stock_ticks
   -> SSE /api/quote/stream/:code
   -> 前端 TradingChart/KLineChart
 ```
 
-前端交易页会先加载历史 K 线快照，再建立 SSE 连接接收后续 tick。历史快照现在优先读取 `stock_klines` 聚合表；新表没有数据时，会回落到 `stock_realtime_price` 实时流水临时聚合。
+前端交易页会先加载历史 K 线快照，再建立 SSE 连接接收后续 tick。历史快照读取 `stock_klines` 聚合表；聚合表暂时没有数据时，用 Redis 最新价生成一根兜底 K 线。
 
 ## 主要接口
 
@@ -41,10 +42,8 @@ AllTick WebSocket
 
 当前持久化表：
 
-- `stock_ticks`：原始 tick 流水，按 `code + seq` 去重，支持问题回放和重新聚合。
+- `stock_ticks`：可选原始 tick 流水，按 `code + seq` 去重，支持问题回放和重新聚合。默认不写入，设置 `QUOTE_WRITE_RAW_TICKS=true` 后启用。
 - `stock_klines`：K 线聚合表，唯一键为 `code + interval_sec + bucket_time`。
-- `stock_realtime_price`：实时价格流水。
-- `stock_price_change`：价格变化流水。
 
 K 线聚合周期：
 
@@ -56,10 +55,21 @@ K 线聚合周期：
 
 迁移文件：
 
-- `backend/migrations/002-add-quote-tick-time-indexes.sql`
 - `backend/migrations/003-create-stock-ticks-and-klines.sql`
 
-注意：当前项目的 `MigrationService` 不会自动读取 `backend/migrations/*.sql`，部署时需要显式执行这些 SQL，或先统一迁移机制。
+当前运行时会通过 TypeORM 实体维护 `stock_ticks` / `stock_klines`。生产环境仍建议保持 `DB_SYNCHRONIZE=false`，由迁移脚本或运维 SQL 显式创建表。
+
+## 历史保留策略
+
+默认保留：
+
+- `stock_ticks`：1 天，仅在 `QUOTE_WRITE_RAW_TICKS=true` 时写入。
+- `stock_klines` 1s：3 天。
+- `stock_klines` 5s / 15s：7 天。
+- `stock_klines` 60s：30 天。
+- `stock_klines` 300s：90 天。
+
+清理任务由 `QuoteService` 定时执行，默认每小时小批量删除过期历史，避免高频行情表无限增长。
 
 建议详见 `backend/docs/architecture-and-kline-audit.md`。
 
@@ -77,6 +87,6 @@ K 线聚合周期：
 
 1. 统一迁移机制，让 `backend/migrations/*.sql` 能进入部署链路。
 2. SSE 后续可只推实时 tick 或当前 bucket 更新，减少前端合并成本。
-3. 给高频行情表增加归档、分区或冷热数据策略。
+3. 数据量继续变大后，可对 `stock_klines` 做按天/月分区。
 4. 增加 K 线接口 P95/P99、DB buffer 长度和丢弃行数指标。
 5. 前端继续保持 tick 合并和 KLine canvas 降频刷新。

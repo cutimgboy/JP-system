@@ -5,8 +5,8 @@ import { QuoteModule } from '../src/quote/quote.module';
 import { RedisModule } from '../src/redis/redis.module';
 import { QuoteService } from '../src/quote/quote.service';
 import { QuoteController } from '../src/quote/quote.controller';
-import { StockRealtimePriceEntity } from '../src/quote/entities/stock-realtime-price.entity';
-import { StockPriceChangeEntity } from '../src/quote/entities/stock-price-change.entity';
+import { StockKlineEntity } from '../src/quote/entities/stock-kline.entity';
+import { StockTickEntity } from '../src/quote/entities/stock-tick.entity';
 import { TradingSettingsEntity } from '../src/cfd/entities/trading-settings.entity';
 
 describe('Quote Integration Tests', () => {
@@ -39,13 +39,13 @@ describe('Quote Integration Tests', () => {
           username: testConfig.DATABASE_USERNAME,
           password: testConfig.DATABASE_PASSWORD,
           database: testConfig.DATABASE_NAME,
-          entities: [StockRealtimePriceEntity, StockPriceChangeEntity, TradingSettingsEntity],
+          entities: [StockTickEntity, StockKlineEntity, TradingSettingsEntity],
           synchronize: true, // 测试环境允许自动创建表
           logging: false,
         }),
         TypeOrmModule.forFeature([
-          StockRealtimePriceEntity,
-          StockPriceChangeEntity,
+          StockTickEntity,
+          StockKlineEntity,
           TradingSettingsEntity,
         ]),
         RedisModule,
@@ -70,7 +70,7 @@ describe('Quote Integration Tests', () => {
     it('应该能够处理完整的股票价格更新流程', async () => {
       // 这个测试需要模拟WebSocket数据接收
       // 由于WebSocket连接的复杂性，这里主要测试业务逻辑
-      
+
       // 测试获取所有股票行情
       const allQuotes = await quoteService.getAllRealtimeQuotes();
       expect(allQuotes).toHaveProperty('codeList');
@@ -112,7 +112,7 @@ describe('Quote Integration Tests', () => {
       const startTime = Date.now();
       await quoteController.getAllRealtimeQuotes();
       const endTime = Date.now();
-      
+
       const responseTime = endTime - startTime;
       expect(responseTime).toBeLessThan(50);
     });
@@ -121,7 +121,7 @@ describe('Quote Integration Tests', () => {
       const startTime = Date.now();
       await quoteController.getRealtimeQuote('NVDA.US');
       const endTime = Date.now();
-      
+
       const responseTime = endTime - startTime;
       expect(responseTime).toBeLessThan(30);
     });

@@ -1,11 +1,21 @@
-import { Column, Entity, Index, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';
+import {
+  Column,
+  Entity,
+  Index,
+  PrimaryGeneratedColumn,
+  UpdateDateColumn,
+} from 'typeorm';
 
 /**
  * 股票 K 线聚合实体
  * 按 code + interval_sec + bucket_time 聚合 OHLCV。
  */
 @Entity('stock_klines')
-@Index('uk_stock_klines_code_interval_bucket', ['code', 'interval_sec', 'bucket_time'], { unique: true })
+@Index(
+  'uk_stock_klines_code_interval_bucket',
+  ['code', 'interval_sec', 'bucket_time'],
+  { unique: true },
+)
 @Index('idx_stock_klines_interval_bucket', ['interval_sec', 'bucket_time'])
 export class StockKlineEntity {
   @PrimaryGeneratedColumn({ type: 'bigint', unsigned: true })
@@ -35,7 +45,13 @@ export class StockKlineEntity {
   @Column({ type: 'bigint', default: 0, comment: '成交量' })
   volume: number;
 
-  @Column({ type: 'decimal', precision: 20, scale: 2, default: 0, comment: '成交额' })
+  @Column({
+    type: 'decimal',
+    precision: 20,
+    scale: 2,
+    default: 0,
+    comment: '成交额',
+  })
   turnover: number;
 
   @Column({ type: 'int', default: 0, comment: '成交笔数' })

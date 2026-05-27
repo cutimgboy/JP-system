@@ -4,8 +4,6 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { QuoteService } from './quote.service';
 import { QuoteController } from './quote.controller';
 import { MockQuoteService } from './services/mock-quote.service';
-import { StockRealtimePriceEntity } from './entities/stock-realtime-price.entity';
-import { StockPriceChangeEntity } from './entities/stock-price-change.entity';
 import { StockTickEntity } from './entities/stock-tick.entity';
 import { StockKlineEntity } from './entities/stock-kline.entity';
 import { TradingSettingsEntity } from '../cfd/entities/trading-settings.entity';
@@ -15,8 +13,6 @@ import { ProductEntity } from '../cfd/entities/product.entity';
   imports: [
     ConfigModule,
     TypeOrmModule.forFeature([
-      StockRealtimePriceEntity,
-      StockPriceChangeEntity,
       StockTickEntity,
       StockKlineEntity,
       TradingSettingsEntity,

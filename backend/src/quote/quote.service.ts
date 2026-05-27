@@ -18,8 +18,6 @@ import {
   MessageCommandId,
   StockTickEntity,
 } from './entities/stock-tick.entity';
-import { StockRealtimePriceEntity } from './entities/stock-realtime-price.entity';
-import { StockPriceChangeEntity } from './entities/stock-price-change.entity';
 import { StockKlineEntity } from './entities/stock-kline.entity';
 import { TradingSettingsEntity } from '../cfd/entities/trading-settings.entity';
 import { ProductEntity } from '../cfd/entities/product.entity';
@@ -49,11 +47,18 @@ interface KlineAggregationBuffer {
 export class QuoteService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(QuoteService.name);
   private readonly logMockQuoteTicks: boolean;
+  private readonly writeRawTicks: boolean;
+  private readonly rawTickRetentionDays: number;
+  private readonly klineRetentionDaysByInterval: Map<number, number>;
+  private readonly historyCleanupIntervalMs: number;
+  private readonly historyCleanupBatchSize: number;
+  private readonly historyCleanupMaxBatches: number;
   private ws: WebSocket | null = null;
   private reconnectTimer: NodeJS.Timeout | null = null;
   private heartbeatTimer: NodeJS.Timeout | null = null;
   private mockDataTimer: NodeJS.Timeout | null = null;
   private dbFlushTimer: NodeJS.Timeout | null = null;
+  private quoteHistoryCleanupTimer: NodeJS.Timeout | null = null;
   private allQuotesRefreshTimer: NodeJS.Timeout | null = null;
   private readonly reconnectInterval = 5000; // 5秒重连
   private readonly heartbeatInterval = 10000; // 10秒心跳（按照API要求）
@@ -64,6 +69,7 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
   private readonly klineIntervals = [1, 5, 15, 60, 300];
   private dbFlushInProgress = false;
   private dbFlushPromise: Promise<void> | null = null;
+  private quoteHistoryCleanupInProgress = false;
   private droppedDbRows = 0;
   private lastDroppedRowsWarnAt = 0;
 
@@ -129,8 +135,6 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
   private processingTickCodes: Set<string> = new Set();
   private stockTickBuffer: Array<Partial<StockTickEntity>> = [];
   private klineBuffer: Map<string, KlineAggregationBuffer> = new Map();
-  private realtimePriceBuffer: Array<Partial<StockRealtimePriceEntity>> = [];
-  private priceChangeBuffer: Array<Partial<StockPriceChangeEntity>> = [];
 
   // SSE 推送主题
   private tickSubject = new Subject<{ code: string; data: any }>();
@@ -138,10 +142,6 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
   constructor(
     private configService: ConfigService,
     private redisService: RedisService,
-    @InjectRepository(StockRealtimePriceEntity)
-    private stockRealtimePriceRepository: Repository<StockRealtimePriceEntity>,
-    @InjectRepository(StockPriceChangeEntity)
-    private stockPriceChangeRepository: Repository<StockPriceChangeEntity>,
     @InjectRepository(StockTickEntity)
     private stockTickRepository: Repository<StockTickEntity>,
     @InjectRepository(StockKlineEntity)
@@ -153,6 +153,52 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
   ) {
     this.logMockQuoteTicks =
       this.configService.get('LOG_MOCK_QUOTE_TICKS', 'false') === 'true';
+    this.writeRawTicks =
+      this.configService.get('QUOTE_WRITE_RAW_TICKS', 'false') === 'true';
+    this.rawTickRetentionDays = this.getPositiveIntegerConfig(
+      'QUOTE_RAW_TICK_RETENTION_DAYS',
+      1,
+    );
+    this.klineRetentionDaysByInterval = new Map([
+      [1, this.getPositiveIntegerConfig('QUOTE_KLINE_1S_RETENTION_DAYS', 3)],
+      [5, this.getPositiveIntegerConfig('QUOTE_KLINE_5S_RETENTION_DAYS', 7)],
+      [15, this.getPositiveIntegerConfig('QUOTE_KLINE_15S_RETENTION_DAYS', 7)],
+      [60, this.getPositiveIntegerConfig('QUOTE_KLINE_60S_RETENTION_DAYS', 30)],
+      [
+        300,
+        this.getPositiveIntegerConfig('QUOTE_KLINE_300S_RETENTION_DAYS', 90),
+      ],
+    ]);
+    this.historyCleanupIntervalMs = this.getPositiveIntegerConfig(
+      'QUOTE_HISTORY_CLEANUP_INTERVAL_MS',
+      60 * 60 * 1000,
+      60 * 1000,
+    );
+    this.historyCleanupBatchSize = this.getPositiveIntegerConfig(
+      'QUOTE_HISTORY_CLEANUP_BATCH_SIZE',
+      10000,
+      100,
+    );
+    this.historyCleanupMaxBatches = this.getPositiveIntegerConfig(
+      'QUOTE_HISTORY_CLEANUP_MAX_BATCHES',
+      20,
+      1,
+    );
+  }
+
+  private getPositiveIntegerConfig(
+    key: string,
+    defaultValue: number,
+    minValue: number = 0,
+  ): number {
+    const rawValue = this.configService.get(key, `${defaultValue}`);
+    const parsed = Number.parseInt(rawValue, 10);
+
+    if (Number.isNaN(parsed)) {
+      return defaultValue;
+    }
+
+    return Math.max(minValue, parsed);
   }
 
   /**
@@ -196,6 +242,7 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
 
     await this.loadTradingSettingsCache();
     this.startDbFlushWorker();
+    this.startQuoteHistoryCleanupWorker();
 
     // 检查是否启用模拟模式
     const mockMode =
@@ -215,6 +262,7 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
     this.disconnect();
     this.stopMockDataGeneration();
     this.stopDbFlushWorker();
+    this.stopQuoteHistoryCleanupWorker();
     if (this.allQuotesRefreshTimer) {
       clearTimeout(this.allQuotesRefreshTimer);
       this.allQuotesRefreshTimer = null;
@@ -730,17 +778,19 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
     const volume = parseInt(tickData.volume) || 0;
     const turnover = parseFloat(tickData.turnover) || 0;
 
-    this.stockTickBuffer.push({
-      code: tickData.code,
-      seq:
-        tickData.seq ||
-        `${tickData.tick_time}-${tickData.price}-${tickData.volume}-${tickData.turnover}`,
-      tick_time: tickTime,
-      price: newPrice,
-      volume,
-      turnover,
-      trade_direction: tickData.trade_direction ?? null,
-    });
+    if (this.writeRawTicks) {
+      this.stockTickBuffer.push({
+        code: tickData.code,
+        seq:
+          tickData.seq ||
+          `${tickData.tick_time}-${tickData.price}-${tickData.volume}-${tickData.turnover}`,
+        tick_time: tickTime,
+        price: newPrice,
+        volume,
+        turnover,
+        trade_direction: tickData.trade_direction ?? null,
+      });
+    }
 
     this.addKlineBufferRows(
       tickData.code,
@@ -749,29 +799,6 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
       volume,
       turnover,
     );
-
-    if (shouldWriteRealtime) {
-      this.realtimePriceBuffer.push({
-        code: tickData.code,
-        price: newPrice,
-        volume,
-        turnover,
-        tick_time: tickTime,
-      });
-    }
-
-    if (oldPrice !== null && shouldWriteRealtime) {
-      this.priceChangeBuffer.push({
-        code: tickData.code,
-        old_price: oldPrice,
-        new_price: newPrice,
-        price_change: newPrice - oldPrice,
-        change_rate:
-          oldPrice !== 0 ? ((newPrice - oldPrice) / oldPrice) * 100 : 0,
-        volume,
-        tick_time: tickTime,
-      });
-    }
 
     this.trimDatabaseBuffers();
   }
@@ -858,12 +885,7 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
   }
 
   private hasDatabaseBuffers(): boolean {
-    return (
-      this.stockTickBuffer.length > 0 ||
-      this.klineBuffer.size > 0 ||
-      this.realtimePriceBuffer.length > 0 ||
-      this.priceChangeBuffer.length > 0
-    );
+    return this.stockTickBuffer.length > 0 || this.klineBuffer.size > 0;
   }
 
   private buildKlineUpsertSql(rows: KlineAggregationBuffer[]): {
@@ -976,20 +998,6 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
       this.droppedDbRows += overflowKlines;
     }
 
-    const overflowRealtime =
-      this.realtimePriceBuffer.length - this.maxBufferedDbRows;
-    if (overflowRealtime > 0) {
-      this.realtimePriceBuffer.splice(0, overflowRealtime);
-      this.droppedDbRows += overflowRealtime;
-    }
-
-    const overflowChanges =
-      this.priceChangeBuffer.length - this.maxBufferedDbRows;
-    if (overflowChanges > 0) {
-      this.priceChangeBuffer.splice(0, overflowChanges);
-      this.droppedDbRows += overflowChanges;
-    }
-
     const now = Date.now();
     if (this.droppedDbRows > 0 && now - this.lastDroppedRowsWarnAt >= 60000) {
       this.logger.warn(
@@ -1014,6 +1022,112 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
     if (this.dbFlushTimer) {
       clearInterval(this.dbFlushTimer);
       this.dbFlushTimer = null;
+    }
+  }
+
+  private startQuoteHistoryCleanupWorker(): void {
+    if (this.quoteHistoryCleanupTimer) {
+      return;
+    }
+
+    void this.cleanupQuoteHistory();
+    this.quoteHistoryCleanupTimer = setInterval(() => {
+      void this.cleanupQuoteHistory();
+    }, this.historyCleanupIntervalMs);
+  }
+
+  private stopQuoteHistoryCleanupWorker(): void {
+    if (this.quoteHistoryCleanupTimer) {
+      clearInterval(this.quoteHistoryCleanupTimer);
+      this.quoteHistoryCleanupTimer = null;
+    }
+  }
+
+  private getRetentionCutoff(days: number): Date | null {
+    if (days <= 0) {
+      return null;
+    }
+
+    return new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+  }
+
+  private async deleteOldRowsInBatches(
+    label: string,
+    deleteBatch: () => Promise<any>,
+  ): Promise<number> {
+    let totalDeleted = 0;
+
+    for (let batch = 0; batch < this.historyCleanupMaxBatches; batch += 1) {
+      const result = await deleteBatch();
+      const deleted = Number(result?.affectedRows || result?.affected || 0);
+
+      if (deleted <= 0) {
+        break;
+      }
+
+      totalDeleted += deleted;
+
+      if (deleted < this.historyCleanupBatchSize) {
+        break;
+      }
+    }
+
+    if (totalDeleted > 0) {
+      this.logger.log(`已清理 ${label} 历史行情 ${totalDeleted} 条`);
+    }
+
+    return totalDeleted;
+  }
+
+  private async cleanupQuoteHistory(): Promise<void> {
+    if (this.quoteHistoryCleanupInProgress) {
+      return;
+    }
+
+    this.quoteHistoryCleanupInProgress = true;
+
+    try {
+      for (const [
+        intervalSeconds,
+        retentionDays,
+      ] of this.klineRetentionDaysByInterval.entries()) {
+        const cutoff = this.getRetentionCutoff(retentionDays);
+        if (!cutoff) {
+          continue;
+        }
+
+        await this.deleteOldRowsInBatches(
+          `stock_klines ${intervalSeconds}s`,
+          () =>
+            this.stockKlineRepository.query(
+              `
+                DELETE FROM stock_klines
+                WHERE interval_sec = ?
+                  AND bucket_time < ?
+                LIMIT ?
+              `,
+              [intervalSeconds, cutoff, this.historyCleanupBatchSize],
+            ),
+        );
+      }
+
+      const rawTickCutoff = this.getRetentionCutoff(this.rawTickRetentionDays);
+      if (rawTickCutoff) {
+        await this.deleteOldRowsInBatches('stock_ticks', () =>
+          this.stockTickRepository.query(
+            `
+              DELETE FROM stock_ticks
+              WHERE tick_time < ?
+              LIMIT ?
+            `,
+            [rawTickCutoff, this.historyCleanupBatchSize],
+          ),
+        );
+      }
+    } catch (error) {
+      this.logger.error('清理历史行情失败:', error);
+    } finally {
+      this.quoteHistoryCleanupInProgress = false;
     }
   }
 
@@ -1045,22 +1159,6 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
           const klineBatch = this.getKlineBufferRows(this.dbBatchSize);
           if (klineBatch.length > 0) {
             await this.upsertKlineRows(klineBatch);
-          }
-
-          const realtimeBatch = this.realtimePriceBuffer.splice(
-            0,
-            this.dbBatchSize,
-          );
-          if (realtimeBatch.length > 0) {
-            await this.stockRealtimePriceRepository.insert(realtimeBatch);
-          }
-
-          const changeBatch = this.priceChangeBuffer.splice(
-            0,
-            this.dbBatchSize,
-          );
-          if (changeBatch.length > 0) {
-            await this.stockPriceChangeRepository.insert(changeBatch);
           }
         } while (force && this.hasDatabaseBuffers());
       } catch (error) {
@@ -1214,7 +1312,7 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
 
   /**
    * 获取历史 K 线快照。
-   * 优先读取 stock_klines 聚合表，旧数据空窗期回落到实时价格流水临时聚合。
+   * 历史数据只读取 stock_klines；实时空窗期使用 Redis 最新价生成兜底点。
    */
   async getKlineSnapshot(
     code: string,
@@ -1258,104 +1356,32 @@ export class QuoteService implements OnModuleInit, OnModuleDestroy {
       };
     }
 
-    const latestRow = await this.stockRealtimePriceRepository
-      .createQueryBuilder('price')
-      .select('price.tick_time', 'tick_time')
-      .where('price.code = :code', { code })
-      .orderBy('price.tick_time', 'DESC')
-      .addOrderBy('price.id', 'DESC')
-      .getRawOne<{ tick_time: Date | string }>();
-
-    if (!latestRow?.tick_time) {
-      const latestQuote = await this.getCachedQuote(code);
-      const fallbackPrice =
-        typeof latestQuote?.realtime_price === 'number'
-          ? latestQuote.realtime_price
-          : latestQuote?.realtime_price
-            ? parseFloat(latestQuote.realtime_price)
-            : null;
-
-      return {
-        code,
-        interval: `${intervalSeconds}s`,
-        data: fallbackPrice
-          ? [
-              {
-                time: Math.floor(Date.now() / 1000),
-                open: fallbackPrice,
-                high: fallbackPrice,
-                low: fallbackPrice,
-                close: fallbackPrice,
-                price: fallbackPrice,
-                volume: latestQuote?.volume || 0,
-                trade_count: 1,
-              },
-            ]
-          : [],
-      };
-    }
-
-    const latestTime = new Date(latestRow.tick_time);
-    const startTime = new Date(
-      latestTime.getTime() - intervalSeconds * limitNumber * 1000,
-    );
-
-    const rows = await this.stockRealtimePriceRepository.query(
-      `
-        WITH filtered AS (
-          SELECT
-            id,
-            price,
-            volume,
-            tick_time,
-            FLOOR(UNIX_TIMESTAMP(tick_time) / ?) AS bucket
-          FROM stock_realtime_price
-          WHERE code = ?
-            AND tick_time >= ?
-            AND tick_time <= ?
-        ),
-        ranked AS (
-          SELECT
-            *,
-            ROW_NUMBER() OVER (PARTITION BY bucket ORDER BY tick_time ASC, id ASC) AS rn_asc,
-            ROW_NUMBER() OVER (PARTITION BY bucket ORDER BY tick_time DESC, id DESC) AS rn_desc
-          FROM filtered
-        )
-        SELECT
-          bucket * ? AS time,
-          MAX(CASE WHEN rn_asc = 1 THEN price END) AS open,
-          MAX(price) AS high,
-          MIN(price) AS low,
-          MAX(CASE WHEN rn_desc = 1 THEN price END) AS close,
-          SUM(volume) AS volume,
-          SUM(turnover) AS turnover,
-          COUNT(*) AS trade_count
-        FROM ranked
-        GROUP BY bucket
-        ORDER BY bucket ASC
-      `,
-      [intervalSeconds, code, startTime, latestTime, intervalSeconds],
-    );
-
-    const data = rows.slice(-limitNumber).map((row: any) => {
-      const close = Number(row.close);
-      return {
-        time: Number(row.time),
-        open: Number(row.open),
-        high: Number(row.high),
-        low: Number(row.low),
-        close,
-        price: close,
-        volume: Number(row.volume || 0),
-        turnover: Number(row.turnover || 0),
-        trade_count: Number(row.trade_count || 0),
-      };
-    });
+    const latestQuote = await this.getCachedQuote(code);
+    const fallbackPrice =
+      typeof latestQuote?.realtime_price === 'number'
+        ? latestQuote.realtime_price
+        : latestQuote?.realtime_price
+          ? parseFloat(latestQuote.realtime_price)
+          : null;
 
     return {
       code,
       interval: `${intervalSeconds}s`,
-      data,
+      data: fallbackPrice
+        ? [
+            {
+              time: Math.floor(Date.now() / 1000),
+              open: fallbackPrice,
+              high: fallbackPrice,
+              low: fallbackPrice,
+              close: fallbackPrice,
+              price: fallbackPrice,
+              volume: latestQuote?.volume || 0,
+              turnover: latestQuote?.turnover || 0,
+              trade_count: 1,
+            },
+          ]
+        : [],
     };
   }
 
