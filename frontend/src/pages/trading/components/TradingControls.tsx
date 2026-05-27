@@ -150,7 +150,7 @@ export function TradingControls({
         {/* Footer Info */}
         <div className={`flex justify-between items-center px-1 ${guideStep > 0 ? 'opacity-40 pointer-events-none' : ''}`}>
           <div className="text-[12px]">
-            <span className="text-[#8a8a93]">{tx("投资收益")}</span>
+            <span className="text-[#8a8a93]">{tx("投资收益:")}</span>
             <span className={`font-bold font-mono ${getToneTextClass(expectedProfitTone)}`}>
               {tradeStatus === 'idle' ? expectedProfit === 0 ? '0' : expectedProfit > 0 ? `+${formatNumber(expectedProfit)}` : formatNumber(expectedProfit) : tradeStatus === 'completed' ? expectedProfit > 0 ? `+${formatNumber(expectedProfit)}` : formatNumber(expectedProfit) : `+${profitRate}% +${formatNumber(expectedProfit)}`}
             </span>
