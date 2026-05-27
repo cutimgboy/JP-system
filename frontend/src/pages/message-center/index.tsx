@@ -71,7 +71,6 @@ export function MessageCenter() {
                           <h3 className="truncate text-[16px] font-semibold text-white">{message.title}</h3>
                         </div>
                       </div>
-                      <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] ${tone.badge}`}>{typeLabel(message.type)}</span>
                     </div>
 
                     <p className="mb-5 text-[14px] leading-6 text-white/72">{message.content}</p>
@@ -93,41 +92,27 @@ function typeIcon(type: Message['type']) {
   if (type === 'celebration') return Gift;
   return Megaphone;
 }
-function typeLabel(type: Message['type']) {
-  if (type === 'success') return tx("成功");
-  if (type === 'warning') return tx("提醒");
-  if (type === 'celebration') return tx("活动");
-  return tx("通知");
-}
 function typeTone(type: Message['type']) {
   if (type === 'success') {
     return {
       bg: 'bg-[#10b981]/10',
-      text: 'text-[#10b981]',
-      glow: 'bg-[#10b981]/10',
-      badge: 'border-[#10b981]/20 bg-[#10b981]/10 text-[#10b981]'
+      text: 'text-[#10b981]'
     };
   }
   if (type === 'warning') {
     return {
       bg: 'bg-[#f59e0b]/10',
-      text: 'text-[#f59e0b]',
-      glow: 'bg-[#f59e0b]/10',
-      badge: 'border-[#f59e0b]/20 bg-[#f59e0b]/10 text-[#fbbf24]'
+      text: 'text-[#f59e0b]'
     };
   }
   if (type === 'celebration') {
     return {
       bg: 'bg-[#6c48f5]/15',
-      text: 'text-[#a58dff]',
-      glow: 'bg-[#6c48f5]/15',
-      badge: 'border-[#6c48f5]/30 bg-[#6c48f5]/10 text-[#a58dff]'
+      text: 'text-[#a58dff]'
     };
   }
   return {
     bg: 'bg-[#3b82f6]/10',
-    text: 'text-[#60a5fa]',
-    glow: 'bg-[#3b82f6]/10',
-    badge: 'border-[#3b82f6]/20 bg-[#3b82f6]/10 text-[#93c5fd]'
+    text: 'text-[#60a5fa]'
   };
 }
