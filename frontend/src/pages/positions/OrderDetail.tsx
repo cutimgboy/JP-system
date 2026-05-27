@@ -356,10 +356,8 @@ export default function OrderDetail() {
           y: 20
         }} className="relative flex w-full max-w-[320px] flex-col overflow-hidden rounded-[24px] border border-[#6c48f5]/30 bg-[#111119] shadow-[0_0_40px_rgba(108,72,245,0.4)]">
               <div className="relative z-10 flex items-center gap-3 px-6 pb-3 pt-6">
-                <div className="flex h-8 w-8 items-center justify-center rounded-[8px] bg-[#6c48f5] shadow-[0_0_14px_rgba(108,72,245,0.65)]">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                    <path d="M4 12h3l2-7 4 14 2-7h5" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
+             <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-[8px] shadow-[0_0_14px_rgba(108,72,245,0.65)]">
+                    <img src="/icons/icon-192.png" alt="JMP Trading" crossOrigin="anonymous" className="h-full w-full object-cover" />
                 </div>
                 <span className="text-sm font-bold tracking-wider text-white drop-shadow-md">JMP Trading</span>
               </div>
@@ -379,8 +377,17 @@ export default function OrderDetail() {
 
                 <div className="mb-5 flex min-h-[84px] items-center justify-between gap-3 rounded-[16px] bg-[#1c1c24] px-4 py-3">
                   <div className="flex min-w-0 items-center gap-3">
-                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#6c48f5] text-[18px] font-bold text-white shadow-[0_0_12px_rgba(108,72,245,0.3)]">
-                      {assetInitial}
+                              <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white shadow-[0_0_12px_rgba(108,72,245,0.3)]">
+                           <img src={`/logo/${order.stockCode}.svg`} alt={assetName} crossOrigin="anonymous" className="h-full w-full object-cover" onError={(e) => {
+                     const target = e.target as HTMLImageElement;
+                    target.style.display = 'none';
+                        const parent = target.parentElement;
+                   if (parent) {
+                 parent.classList.add('bg-[#6c48f5]', 'text-[18px]', 'font-bold', 'text-white');
+                        parent.classList.remove('bg-white');
+                          parent.textContent = assetInitial;
+                }
+                      }} />
                     </div>
                     <div className="min-w-0">
                       <div className="truncate text-[15px] font-bold text-white">{assetName}</div>

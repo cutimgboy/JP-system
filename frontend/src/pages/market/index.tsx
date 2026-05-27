@@ -121,10 +121,10 @@ export default function MarketPage() {
           </div>
 
           {/* Content */}
-          <div className="absolute left-6 top-6 bottom-6 flex flex-col justify-between z-10">
+          <div className="absolute left-[14px] top-6 bottom-6 flex flex-col justify-between z-10">
             <div className="flex flex-col gap-1">
-              <p className="text-[#99a1af] text-[12px] leading-[16px]">{tx("充值交易 可获得现金奖励")}</p>
-              <h2 className="text-white text-[32px] font-bold leading-[48px] tracking-[-0.39px]">{tx("500.00%奖励")}</h2>
+          <p className="text-[#99a1af] text-[12px] leading-[16px] text-left">{tx("充值交易 可获得现金奖励")}</p>
+            <h2 className="text-white text-[32px] font-bold leading-[48px] tracking-[-0.39px] text-left">{tx("500.00%奖励")}</h2>
             </div>
             <div className="bg-white rounded-[20px] px-6 py-2 shadow-[0px_0px_20px_0px_rgba(255,255,255,0.3)] inline-flex self-start">
               <span className="text-black text-[12px] font-semibold leading-[16px]">{tx("立即参与")}</span>
