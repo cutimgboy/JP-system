@@ -3,6 +3,7 @@ import { tx } from "../../../i18n/text";
 export interface KLineData {
   time: number;
   price: number;
+  sequence?: number;
   volume?: number;
   open?: number;
   high?: number;
@@ -17,6 +18,7 @@ interface KLineChartProps {
   countdownTime?: number;
   entryPrice?: number;
   entryTime?: number;
+  entryPointSequence?: number;
   tradeType?: 'bull' | 'bear' | null;
   profitLoss?: number;
   showProfit?: boolean;
@@ -33,6 +35,10 @@ type CanvasSize = {
   width: number;
   height: number;
 };
+type EntryAnchor = {
+  key: string;
+  point: KLineData | null;
+};
 type ChartRenderState = {
   data: KLineData[];
   canvasSize: CanvasSize;
@@ -40,6 +46,7 @@ type ChartRenderState = {
   countdownTime?: number;
   entryPrice?: number;
   entryTime?: number;
+  entryPointSequence?: number;
   tradeType?: 'bull' | 'bear' | null;
   profitLoss?: number;
   showProfit: boolean;
@@ -58,6 +65,40 @@ const defaultProfitColor = (value: number) => value >= 0 ? DEFAULT_RED : DEFAULT
 const defaultTradeColor = (tradeType: 'bull' | 'bear') => tradeType === 'bull' ? DEFAULT_RED : DEFAULT_GREEN;
 function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value));
+}
+function getEntryAnchorKey(
+  entryPrice: number | undefined,
+  entryTime: number | undefined,
+  entryPointSequence: number | undefined,
+  tradeType: 'bull' | 'bear' | null | undefined
+) {
+  if (typeof entryPrice !== 'number' || typeof entryTime !== 'number' || !tradeType) {
+    return null;
+  }
+  return `${tradeType}:${entryTime}:${entryPrice}:${entryPointSequence ?? 'no-sequence'}`;
+}
+function resolveEntryAnchorPoint(
+  data: KLineData[],
+  entryTime: number,
+  entryPrice: number,
+  entryPointSequence: number | undefined
+) {
+  if (typeof entryPointSequence === 'number' && Number.isFinite(entryPointSequence)) {
+    return data.find(point => point.sequence === entryPointSequence) ?? null;
+  }
+  let closest: KLineData | null = null;
+  let closestTimeDistance = Number.POSITIVE_INFINITY;
+  let closestPriceDistance = Number.POSITIVE_INFINITY;
+  data.forEach(point => {
+    const timeDistance = Math.abs(point.time - entryTime);
+    const priceDistance = Math.abs(point.price - entryPrice);
+    if (timeDistance < closestTimeDistance || timeDistance === closestTimeDistance && priceDistance <= closestPriceDistance) {
+      closest = point;
+      closestTimeDistance = timeDistance;
+      closestPriceDistance = priceDistance;
+    }
+  });
+  return closest && closestTimeDistance <= 2 ? closest : null;
 }
 function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, radius: number) {
   const r = Math.min(radius, width / 2, height / 2);
@@ -146,6 +187,7 @@ export function KLineChart({
   countdownTime,
   entryPrice,
   entryTime,
+  entryPointSequence,
   tradeType,
   profitLoss,
   showProfit = false,
@@ -165,6 +207,7 @@ export function KLineChart({
     dpr: 0
   });
   const lastPointRef = useRef<KLineData | null>(null);
+  const entryAnchorRef = useRef<EntryAnchor | null>(null);
   const transitionRef = useRef({
     latestTime: 0,
     startedAt: 0,
@@ -180,6 +223,7 @@ export function KLineChart({
     countdownTime,
     entryPrice,
     entryTime,
+    entryPointSequence,
     tradeType,
     profitLoss,
     showProfit,
@@ -225,6 +269,20 @@ export function KLineChart({
     lastPointRef.current = latestPoint;
   }, [data]);
   useEffect(() => {
+    const key = getEntryAnchorKey(entryPrice, entryTime, entryPointSequence, tradeType);
+    if (!key) {
+      entryAnchorRef.current = null;
+      return;
+    }
+    if (entryAnchorRef.current?.key === key && entryAnchorRef.current.point) {
+      return;
+    }
+    entryAnchorRef.current = {
+      key,
+      point: resolveEntryAnchorPoint(data, entryTime as number, entryPrice as number, entryPointSequence)
+    };
+  }, [data, entryPointSequence, entryPrice, entryTime, tradeType]);
+  useEffect(() => {
     renderStateRef.current = {
       data,
       canvasSize,
@@ -232,6 +290,7 @@ export function KLineChart({
       countdownTime,
       entryPrice,
       entryTime,
+      entryPointSequence,
       tradeType,
       profitLoss,
       showProfit,
@@ -239,7 +298,7 @@ export function KLineChart({
       getProfitColor,
       getTradeColor
     };
-  }, [canvasSize, countdownTime, currentPrice, data, entryPrice, entryTime, getProfitColor, getTradeColor, getTrendColor, profitLoss, showProfit, tradeType]);
+  }, [canvasSize, countdownTime, currentPrice, data, entryPointSequence, entryPrice, entryTime, getProfitColor, getTradeColor, getTrendColor, profitLoss, showProfit, tradeType]);
   useEffect(() => {
     let animationId = 0;
     let lastDrawAt = 0;
@@ -251,6 +310,7 @@ export function KLineChart({
         countdownTime: renderCountdownTime,
         entryPrice: renderEntryPrice,
         entryTime: renderEntryTime,
+        entryPointSequence: renderEntryPointSequence,
         tradeType: renderTradeType,
         profitLoss: renderProfitLoss,
         showProfit: renderShowProfit,
@@ -449,16 +509,14 @@ export function KLineChart({
       if (typeof renderEntryPrice === 'number' && typeof renderEntryTime === 'number' && renderTradeType) {
         const isBull = renderTradeType === 'bull';
         const tradeColor = renderTradeColor(renderTradeType);
-        const closestPoint = points.reduce((closest, point) => {
-          const currentDistance = Math.abs(point.time - renderEntryTime);
-          const closestDistance = Math.abs(closest.time - renderEntryTime);
-          return currentDistance < closestDistance ? point : closest;
-        }, points[0]);
-        const hasVisibleEntryPoint = Math.abs(closestPoint.time - renderEntryTime) <= 2;
-        if (hasVisibleEntryPoint) {
-          const entryX = closestPoint.x;
+        const anchorKey = getEntryAnchorKey(renderEntryPrice, renderEntryTime, renderEntryPointSequence, renderTradeType);
+        const entryAnchor = anchorKey && entryAnchorRef.current?.key === anchorKey ? entryAnchorRef.current : null;
+        const entrySourceIndex = entryAnchor?.point ? sourceData.indexOf(entryAnchor.point) : -1;
+        const entryPoint = entrySourceIndex >= 0 ? points[entrySourceIndex] : null;
+        if (entryPoint) {
+          const entryX = entryPoint.x;
           const entryY = clamp(priceToY(renderEntryPrice), chartPadding.top, bottomY);
-          const entryPointY = clamp(closestPoint.y, chartPadding.top, bottomY);
+          const entryPointY = clamp(entryPoint.y, chartPadding.top, bottomY);
           ctx.save();
           ctx.strokeStyle = tradeColor;
           ctx.lineWidth = 1.2;

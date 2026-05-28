@@ -9,8 +9,9 @@ interface TradingChartProps {
   productName?: string;
   entryPrice?: number; // 买入价
   entryTime?: number; // 买入时间（秒）
+  entryPointSequence?: number; // 买入点序号
   tradeType?: 'bull' | 'bear' | null; // 交易方向
-  onPriceUpdate?: (price: number, time: number) => void; // 价格更新回调
+  onPriceUpdate?: (price: number, time: number, sequence?: number) => void; // 价格更新回调
   onQuoteUpdate?: (quote: TradingQuoteSummary) => void; // 行情摘要更新回调
   profitLoss?: number; // 交易收益
   showProfit?: boolean; // 是否显示收益
@@ -28,6 +29,7 @@ export function TradingChart({
   productName,
   entryPrice,
   entryTime,
+  entryPointSequence,
   tradeType,
   onPriceUpdate,
   onQuoteUpdate,
@@ -50,11 +52,24 @@ export function TradingChart({
   const flushTimerRef = useRef<number | null>(null);
   const latestPointRef = useRef<KLineData | null>(null);
   const kLineDataRef = useRef<KLineData[]>([]);
+  const nextSequenceRef = useRef(0);
+  const withSequence = (point: KLineData): KLineData => {
+    if (typeof point.sequence === 'number' && Number.isFinite(point.sequence)) {
+      nextSequenceRef.current = Math.max(nextSequenceRef.current, point.sequence + 1);
+      return point;
+    }
+    const sequence = nextSequenceRef.current;
+    nextSequenceRef.current += 1;
+    return {
+      ...point,
+      sequence
+    };
+  };
   const emitQuoteUpdate = (latestPoint: KLineData, series: KLineData[]) => {
     const firstPoint = series[0] || latestPoint;
     const change = latestPoint.price - firstPoint.price;
     const changePercent = firstPoint.price === 0 ? 0 : change / firstPoint.price * 100;
-    onPriceUpdate?.(latestPoint.price, latestPoint.time);
+    onPriceUpdate?.(latestPoint.price, latestPoint.time, latestPoint.sequence);
     onQuoteUpdate?.({
       price: latestPoint.price,
       change,
@@ -93,6 +108,7 @@ export function TradingChart({
     kLineDataRef.current = [];
     pendingPointsRef.current = [];
     latestPointRef.current = null;
+    nextSequenceRef.current = 0;
     const loadSnapshot = async () => {
       try {
         const response = await apiClient.get(`/api/quote/kline/${stockCode}`, {
@@ -108,12 +124,13 @@ export function TradingChart({
         if (cancelled || snapshot.length === 0) {
           return;
         }
-        const latestPoint = snapshot[snapshot.length - 1];
+        const sequencedSnapshot = snapshot.map(withSequence);
+        const latestPoint = sequencedSnapshot[sequencedSnapshot.length - 1];
         latestPointRef.current = latestPoint;
-        kLineDataRef.current = snapshot;
-        setKLineData(snapshot);
+        kLineDataRef.current = sequencedSnapshot;
+        setKLineData(sequencedSnapshot);
         setCurrentPrice(latestPoint.price);
-        emitQuoteUpdate(latestPoint, snapshot);
+        emitQuoteUpdate(latestPoint, sequencedSnapshot);
       } catch (error) {
         console.error(tx("加载K线快照失败:"), error);
       }
@@ -133,11 +150,11 @@ export function TradingChart({
         const data = parsed.data || parsed;
         if (data.type === 'tick') {
           // 接收到新的 tick 数据
-          const newDataPoint: KLineData = {
+          const newDataPoint: KLineData = withSequence({
             time: data.time,
             price: data.price,
             volume: data.volume
-          };
+          });
           const latestPoint = latestPointRef.current;
           if (latestPoint && newDataPoint.time < latestPoint.time) {
             return;
@@ -208,7 +225,7 @@ export function TradingChart({
 
       {/* Chart */}
       <div className="absolute inset-0 pt-24 pb-12">
-        {kLineData.length > 0 && <KLineChart data={kLineData} currentPrice={currentPrice} countdownTime={countdown} entryPrice={entryPrice} entryTime={entryTime} tradeType={tradeType} profitLoss={profitLoss} showProfit={showProfit} getTrendColor={isUp => getToneColor(getTrendTone(isUp))} getProfitColor={value => getToneColor(getProfitTone(value))} getTradeColor={type => getToneColor(getTradeTone(type))} />}
+        {kLineData.length > 0 && <KLineChart data={kLineData} currentPrice={currentPrice} countdownTime={countdown} entryPrice={entryPrice} entryTime={entryTime} entryPointSequence={entryPointSequence} tradeType={tradeType} profitLoss={profitLoss} showProfit={showProfit} getTrendColor={isUp => getToneColor(getTrendTone(isUp))} getProfitColor={value => getToneColor(getProfitTone(value))} getTradeColor={type => getToneColor(getTradeTone(type))} />}
       </div>
 
       {/* Bull/Bear Progress Bar */}

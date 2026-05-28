@@ -66,9 +66,16 @@ export function TradingDetail({
   });
   const [entryPrice, setEntryPrice] = useState<number | undefined>(undefined);
   const [entryTime, setEntryTime] = useState<number | undefined>(undefined);
+  const [entryPointSequence, setEntryPointSequence] = useState<number | undefined>(undefined);
   const [targetTime, setTargetTime] = useState<number | null>(null); // 目标时间（秒）
   const [latestPrice, setLatestPrice] = useState<number>(0); // 最新价格
   const [latestTime, setLatestTime] = useState<number>(0); // 最新时间
+  const [latestPointSequence, setLatestPointSequence] = useState<number | undefined>(undefined);
+  const latestPointRef = useRef<{
+    price: number;
+    time: number;
+    sequence?: number;
+  } | null>(null);
   const [guideStep, setGuideStep] = useState(() => {
     if (initialOrderId || hasTriggeredTradeGuide()) {
       return -1;
@@ -144,6 +151,7 @@ export function TradingDetail({
     setCompletedTradeType(null);
     setEntryPrice(undefined);
     setEntryTime(undefined);
+    setEntryPointSequence(undefined);
     setTargetTime(null);
   };
   const applyOpenOrderState = (orderData: any) => {
@@ -153,6 +161,7 @@ export function TradingDetail({
     setInvestmentAmount(orderData.investmentAmount.toString());
     setEntryPrice(orderData.openPrice);
     setEntryTime(new Date(orderData.openTime).getTime() / 1000);
+    setEntryPointSequence(undefined);
     const expectedCloseTime = new Date(orderData.expectedCloseTime).getTime() / 1000;
     setTargetTime(expectedCloseTime);
     const now = Date.now() / 1000;
@@ -210,6 +219,10 @@ export function TradingDetail({
     }
   }, [selectedStock, activeOrderByStock, initialOrderId, tradeStatus]);
   useEffect(() => {
+    latestPointRef.current = null;
+    setLatestPrice(0);
+    setLatestTime(0);
+    setLatestPointSequence(undefined);
     setQuoteSummary(null);
   }, [selectedStock]);
   useEffect(() => {
@@ -243,6 +256,15 @@ export function TradingDetail({
 
   // 加载订单详情并恢复交易状态
   const loadOrderAndRestoreState = async (orderId: number) => {
+    const requestedEntryPoint = latestPointRef.current
+      ? { ...latestPointRef.current }
+      : latestPrice && latestTime
+        ? {
+          price: latestPrice,
+          time: latestTime,
+          sequence: latestPointSequence
+        }
+        : null;
     try {
       const response = await apiClient.get(`/trade/order/${orderId}`);
       const orderData = extractData(response);
@@ -358,6 +380,15 @@ export function TradingDetail({
       });
       return;
     }
+    const requestedEntryPoint = latestPointRef.current
+      ? { ...latestPointRef.current }
+      : latestPrice && latestTime
+        ? {
+          price: latestPrice,
+          time: latestTime,
+          sequence: latestPointSequence
+        }
+        : null;
     try {
       const response = await apiClient.post('/trade/order', {
         stockCode: selectedStock,
@@ -385,8 +416,10 @@ export function TradingDetail({
       setCountdown(seconds);
       setTradeStatus('bull');
       // 保存买入价和买入时间 - 使用K线图的最新价格和时间
-      setEntryPrice(latestPrice || orderData.openPrice);
-      setEntryTime(latestTime || Date.now() / 1000);
+      const entryPoint = requestedEntryPoint;
+      setEntryPrice(entryPoint?.price || latestPrice || orderData.openPrice);
+      setEntryTime(entryPoint?.time || latestTime || Date.now() / 1000);
+      setEntryPointSequence(entryPoint?.sequence ?? latestPointSequence);
       // 设置目标时间
       setTargetTime(new Date(orderData.expectedCloseTime).getTime() / 1000);
       if (guideStep === 3) {
@@ -455,6 +488,15 @@ export function TradingDetail({
       });
       return;
     }
+    const requestedEntryPoint = latestPointRef.current
+      ? { ...latestPointRef.current }
+      : latestPrice && latestTime
+        ? {
+          price: latestPrice,
+          time: latestTime,
+          sequence: latestPointSequence
+        }
+        : null;
     try {
       const response = await apiClient.post('/trade/order', {
         stockCode: selectedStock,
@@ -482,8 +524,10 @@ export function TradingDetail({
       setCountdown(seconds);
       setTradeStatus('bear');
       // 保存买入价和买入时间 - 使用K线图的最新价格和时间
-      setEntryPrice(latestPrice || orderData.openPrice);
-      setEntryTime(latestTime || Date.now() / 1000);
+      const entryPoint = requestedEntryPoint;
+      setEntryPrice(entryPoint?.price || latestPrice || orderData.openPrice);
+      setEntryTime(entryPoint?.time || latestTime || Date.now() / 1000);
+      setEntryPointSequence(entryPoint?.sequence ?? latestPointSequence);
       // 设置目标时间
       setTargetTime(new Date(orderData.expectedCloseTime).getTime() / 1000);
       if (guideStep === 3) {
@@ -677,9 +721,15 @@ export function TradingDetail({
       </div>
 
       <NavigationHeader selectedStock={selectedStock} onStockChange={setSelectedStock} onProductsChange={setProducts} />
-      <TradingChart countdown={countdown} stockCode={selectedStock} productName={selectedName} entryPrice={entryPrice} entryTime={entryTime} tradeType={activeTradeType} onPriceUpdate={(price, time) => {
+      <TradingChart countdown={countdown} stockCode={selectedStock} productName={selectedName} entryPrice={entryPrice} entryTime={entryTime} entryPointSequence={entryPointSequence} tradeType={activeTradeType} onPriceUpdate={(price, time, sequence) => {
+      latestPointRef.current = {
+        price,
+        time,
+        sequence
+      };
       setLatestPrice(price);
       setLatestTime(time);
+      setLatestPointSequence(sequence);
     }} onQuoteUpdate={setQuoteSummary} profitLoss={actualProfitLoss} showProfit={tradeStatus === 'completed' && !isSettling} />
 
       <TradingControls selectedTime={selectedTime} investmentAmount={investmentAmount} tradeStatus={tradeStatus} countdown={countdown} balance={balance} expectedProfit={displayProfit} profitRate={profitRate} actualProfitLoss={actualProfitLoss} onTimeClick={() => {
