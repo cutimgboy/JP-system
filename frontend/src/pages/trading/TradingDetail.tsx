@@ -216,8 +216,7 @@ export function TradingDetail({
     const activeOrder = activeOrderByStock[selectedStock];
     if (activeOrder) {
       applyOpenOrderState(activeOrder);
-    } else if (tradeStatus !== 'idle') {
-      // Clear entry markers when switching to a product without active order
+    } else if (tradeStatus === 'bull' || tradeStatus === 'bear') {
       resetTradeState();
     }
   }, [selectedStock, activeOrderByStock, initialOrderId, tradeStatus]);
