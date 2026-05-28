@@ -514,9 +514,10 @@ export function KLineChart({
         const entrySourceIndex = entryAnchor?.point ? sourceData.indexOf(entryAnchor.point) : -1;
         const entryPoint = entrySourceIndex >= 0 ? points[entrySourceIndex] : null;
         if (entryPoint) {
-          const entryX = entryPoint.x;
-          const entryY = clamp(entryPoint.y, chartPadding.top, bottomY);
-          const entryPriceLabel = entryPoint.price.toFixed(2);
+              const entryX = entryPoint.x;
+      // Calculate Y based on actual entry price, not the close price of the K-line
+      const entryY = clamp(priceToY(renderEntryPrice), chartPadding.top, bottomY);
+          const entryPriceLabel = renderEntryPrice.toFixed(2);
           ctx.save();
           ctx.strokeStyle = tradeColor;
           ctx.lineWidth = 1.2;
