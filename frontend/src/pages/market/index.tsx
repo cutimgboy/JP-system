@@ -6,12 +6,14 @@ import { useNavigate } from 'react-router-dom';
 import { useAccount } from '../../contexts/AccountContext';
 import apiClient, { extractData } from '../../utils/api';
 import { tx } from "../../i18n/text";
+import { getLocalizedProductName, type ProductInfo } from '../trading/productInfo';
 interface Market {
   code: string;
   icon: string;
   symbol: string;
   name: string;
   nameCn: string;
+  nameVn?: string;
   price: string;
   change: number;
   changePercent: string;
@@ -59,12 +61,14 @@ export default function MarketPage() {
           quotesData = [];
         }
         const marketData: Market[] = quotesData.map((quote: any) => {
+          const localizedName = getLocalizedProductName(quote as ProductInfo, quote.code);
           return {
             code: quote.code,
             icon: `/logo/${quote.code}.${activeCategory.iconExtension}`,
             symbol: quote.code,
-            name: quote.name,
+            name: localizedName,
             nameCn: quote.nameCn,
+            nameVn: quote.nameVn,
             price: quote.price.toFixed(2),
             change: quote.change,
             changePercent: `${quote.changePercent >= 0 ? '+' : ''}${quote.changePercent.toFixed(2)}%`,

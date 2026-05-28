@@ -5,6 +5,85 @@ import * as XLSX from 'xlsx';
 import { ProductEntity } from '../src/cfd/entities/product.entity';
 import { resolveDataFile } from './utils/resolve-data-file';
 
+function cellValue(row: any, key: string) {
+  const value = row[key];
+  return value === undefined || value === null || value === '' ? undefined : value;
+}
+
+const productDataColumns = [
+  'orderNum',
+  'type',
+  'code',
+  'tradeCode',
+  'nameCn',
+  'nameEn',
+  'nameVn',
+  'currencyType',
+  'marginCurrency',
+  'decimalPlaces',
+  'bidSpread',
+  'askSpread',
+  'spread',
+  'contractSize',
+  'minPriceChange',
+  'fixedLeverage',
+  'liquidationRange',
+  'forcedLiquidationRatio',
+  'tradingHours',
+  'descriptionCn',
+  'descriptionVn',
+  'isActive',
+  'sortOrder',
+] as const;
+
+const legacyProductDataColumns = [
+  'orderNum',
+  'type',
+  'code',
+  'tradeCode',
+  'nameCn',
+  'nameEn',
+  'nameVn',
+  'currencyType',
+  'marginCurrency',
+  'decimalPlaces',
+  'bidSpread',
+  'askSpread',
+  'spread',
+  'contractSize',
+  'minPriceChange',
+  'fixedLeverage',
+  'liquidationRange',
+  'forcedLiquidationRatio',
+  'tradingHours',
+  'isActive',
+  'sortOrder',
+] as const;
+
+function buildUpsertSql(columns: readonly string[]) {
+  const createTableColumns = columns
+    .map(column => `\`${column}\``)
+    .join(', ');
+
+  const createPlaceholders = columns
+    .map(() => '?')
+    .join(', ');
+
+  const updateColumns = columns
+    .filter(column => column !== 'code')
+    .map(column => `\`${column}\` = VALUES(\`${column}\`)`)
+    .join(', ');
+
+  return `
+    INSERT INTO products (${createTableColumns})
+    VALUES (${createPlaceholders})
+    ON DUPLICATE KEY UPDATE ${updateColumns}
+  `;
+}
+
+const upsertSql = buildUpsertSql(productDataColumns);
+const legacyUpsertSql = buildUpsertSql(legacyProductDataColumns);
+
 async function bootstrap() {
   // 禁用行情服务初始化，避免导入脚本连接外部行情源或启动定时任务
   process.env.DISABLE_QUOTE_INIT = 'true';
@@ -28,6 +107,14 @@ async function bootstrap() {
 
     // 获取 ProductEntity 的 repository
     const productRepo = dataSource.getRepository(ProductEntity);
+    const productTableColumns = await dataSource.query("SHOW COLUMNS FROM `products`");
+    const productColumnNames = new Set(productTableColumns.map((column: any) => column.Field));
+    const useRepositoryImport = productColumnNames.has('description_cn');
+    const rawColumns = productColumnNames.has('descriptionCn') ? productDataColumns : legacyProductDataColumns;
+    const rawUpsertSql = productColumnNames.has('descriptionCn') ? upsertSql : legacyUpsertSql;
+    if (!useRepositoryImport && !productColumnNames.has('descriptionCn')) {
+      console.log('当前 products 表缺少基础简介列，仅导入交易设置和 UTC+7 交易时间。');
+    }
 
     // 清空现有数据（可选）
     // await productRepo.clear();
@@ -38,11 +125,6 @@ async function bootstrap() {
 
     for (const row of data as any[]) {
       try {
-        // 检查产品是否已存在
-        const existingProduct = await productRepo.findOne({
-          where: { code: row['代码'] }
-        });
-
         const productData = {
           orderNum: row['序号'],
           type: row['品种类型'],
@@ -62,20 +144,32 @@ async function bootstrap() {
           fixedLeverage: row['固定杠杆'],
           liquidationRange: row['涨跌爆仓幅度'],
           forcedLiquidationRatio: row['强制平仓比例'],
-          tradingHours: row['交易时间'],
+          tradingHours: cellValue(row, '越南时区（UTC+7）周交易日历') || row['交易时间'],
+          descriptionCn: cellValue(row, '公司简介（简体）'),
+          descriptionVn: cellValue(row, '公司简介（越南）'),
           isActive: true,
           sortOrder: row['序号'],
         };
 
-        if (existingProduct) {
-          // 更新现有产品
-          await productRepo.update(existingProduct.id, productData);
-          console.log(`✓ 更新产品: ${row['代码']} - ${row['简体名称']}`);
+        if (useRepositoryImport) {
+          // 检查产品是否已存在
+          const existingProduct = await productRepo.findOne({
+            where: { code: row['代码'] }
+          });
+
+          if (existingProduct) {
+            // 更新现有产品
+            await productRepo.update(existingProduct.id, productData);
+            console.log(`✓ 更新产品: ${row['代码']} - ${row['简体名称']}`);
+          } else {
+            // 创建新产品
+            const product = productRepo.create(productData);
+            await productRepo.save(product);
+            console.log(`✓ 创建产品: ${row['代码']} - ${row['简体名称']}`);
+          }
         } else {
-          // 创建新产品
-          const product = productRepo.create(productData);
-          await productRepo.save(product);
-          console.log(`✓ 创建产品: ${row['代码']} - ${row['简体名称']}`);
+          await dataSource.query(rawUpsertSql, rawColumns.map(column => productData[column]));
+          console.log(`✓ 导入产品: ${row['代码']} - ${row['简体名称']}`);
         }
 
         successCount++;

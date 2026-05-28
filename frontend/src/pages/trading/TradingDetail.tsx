@@ -335,7 +335,7 @@ export function TradingDetail({
     try {
       const response = await apiClient.post('/trade/order', {
         stockCode: selectedStock,
-        stockName: selectedStock,
+        stockName: selectedName,
         tradeType: 'bull',
         investmentAmount: amount,
         durationSeconds: seconds,
@@ -345,7 +345,7 @@ export function TradingDetail({
       const nextOrder = {
         ...orderData,
         stockCode: selectedStock,
-        stockName: selectedStock,
+        stockName: selectedName,
         tradeType: 'bull'
       };
       setCurrentOrderId(orderData.id);
@@ -432,7 +432,7 @@ export function TradingDetail({
     try {
       const response = await apiClient.post('/trade/order', {
         stockCode: selectedStock,
-        stockName: selectedStock,
+        stockName: selectedName,
         tradeType: 'bear',
         investmentAmount: amount,
         durationSeconds: seconds,
@@ -442,7 +442,7 @@ export function TradingDetail({
       const nextOrder = {
         ...orderData,
         stockCode: selectedStock,
-        stockName: selectedStock,
+        stockName: selectedName,
         tradeType: 'bear'
       };
       setCurrentOrderId(orderData.id);
@@ -613,7 +613,7 @@ export function TradingDetail({
       </div>
 
       <NavigationHeader selectedStock={selectedStock} onStockChange={setSelectedStock} onProductsChange={setProducts} />
-      <TradingChart countdown={countdown} stockCode={selectedStock} entryPrice={entryPrice} entryTime={entryTime} tradeType={activeTradeType} onPriceUpdate={(price, time) => {
+      <TradingChart countdown={countdown} stockCode={selectedStock} productName={selectedName} entryPrice={entryPrice} entryTime={entryTime} tradeType={activeTradeType} onPriceUpdate={(price, time) => {
       setLatestPrice(price);
       setLatestTime(time);
     }} onQuoteUpdate={setQuoteSummary} profitLoss={actualProfitLoss} showProfit={tradeStatus === 'completed' && !isSettling} />

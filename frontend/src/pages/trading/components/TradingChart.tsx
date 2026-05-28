@@ -6,6 +6,7 @@ import { getLocale, tx } from "../../../i18n/text";
 interface TradingChartProps {
   countdown?: number; // 倒计时时间（秒）
   stockCode?: string; // 股票代码，默认为 AAPL.US
+  productName?: string;
   entryPrice?: number; // 买入价
   entryTime?: number; // 买入时间（秒）
   tradeType?: 'bull' | 'bear' | null; // 交易方向
@@ -24,6 +25,7 @@ export interface TradingQuoteSummary {
 export function TradingChart({
   countdown,
   stockCode = 'AAPL.US',
+  productName,
   entryPrice,
   entryTime,
   tradeType,
@@ -179,7 +181,9 @@ export function TradingChart({
       <div className="absolute top-0 left-0 right-0 z-10 px-4 pt-4 pb-2">
         <div className="flex items-start justify-between mb-3">
           <div>
-            <div className="text-white text-[20px] font-bold tracking-tight">{stockCode}</div>
+            <div className="max-w-[190px] truncate text-[20px] font-bold tracking-tight text-white">
+              {productName || stockCode}
+            </div>
             <div className="text-[#8a8a93] text-[12px] mt-1 flex items-center gap-2">
               <span className={`w-1.5 h-1.5 rounded-full ${connectionStatus === 'connected' ? 'bg-[#10b981] animate-pulse' : connectionStatus === 'connecting' ? 'bg-yellow-400 animate-pulse' : 'bg-red-400'}`}></span>
               {connectionStatus === 'connected' ? tx("交易中") : connectionStatus === 'connecting' ? tx("连接中...") : tx("已断开")} {new Date().toLocaleString(getLocale(), {

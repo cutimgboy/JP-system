@@ -41,7 +41,7 @@ export class CfdService {
       entity.fixedLeverage = item['固定杠杆'];
       entity.liquidationRange = item['涨跌爆仓幅度'];
       entity.forcedLiquidationRatio = item['强制平仓比例'];
-      entity.tradingHours = item['交易时间'];
+      entity.tradingHours = item['越南时区（UTC+7）周交易日历'] || item['交易时间'];
       return entity;
     });
 

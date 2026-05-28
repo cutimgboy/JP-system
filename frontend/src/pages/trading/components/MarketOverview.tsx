@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { apiClient, extractData } from '../../../utils/api';
 import { tx } from "../../../i18n/text";
-import { getLocalizedCountry, getLocalizedMarket, mergeProductInfo, type ProductInfo } from '../productInfo';
+import { getLocalizedCountry, getLocalizedMarket, getLocalizedProductName, mergeProductInfo, type ProductInfo } from '../productInfo';
 interface MarketOverviewProps {
   stockCode: string;
 }
@@ -40,6 +40,9 @@ export function MarketOverview({
   const productType = productInfo?.type || '';
   const isStock = productType === '股票';
   const isCrypto = productType === 'Crypto' || productType === '数字货币';
+  if (!isStock && !isCrypto) {
+    return null;
+  }
   const sectionTitle = isStock ? tx("公司信息") : isCrypto ? tx("币种信息") : tx("产品概况");
   const sectionAccent = isStock ? 'bg-[#3b82f6]' : isCrypto ? 'bg-[#f7931a]' : 'bg-[#6c48f5]';
   const generalItems = [{
@@ -50,7 +53,7 @@ export function MarketOverview({
     value: formatValue(productInfo?.tradeCode || productInfo?.code || stockCode)
   }, {
     label: tx("名称"),
-    value: formatValue(productInfo?.nameCn || productInfo?.nameEn)
+    value: formatValue(getLocalizedProductName(productInfo, stockCode))
   }, {
     label: tx("货币类型"),
     value: formatValue(productInfo?.currencyType)

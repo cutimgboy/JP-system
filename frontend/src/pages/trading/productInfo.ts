@@ -4,6 +4,7 @@ import { productFallbackMap } from './productFallback';
 export interface ProductInfo {
   code?: string;
   tradeCode?: string;
+  name?: string;
   nameCn?: string;
   nameEn?: string;
   nameVn?: string;
@@ -95,10 +96,11 @@ export function getLocalizedProductName(productInfo: ProductInfo | null | undefi
   if (!productInfo) {
     return fallbackCode;
   }
+  const fallbackName = productInfo.nameEn || productInfo.name;
   if (getCurrentLanguage() === 'vi') {
-    return productInfo.nameVn || productInfo.nameEn || productInfo.nameCn || fallbackCode;
+    return productInfo.nameVn || fallbackName || productInfo.nameCn || fallbackCode;
   }
-  return productInfo.nameCn || productInfo.nameEn || productInfo.nameVn || fallbackCode;
+  return productInfo.nameCn || fallbackName || productInfo.nameVn || fallbackCode;
 }
 
 export function getLocalizedDescription(productInfo: ProductInfo | null | undefined) {
