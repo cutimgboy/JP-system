@@ -18,6 +18,14 @@ const TRADE_GUIDE_COMPLETED_KEY = 'tradeGuideCompleted';
 const MIN_TRADE_AMOUNT_VND = 100000;
 type ActiveTradeStatus = 'bull' | 'bear';
 type TradeStatus = 'idle' | ActiveTradeStatus | 'completed';
+type CompletedTradeSnapshot = {
+  profitLoss: number;
+  tradeType: ActiveTradeStatus | null;
+  investmentAmount: string;
+  entryPrice?: number;
+  entryTime?: number;
+  entryPointSequence?: number;
+};
 const hasTriggeredTradeGuide = () => {
   try {
     return localStorage.getItem(TRADE_GUIDE_COMPLETED_KEY) === 'true';
@@ -61,6 +69,7 @@ export function TradingDetail({
   const [actualProfitLoss, setActualProfitLoss] = useState(0);
   const [isSettling, setIsSettling] = useState(false);
   const [completedTradeType, setCompletedTradeType] = useState<'bull' | 'bear' | null>(null);
+  const [completedResultByStock, setCompletedResultByStock] = useState<Record<string, CompletedTradeSnapshot>>({});
   const [alertDialog, setAlertDialog] = useState({
     isOpen: false,
     title: '',
@@ -95,11 +104,14 @@ export function TradingDetail({
   const selectedProduct = products.find(product => product.code === selectedStock);
   const selectedFallbackProduct = getFallbackProductInfo(selectedStock);
   const selectedName = getLocalizedProductName(selectedProduct || selectedFallbackProduct, selectedStock);
+  const selectedCompletedResult = completedResultByStock[selectedStock];
   const activeTradeType = tradeStatus === 'bull' || tradeStatus === 'bear'
     ? tradeStatus
-    : tradeStatus === 'completed'
+    : tradeStatus === 'completed' && selectedCompletedResult
       ? completedTradeType
       : null;
+  const selectedProfitLoss = selectedCompletedResult?.profitLoss ?? actualProfitLoss;
+  const showCompletedProfit = tradeStatus === 'completed' && !!selectedCompletedResult && !isSettling;
   const displayQuote = quoteSummary || {
     price: selectedProduct?.price || latestPrice || 0,
     change: selectedProduct?.change || 0,
@@ -111,6 +123,8 @@ export function TradingDetail({
   const latestSettlementRef = useRef<{
     latestPrice: number;
     entryPrice?: number;
+    entryTime?: number;
+    entryPointSequence?: number;
     investmentAmount: string;
     tradeStatus: TradeStatus;
     selectedStock: string;
@@ -118,6 +132,8 @@ export function TradingDetail({
   }>({
     latestPrice: 0,
     entryPrice: undefined,
+    entryTime: undefined,
+    entryPointSequence: undefined,
     investmentAmount: '100000',
     tradeStatus: 'idle',
     selectedStock: initialStock,
@@ -126,6 +142,8 @@ export function TradingDetail({
   latestSettlementRef.current = {
     latestPrice,
     entryPrice,
+    entryTime,
+    entryPointSequence,
     investmentAmount,
     tradeStatus,
     selectedStock,
@@ -156,11 +174,30 @@ export function TradingDetail({
     setEntryPointSequence(undefined);
     setTargetTime(null);
   };
+  const applyCompletedOrderState = (snapshot: CompletedTradeSnapshot) => {
+    setTradeStatus('completed');
+    setCountdown(0);
+    setCurrentOrderId(null);
+    setActualProfitLoss(snapshot.profitLoss);
+    closeTriggeredRef.current = false;
+    setIsSettling(false);
+    setCompletedTradeType(snapshot.tradeType);
+    setInvestmentAmount(snapshot.investmentAmount);
+    setEntryPrice(snapshot.entryPrice);
+    setEntryTime(snapshot.entryTime);
+    setEntryPointSequence(snapshot.entryPointSequence);
+    setTargetTime(null);
+  };
   const applyOpenOrderState = (orderData: any) => {
     setGuideStep(-1);
     setCurrentOrderId(orderData.id);
     setTradeStatus(orderData.tradeType);
     setInvestmentAmount(orderData.investmentAmount.toString());
+    setCompletedResultByStock(prev => {
+      const next = { ...prev };
+      delete next[orderData.stockCode];
+      return next;
+    });
     setEntryPrice(orderData.entryChartPrice ?? orderData.openPrice);
     setEntryTime(orderData.entryChartTime ?? new Date(orderData.openTime).getTime() / 1000);
     setEntryPointSequence(orderData.entryChartSequence);
@@ -214,12 +251,15 @@ export function TradingDetail({
       return;
     }
     const activeOrder = activeOrderByStock[selectedStock];
+    const completedResult = completedResultByStock[selectedStock];
     if (activeOrder) {
       applyOpenOrderState(activeOrder);
-    } else if (tradeStatus === 'bull' || tradeStatus === 'bear') {
+    } else if (completedResult) {
+      applyCompletedOrderState(completedResult);
+    } else if (tradeStatus !== 'idle') {
       resetTradeState();
     }
-  }, [selectedStock, activeOrderByStock, initialOrderId, tradeStatus]);
+  }, [selectedStock, activeOrderByStock, completedResultByStock, initialOrderId, tradeStatus]);
   useEffect(() => {
     latestPointRef.current = null;
     setLatestPrice(0);
@@ -577,6 +617,11 @@ export function TradingDetail({
       delete next[selectedStock];
       return next;
     });
+    setCompletedResultByStock(prev => {
+      const next = { ...prev };
+      delete next[selectedStock];
+      return next;
+    });
     fetchBalance(); // 刷新余额
   };
   const calculateLocalProfitLoss = (type: ActiveTradeStatus, openPrice: number, closePrice: number, amount: number) => {
@@ -593,15 +638,35 @@ export function TradingDetail({
   } = {}) => {
     const profitLoss = Number(orderData?.profitLoss ?? 0);
     const settledAmount = Number(orderData?.investmentAmount ?? parseInt(investmentAmount || '0'));
-    setActualProfitLoss(profitLoss);
-    setCompletedTradeType(orderData?.tradeType || (tradeStatus === 'bull' || tradeStatus === 'bear' ? tradeStatus : null));
-    setTradeStatus('completed');
+    const settledStock = orderData?.stockCode || selectedStock;
+    const settledTradeType = orderData?.tradeType || (tradeStatus === 'bull' || tradeStatus === 'bear' ? tradeStatus : null);
+    let completedSnapshot: CompletedTradeSnapshot;
+    setCompletedResultByStock(prev => {
+      const existing = prev[settledStock];
+      completedSnapshot = {
+        profitLoss,
+        tradeType: settledTradeType,
+        investmentAmount: String(orderData?.investmentAmount ?? existing?.investmentAmount ?? investmentAmount),
+        entryPrice: orderData?.entryPrice ?? existing?.entryPrice ?? entryPrice,
+        entryTime: orderData?.entryTime ?? existing?.entryTime ?? entryTime,
+        entryPointSequence: orderData?.entryPointSequence ?? existing?.entryPointSequence ?? entryPointSequence
+      };
+      return {
+        ...prev,
+        [settledStock]: completedSnapshot
+      };
+    });
+    if (settledStock === selectedStock) {
+      setActualProfitLoss(profitLoss);
+      setCompletedTradeType(settledTradeType);
+      setTradeStatus('completed');
+    }
     setIsSettling(false);
     setActiveOrderByStock(prev => {
       const next = {
         ...prev
       };
-      delete next[orderData?.stockCode || selectedStock];
+      delete next[settledStock];
       return next;
     });
     if (options.adjustBalanceLocally) {
@@ -632,7 +697,10 @@ export function TradingDetail({
       closePrice,
       closeTime: new Date().toISOString(),
       status: 'closed',
-      profitLoss
+      profitLoss,
+      entryPrice: snapshot.entryPrice,
+      entryTime: snapshot.entryTime,
+      entryPointSequence: snapshot.entryPointSequence
     }, {
       refreshBalance: false,
       adjustBalanceLocally: true
@@ -702,7 +770,7 @@ export function TradingDetail({
   // 计算预期收益
   const expectedProfit = Math.floor(parseInt(investmentAmount || '0') * 0.92);
   // 根据交易状态决定显示的收益
-  const displayProfit = tradeStatus === 'idle' ? actualProfitLoss : tradeStatus === 'completed' ? actualProfitLoss : expectedProfit;
+  const displayProfit = tradeStatus === 'idle' ? selectedProfitLoss : tradeStatus === 'completed' ? selectedProfitLoss : expectedProfit;
   const changeSign = displayQuote.change >= 0 ? '+' : '';
   const switchStockByOffset = (offset: number) => {
     if (products.length === 0) {
@@ -755,7 +823,7 @@ export function TradingDetail({
       setLatestPrice(price);
       setLatestTime(time);
       setLatestPointSequence(sequence);
-    }} onQuoteUpdate={setQuoteSummary} profitLoss={actualProfitLoss} showProfit={tradeStatus === 'completed' && !isSettling} />
+    }} onQuoteUpdate={setQuoteSummary} profitLoss={selectedProfitLoss} showProfit={showCompletedProfit} />
 
       <TradingControls selectedTime={selectedTime} investmentAmount={investmentAmount} tradeStatus={tradeStatus} countdown={countdown} balance={balance} expectedProfit={displayProfit} profitRate={profitRate} actualProfitLoss={actualProfitLoss} onTimeClick={() => {
       if (tradeStatus === 'idle') {
