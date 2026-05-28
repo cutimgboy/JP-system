@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { apiClient, extractData } from '../../../utils/api';
 import { tx } from "../../../i18n/text";
 import {
@@ -14,6 +15,7 @@ interface CoinIntroductionProps {
 export function CoinIntroduction({
   stockCode
 }: CoinIntroductionProps) {
+  useTranslation();
   const [productInfo, setProductInfo] = useState<ProductInfo | null>(() => getFallbackProductInfo(stockCode));
   const [loading, setLoading] = useState(true);
   useEffect(() => {

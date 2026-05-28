@@ -108,7 +108,7 @@ export function getLocalizedDescription(productInfo: ProductInfo | null | undefi
     return '';
   }
   return getCurrentLanguage() === 'vi'
-    ? productInfo.descriptionVn || productInfo.descriptionCn || ''
+    ? productInfo.descriptionVn || ''
     : productInfo.descriptionCn || productInfo.descriptionVn || '';
 }
 
