@@ -449,44 +449,41 @@ export function KLineChart({
       if (typeof renderEntryPrice === 'number' && typeof renderEntryTime === 'number' && renderTradeType) {
         const isBull = renderTradeType === 'bull';
         const tradeColor = renderTradeColor(renderTradeType);
-        const visibleTimeMin = Math.min(...points.map(point => point.time));
-        const visibleTimeMax = Math.max(...points.map(point => point.time));
-        const timeRange = Math.max(1, visibleTimeMax - visibleTimeMin);
-        let entryX = chartPadding.left + ((renderEntryTime - visibleTimeMin) / timeRange) * (fixedX - chartPadding.left);
         const closestPoint = points.reduce((closest, point) => {
           const currentDistance = Math.abs(point.time - renderEntryTime);
           const closestDistance = Math.abs(closest.time - renderEntryTime);
           return currentDistance < closestDistance ? point : closest;
         }, points[0]);
-        if (closestPoint && Math.abs(closestPoint.time - renderEntryTime) <= 2) {
-          entryX = closestPoint.x;
+        const hasVisibleEntryPoint = Math.abs(closestPoint.time - renderEntryTime) <= 2;
+        if (hasVisibleEntryPoint) {
+          const entryX = closestPoint.x;
+          const entryY = clamp(priceToY(renderEntryPrice), chartPadding.top, bottomY);
+          const entryPointY = clamp(closestPoint.y, chartPadding.top, bottomY);
+          ctx.save();
+          ctx.strokeStyle = tradeColor;
+          ctx.lineWidth = 1.2;
+          ctx.shadowColor = tradeColor;
+          ctx.shadowBlur = 5;
+          ctx.beginPath();
+          ctx.moveTo(entryX, entryY);
+          ctx.lineTo(logicalWidth - chartPadding.right, entryY);
+          ctx.stroke();
+          ctx.restore();
+          const entryLabelWidth = 68;
+          const entryLabelX = logicalWidth - chartPadding.right - entryLabelWidth;
+          const entryLabelY = clamp(entryY - 11, chartPadding.top, bottomY - 22);
+          roundRect(ctx, entryLabelX, entryLabelY, entryLabelWidth, 22, 6);
+          ctx.fillStyle = tradeColor;
+          ctx.fill();
+          ctx.fillStyle = '#ffffff';
+          ctx.font = '700 10px ui-monospace, SFMono-Regular, Menlo, monospace';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(renderEntryPrice.toFixed(2), entryLabelX + entryLabelWidth / 2, entryLabelY + 11);
+          drawEntryDot(ctx, entryX, entryPointY, tradeColor);
+          const iconY = clamp(entryY - 28, chartPadding.top + 12, bottomY - 12);
+          drawTradeIcon(ctx, entryX, iconY, isBull, tradeColor);
         }
-        entryX = clamp(entryX, chartPadding.left + 12, fixedX - 8);
-        const entryY = clamp(priceToY(renderEntryPrice), chartPadding.top, bottomY);
-        ctx.save();
-        ctx.strokeStyle = tradeColor;
-        ctx.lineWidth = 1.2;
-        ctx.shadowColor = tradeColor;
-        ctx.shadowBlur = 5;
-        ctx.beginPath();
-        ctx.moveTo(entryX, entryY);
-        ctx.lineTo(logicalWidth - chartPadding.right, entryY);
-        ctx.stroke();
-        ctx.restore();
-        const entryLabelWidth = 68;
-        const entryLabelX = logicalWidth - chartPadding.right - entryLabelWidth;
-        const entryLabelY = clamp(entryY - 11, chartPadding.top, bottomY - 22);
-        roundRect(ctx, entryLabelX, entryLabelY, entryLabelWidth, 22, 6);
-        ctx.fillStyle = tradeColor;
-        ctx.fill();
-        ctx.fillStyle = '#ffffff';
-        ctx.font = '700 10px ui-monospace, SFMono-Regular, Menlo, monospace';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(renderEntryPrice.toFixed(2), entryLabelX + entryLabelWidth / 2, entryLabelY + 11);
-        drawEntryDot(ctx, entryX, entryY, tradeColor);
-        const iconY = clamp(entryY - 28, chartPadding.top + 12, bottomY - 12);
-        drawTradeIcon(ctx, entryX, iconY, isBull, tradeColor);
       }
       ctx.fillStyle = 'rgba(255, 255, 255, 0.42)';
       ctx.font = '9px ui-monospace, SFMono-Regular, Menlo, monospace';
