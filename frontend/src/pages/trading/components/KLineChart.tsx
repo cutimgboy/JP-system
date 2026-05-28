@@ -515,8 +515,8 @@ export function KLineChart({
         const entryPoint = entrySourceIndex >= 0 ? points[entrySourceIndex] : null;
         if (entryPoint) {
           const entryX = entryPoint.x;
-          const entryY = clamp(priceToY(renderEntryPrice), chartPadding.top, bottomY);
-          const entryPointY = clamp(entryPoint.y, chartPadding.top, bottomY);
+          const entryY = clamp(entryPoint.y, chartPadding.top, bottomY);
+          const entryPriceLabel = entryPoint.price.toFixed(2);
           ctx.save();
           ctx.strokeStyle = tradeColor;
           ctx.lineWidth = 1.2;
@@ -537,8 +537,8 @@ export function KLineChart({
           ctx.font = '700 10px ui-monospace, SFMono-Regular, Menlo, monospace';
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
-          ctx.fillText(renderEntryPrice.toFixed(2), entryLabelX + entryLabelWidth / 2, entryLabelY + 11);
-          drawEntryDot(ctx, entryX, entryPointY, tradeColor);
+          ctx.fillText(entryPriceLabel, entryLabelX + entryLabelWidth / 2, entryLabelY + 11);
+          drawEntryDot(ctx, entryX, entryY, tradeColor);
           const iconY = clamp(entryY - 28, chartPadding.top + 12, bottomY - 12);
           drawTradeIcon(ctx, entryX, iconY, isBull, tradeColor);
         }
