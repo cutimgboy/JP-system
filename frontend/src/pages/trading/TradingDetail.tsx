@@ -161,9 +161,9 @@ export function TradingDetail({
     setCurrentOrderId(orderData.id);
     setTradeStatus(orderData.tradeType);
     setInvestmentAmount(orderData.investmentAmount.toString());
-    setEntryPrice(orderData.openPrice);
-    setEntryTime(new Date(orderData.openTime).getTime() / 1000);
-    setEntryPointSequence(undefined);
+    setEntryPrice(orderData.entryChartPrice ?? orderData.openPrice);
+    setEntryTime(orderData.entryChartTime ?? new Date(orderData.openTime).getTime() / 1000);
+    setEntryPointSequence(orderData.entryChartSequence);
     const expectedCloseTime = new Date(orderData.expectedCloseTime).getTime() / 1000;
     setTargetTime(expectedCloseTime);
     const now = Date.now() / 1000;
@@ -416,11 +416,15 @@ export function TradingDetail({
         accountId // 使用 accountId 而不是 accountType
       });
       const orderData = extractData(response);
+      const entryPoint = requestedEntryPoint;
       const nextOrder = {
         ...orderData,
         stockCode: selectedStock,
         stockName: selectedName,
-        tradeType: 'bull'
+        tradeType: 'bull',
+        entryChartPrice: entryPoint?.price,
+        entryChartTime: entryPoint?.time,
+        entryChartSequence: entryPoint?.sequence
       };
       setCurrentOrderId(orderData.id);
       setActiveOrderByStock(prev => ({
@@ -433,7 +437,6 @@ export function TradingDetail({
       setCountdown(seconds);
       setTradeStatus('bull');
       // 保存买入价和买入时间 - 使用K线图的最新价格和时间
-      const entryPoint = requestedEntryPoint;
       setEntryPrice(entryPoint?.price || latestPrice || orderData.openPrice);
       setEntryTime(entryPoint?.time || latestTime || Date.now() / 1000);
       setEntryPointSequence(entryPoint?.sequence ?? latestPointSequence);
@@ -527,11 +530,15 @@ export function TradingDetail({
         accountId // 使用 accountId 而不是 accountType
       });
       const orderData = extractData(response);
+      const entryPoint = requestedEntryPoint;
       const nextOrder = {
         ...orderData,
         stockCode: selectedStock,
         stockName: selectedName,
-        tradeType: 'bear'
+        tradeType: 'bear',
+        entryChartPrice: entryPoint?.price,
+        entryChartTime: entryPoint?.time,
+        entryChartSequence: entryPoint?.sequence
       };
       setCurrentOrderId(orderData.id);
       setActiveOrderByStock(prev => ({
@@ -544,7 +551,6 @@ export function TradingDetail({
       setCountdown(seconds);
       setTradeStatus('bear');
       // 保存买入价和买入时间 - 使用K线图的最新价格和时间
-      const entryPoint = requestedEntryPoint;
       setEntryPrice(entryPoint?.price || latestPrice || orderData.openPrice);
       setEntryTime(entryPoint?.time || latestTime || Date.now() / 1000);
       setEntryPointSequence(entryPoint?.sequence ?? latestPointSequence);
