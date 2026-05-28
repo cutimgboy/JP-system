@@ -124,6 +124,20 @@ function drawTradeIcon(ctx: CanvasRenderingContext2D, x: number, y: number, isBu
   }
   ctx.stroke();
 }
+function drawEntryDot(ctx: CanvasRenderingContext2D, x: number, y: number, color: string) {
+  ctx.save();
+  ctx.shadowColor = color;
+  ctx.shadowBlur = 8;
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.arc(x, y, 4.2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 1.6;
+  ctx.stroke();
+  ctx.restore();
+}
 export function KLineChart({
   data,
   width = 420,
@@ -470,7 +484,9 @@ export function KLineChart({
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(renderEntryPrice.toFixed(2), entryLabelX + entryLabelWidth / 2, entryLabelY + 11);
-        drawTradeIcon(ctx, entryX, entryY, isBull, tradeColor);
+        drawEntryDot(ctx, entryX, entryY, tradeColor);
+        const iconY = clamp(entryY - 28, chartPadding.top + 12, bottomY - 12);
+        drawTradeIcon(ctx, entryX, iconY, isBull, tradeColor);
       }
       ctx.fillStyle = 'rgba(255, 255, 255, 0.42)';
       ctx.font = '9px ui-monospace, SFMono-Regular, Menlo, monospace';
