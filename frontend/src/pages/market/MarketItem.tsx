@@ -41,8 +41,8 @@ export function MarketItem({ icon, symbol, name, price, change, changePercent, o
       </div>
 
       {/* 右侧：价格和涨跌幅 */}
-      <div className="flex flex-col items-end gap-0.5 min-w-[70px]">
-        <p className="text-white text-[15px] font-semibold leading-[22.5px] tracking-[-0.23px]">
+      <div className="flex flex-col items-end gap-0.5 min-w-[90px] shrink-0">
+        <p className="text-white text-[15px] font-semibold leading-[22.5px] tracking-[-0.23px] whitespace-nowrap">
           $ {price}
         </p>
         <div className={`flex items-center gap-1 text-[10px] leading-[15px] tracking-[0.12px] ${

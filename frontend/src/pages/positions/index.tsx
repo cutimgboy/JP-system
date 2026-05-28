@@ -8,6 +8,7 @@ import { useTradeColors } from '../../contexts/TradeColorContext';
 import apiClient, { extractData, extractMessage, isSuccessResponse } from '../../utils/api';
 import { motion, AnimatePresence } from 'framer-motion';
 import { tx } from "../../i18n/text";
+import { getFallbackProductInfo, getLocalizedProductName } from '../trading/productInfo';
 interface Position {
   id: number;
   stockCode: string;
@@ -429,7 +430,7 @@ export default function PositionsPage() {
                   }} />
                         </div>
                         <span className="text-[15px] font-semibold text-white/90 tracking-tight">
-                          {order.stockName || order.stockCode}
+                            {getLocalizedProductName(getFallbackProductInfo(order.stockCode), order.stockCode)}
                         </span>
                       </div>
 

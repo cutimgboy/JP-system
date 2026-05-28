@@ -568,7 +568,7 @@
   "重新发送倒计时": "Gửi lại ({{seconds}} giây)",
   "账户余额不足，当前余额：{{balance}} VND": "Số dư tài khoản không đủ, số dư hiện tại: {{balance}} VND",
   "时段 {{index}}": "Khung giờ {{index}}",
-  "标的简介默认文案": "{{name}} là một trong những sản phẩm hiện có thể giao dịch. Bạn có thể dùng行情 thời gian thực, biến động giá và thông tin giờ giao dịch để hỗ trợ đánh giá cơ hội ngắn hạn.",
+  "标的简介默认文案": "{{name}} là một trong những sản phẩm hiện có thể giao dịch. Bạn có thể dùng biểu đồ thời gian thực, biến động giá và thông tin giờ giao dịch để hỗ trợ đánh giá cơ hội ngắn hạn.",
   "转账凭证 {{index}}": "Chứng từ chuyển khoản {{index}}",
   "{{type}}账户余额失败:": "Lấy số dư tài khoản {{type}} thất bại:",
   "CEO": "CEO",
