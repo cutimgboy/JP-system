@@ -84,7 +84,10 @@ function resolveEntryAnchorPoint(
   entryPointSequence: number | undefined
 ) {
   if (typeof entryPointSequence === 'number' && Number.isFinite(entryPointSequence)) {
-    return data.find(point => point.sequence === entryPointSequence) ?? null;
+    const sequencedPoint = data.find(point => point.sequence === entryPointSequence) ?? null;
+    if (sequencedPoint && Math.abs(sequencedPoint.time - entryTime) <= 2) {
+      return sequencedPoint;
+    }
   }
   let closest: KLineData | null = null;
   let closestTimeDistance = Number.POSITIVE_INFINITY;
@@ -122,15 +125,20 @@ function drawSmoothLine(ctx: CanvasRenderingContext2D, points: CanvasPoint[]) {
   if (points.length === 1) {
     return;
   }
-  for (let i = 1; i < points.length - 1; i += 1) {
+  for (let i = 0; i < points.length - 1; i += 1) {
+    const previous = points[Math.max(0, i - 1)];
     const current = points[i];
     const next = points[i + 1];
-    const midX = (current.x + next.x) / 2;
-    const midY = (current.y + next.y) / 2;
-    ctx.quadraticCurveTo(current.x, current.y, midX, midY);
+    const following = points[Math.min(points.length - 1, i + 2)];
+    ctx.bezierCurveTo(
+      current.x + (next.x - previous.x) / 6,
+      current.y + (next.y - previous.y) / 6,
+      next.x - (following.x - current.x) / 6,
+      next.y - (following.y - current.y) / 6,
+      next.x,
+      next.y
+    );
   }
-  const last = points[points.length - 1];
-  ctx.lineTo(last.x, last.y);
 }
 function drawTradeIcon(ctx: CanvasRenderingContext2D, x: number, y: number, isBull: boolean, color: string) {
   ctx.save();
@@ -514,10 +522,9 @@ export function KLineChart({
         const entrySourceIndex = entryAnchor?.point ? sourceData.indexOf(entryAnchor.point) : -1;
         const entryPoint = entrySourceIndex >= 0 ? points[entrySourceIndex] : null;
         if (entryPoint) {
-              const entryX = entryPoint.x;
-      // Calculate Y based on actual entry price, not the close price of the K-line
-      const entryY = clamp(priceToY(renderEntryPrice), chartPadding.top, bottomY);
-          const entryPriceLabel = renderEntryPrice.toFixed(2);
+          const entryX = entryPoint.x;
+          const entryY = clamp(entryPoint.y, chartPadding.top, bottomY);
+          const entryPriceLabel = entryPoint.drawPrice.toFixed(2);
           ctx.save();
           ctx.strokeStyle = tradeColor;
           ctx.lineWidth = 1.2;
