@@ -9,11 +9,13 @@ import { TradingHours } from './components/TradingHours';
 import { TimeSelector } from './components/TimeSelector';
 import { AlertDialog } from '../../components/AlertDialog';
 import { apiClient, extractData } from '../../utils/api';
+import { formatVndAmount } from '../../utils/currency';
 import { useAccount } from '../../contexts/AccountContext';
 import { AnimatePresence, motion } from 'framer-motion';
 import { tx } from "../../i18n/text";
 import { getFallbackProductInfo, getLocalizedProductName } from './productInfo';
 const TRADE_GUIDE_COMPLETED_KEY = 'tradeGuideCompleted';
+const MIN_TRADE_AMOUNT_VND = 100000;
 type ActiveTradeStatus = 'bull' | 'bear';
 type TradeStatus = 'idle' | ActiveTradeStatus | 'completed';
 const hasTriggeredTradeGuide = () => {
@@ -328,6 +330,17 @@ export function TradingDetail({
       setGuideStep(2);
     }
   };
+  const validateTradeAmount = (amount: number) => {
+    if (amount < MIN_TRADE_AMOUNT_VND) {
+      setAlertDialog({
+        isOpen: true,
+        title: tx("提示"),
+        message: tx("根据监管合规要求，单笔交易最低起投金额为100,000 VND，请调整金额后重新下单。")
+      });
+      return false;
+    }
+    return true;
+  };
   const handleBullTrade = async () => {
     const seconds = parseInt(selectedTime.split(':')[0]) * 60 + parseInt(selectedTime.split(':')[1]);
     const amount = parseInt(investmentAmount);
@@ -355,6 +368,9 @@ export function TradingDetail({
       });
       return;
     }
+    if (!validateTradeAmount(amount)) {
+      return;
+    }
     if (balance <= 0) {
       setAlertDialog({
         isOpen: true,
@@ -367,7 +383,7 @@ export function TradingDetail({
       setAlertDialog({
         isOpen: true,
         title: tx("余额不足"),
-        message: tx('账户余额不足，当前余额：{{balance}} VND', { balance: balance.toLocaleString() })
+        message: tx('账户余额不足，当前余额：{{balance}}', { balance: formatVndAmount(balance) })
       });
       return;
     }
@@ -463,6 +479,9 @@ export function TradingDetail({
       });
       return;
     }
+    if (!validateTradeAmount(amount)) {
+      return;
+    }
     if (balance <= 0) {
       setAlertDialog({
         isOpen: true,
@@ -475,7 +494,7 @@ export function TradingDetail({
       setAlertDialog({
         isOpen: true,
         title: tx("余额不足"),
-        message: tx('账户余额不足，当前余额：{{balance}} VND', { balance: balance.toLocaleString() })
+        message: tx('账户余额不足，当前余额：{{balance}}', { balance: formatVndAmount(balance) })
       });
       return;
     }

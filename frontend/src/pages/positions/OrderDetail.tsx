@@ -8,6 +8,7 @@ import { Toast } from '../../components/Toast';
 import QRCode from 'qrcode';
 import { toPng } from 'html-to-image';
 import { tx } from "../../i18n/text";
+import { formatVndAmount } from '../../utils/currency';
 interface OrderDetail {
   id: number;
   stockCode: string;
@@ -73,9 +74,7 @@ function getProfitRate(order: OrderDetail) {
   return getDisplayProfitLoss(order) / investment * 100;
 }
 function formatSignedNumber(value: number) {
-  if (value > 0) return `+${formatNumber(value)}`;
-  if (value < 0) return formatNumber(value);
-  return '0';
+  return formatVndAmount(value, { signed: true });
 }
 function formatSignedRate(value: number) {
   const formatted = Math.abs(value).toFixed(2);
@@ -84,19 +83,10 @@ function formatSignedRate(value: number) {
   return '0.00';
 }
 function formatShareMoney(value: number) {
-  const formatted = formatNumber(Math.abs(value || 0), {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  });
-  if (value > 0) return `+${formatted}`;
-  if (value < 0) return `-${formatted}`;
-  return formatted;
+  return formatVndAmount(value, { showCode: false, signed: true });
 }
 function formatShareAmount(value: number) {
-  return formatNumber(Math.abs(value || 0), {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  });
+  return formatVndAmount(Math.abs(value || 0), { showCode: false });
 }
 function formatShareRate(value: number) {
   const absoluteRate = Math.abs(value);
@@ -305,7 +295,7 @@ export default function OrderDetail() {
             </div>
 
             <div className="space-y-4">
-              <DetailRow label={tx("投资金额")} value={`${formatNumber(order.investmentAmount)} VND`} />
+              <DetailRow label={tx("投资金额")} value={formatVndAmount(order.investmentAmount)} />
               <DetailRow label={tx("开仓价格")} value={formatPrice(order.openPrice)} />
               <DetailRow label={tx("结算价格")} value={formatPrice(order.closePrice)} />
               <DetailRow label={tx("收益率")} value={`${formatSignedRate(profitRate)}%`} valueClassName={`font-mono ${pnlTextClass}`} />

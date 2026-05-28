@@ -1,4 +1,5 @@
 import { AnimatePresence, motion } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 import { tx } from "../../../i18n/text";
 interface TimeSelectorProps {
   isOpen: boolean;
@@ -21,6 +22,7 @@ export function TimeSelector({
   onSelectTime,
   onConfirm
 }: TimeSelectorProps) {
+  useTranslation();
   const currentLabel = timeOptions.find(option => option.value === tempSelectedTime)?.label || timeOptions.find(option => option.value === selectedTime)?.label || '';
   return <AnimatePresence>
       {isOpen && <div className="fixed inset-0 z-[70] flex flex-col justify-end">

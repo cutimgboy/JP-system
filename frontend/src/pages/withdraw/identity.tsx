@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { apiClient } from '../../utils/api';
 import { Toast } from '../../components/Toast';
 import { tx } from "../../i18n/text";
+import { formatVndAmount } from '../../utils/currency';
 type UploadType = 'idFront' | 'idBack' | 'selfie';
 export function WithdrawIdentity() {
   const navigate = useNavigate();
@@ -121,7 +122,7 @@ export function WithdrawIdentity() {
         <div className="mb-6">
           <p className="text-[14px] leading-relaxed text-[#8a8a93]">{tx("为了保障您的资金安全并符合监管要求，首次大额出金需完成身份信息补充。信息仅用于身份核实。")}</p>
           {bank && amount ? <p className="mt-3 rounded-[16px] border border-[#6c48f5]/10 bg-[#6c48f5]/5 p-3 text-[12px] text-white/60">
-              {bank.bankName}{tx("尾号")}{String(bank.accountNumber || '').slice(-4)}{tx("，金额")}{Number(amount).toLocaleString()} VND
+              {bank.bankName}{tx("尾号")}{String(bank.accountNumber || '').slice(-4)}{tx("，金额")}{formatVndAmount(amount)}
             </p> : null}
         </div>
 

@@ -3,6 +3,7 @@ import { ChevronDown, CheckCircle2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import apiClient, { extractData } from '../utils/api';
 import { tx } from '../i18n/text';
+import { formatVndAmount } from '../utils/currency';
 interface AccountSelectorProps {
   accountType: 'demo' | 'real';
   onAccountSwitch: (type: 'demo' | 'real') => void;
@@ -85,7 +86,7 @@ export function AccountSelector({
             <ChevronDown size={14} className={`text-[#8a8a93] transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`} />
           </div>
           <span className="text-white text-[18px] font-bold leading-none font-mono tracking-tight">
-            ${current.balance.toLocaleString()}
+            {formatVndAmount(current.balance)}
           </span>
         </div>
       </div>
@@ -121,7 +122,7 @@ export function AccountSelector({
                     `}>
                     <div className="flex flex-col gap-1">
                       <span className="text-[14px] font-semibold text-gray-900">{acc.fullLabel}</span>
-                      <span className="text-[13px] font-mono font-medium text-gray-600">${acc.balance.toLocaleString()}</span>
+                      <span className="text-[13px] font-mono font-medium text-gray-600">{formatVndAmount(acc.balance)}</span>
                     </div>
                     {isSelected && <div className="w-[22px] h-[22px] rounded-full border-2 border-[#10b981] flex items-center justify-center">
                         <CheckCircle2 size={14} className="text-[#10b981]" strokeWidth={3} />

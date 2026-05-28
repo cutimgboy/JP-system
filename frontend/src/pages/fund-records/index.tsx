@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { apiClient, extractData } from '../../utils/api';
 import { getLocale, tx } from "../../i18n/text";
+import { formatVndAmount } from '../../utils/currency';
 interface FundRecord {
   id: number;
   type: 'deposit' | 'withdraw' | 'profit' | 'loss';
@@ -159,7 +160,9 @@ export function FundRecords() {
           const isPositive = record.type === 'deposit' || record.type === 'profit';
           const Icon = record.type === 'deposit' ? Download : record.type === 'withdraw' ? Upload : isPositive ? TrendingUp : TrendingDown;
           const iconClass = record.type === 'deposit' ? 'bg-[#10b981]/10 text-[#10b981]' : record.type === 'withdraw' ? 'bg-[#ef4444]/10 text-[#ef4444]' : isPositive ? 'bg-[#10b981]/10 text-[#10b981]' : 'bg-[#ef4444]/10 text-[#ef4444]';
-          const amountText = isTrade ? `${(record.profitLoss || 0) >= 0 ? '+' : ''}${Number(record.profitLoss || 0).toLocaleString()}` : `${isPositive ? '+' : '-'}${record.amount.toLocaleString()}`;
+          const amountText = isTrade
+            ? formatVndAmount(record.profitLoss || 0, { signed: true })
+            : formatVndAmount(isPositive ? record.amount : -record.amount, { signed: true });
           const amountClass = isTrade ? Number(record.profitLoss || 0) >= 0 ? 'text-[#10b981]' : 'text-[#ef4444]' : isPositive ? 'text-[#10b981]' : 'text-white';
           return <motion.button key={`${record.type}-${record.id}`} type="button" layout initial={{
             opacity: 0,

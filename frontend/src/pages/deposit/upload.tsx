@@ -6,6 +6,7 @@ import { apiClient, extractData } from '../../utils/api';
 import { Toast } from '../../components/Toast';
 import { tx } from "../../i18n/text";
 import { compressImageFile } from '../../utils/image';
+import { formatVndAmount } from '../../utils/currency';
 interface BankCard {
   id: number;
   bankName: string;
@@ -120,7 +121,7 @@ export function DepositUpload() {
     }
   };
   const canSubmit = Boolean(amount) && uploadedImages.length > 0 && !loading;
-  const formattedAmount = amount && !Number.isNaN(Number(amount)) ? `${Number(amount).toLocaleString()} VND` : '0 VND';
+  const formattedAmount = amount && !Number.isNaN(Number(amount)) ? formatVndAmount(amount) : formatVndAmount(0);
   return <div className="min-h-screen bg-[#09090b] text-white">
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
@@ -163,7 +164,7 @@ export function DepositUpload() {
             </div>
             <input type="number" value={amount} onChange={event => setAmount(event.target.value)} placeholder={tx("请输入存入金额")} className="h-[60px] w-full rounded-[16px] border border-white/10 bg-[#14141c] pl-[92px] pr-4 font-mono text-[18px] text-white shadow-sm outline-none transition-colors placeholder:font-sans placeholder:text-[#8a8a93] focus:border-[#6c48f5]/50" />
           </div>
-          <p className="mb-10 pl-1 text-[13px] text-[#8a8a93]">{tx("因银行监管需求，最低存入金额为50USD=1,250,000VND")}</p>
+          <div className="mb-10" />
 
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-[18px] font-bold">{tx("上传转账凭证")}</h2>
@@ -189,11 +190,9 @@ export function DepositUpload() {
           <div className="space-y-3 rounded-[20px] border border-white/5 bg-[#1a1a24]/50 p-5 text-[13px] leading-relaxed text-[#8a8a93]">
             <p className="mb-2 font-semibold text-white/90">{tx("温馨提示")}</p>
             <p className="flex items-start gap-2">
-              <span className="text-white/60">1.</span>{tx("因银行监管需求，交易账户最低入金金额为500,000VND，若低于该金额转账，会影响资金到账")}</p>
+              <span className="text-white/60">1.</span>{tx("若输入的金额与实际转账金额不一致，会影响资金到账速度")}</p>
             <p className="flex items-start gap-2">
-              <span className="text-white/60">2.</span>{tx("若输入的金额与实际转账金额不一致，会影响资金到账速度")}</p>
-            <p className="flex items-start gap-2">
-              <span className="text-white/60">3.</span>{tx("在交易日20:00前存入的资金，将会当日存入交易账户，其他时间存入的资金，将会下个交易日存入账户")}</p>
+              <span className="text-white/60">2.</span>{tx("在交易日20:00前存入的资金，将会当日存入交易账户，其他时间存入的资金，将会下个交易日存入账户")}</p>
           </div>
         </motion.div>
       </div>

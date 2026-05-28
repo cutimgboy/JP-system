@@ -9,6 +9,7 @@ import apiClient, { extractData, extractMessage, isSuccessResponse } from '../..
 import { motion, AnimatePresence } from 'framer-motion';
 import { tx } from "../../i18n/text";
 import { getFallbackProductInfo, getLocalizedProductName } from '../trading/productInfo';
+import { formatVndAmount } from '../../utils/currency';
 interface Position {
   id: number;
   stockCode: string;
@@ -329,7 +330,7 @@ export default function PositionsPage() {
                       <div className="w-8 h-8 rounded-full bg-[#2a2a36] flex items-center justify-center text-xs">{tx("模")}</div>
                       <div>
                         <div className="text-[13px] font-medium text-white">{tx("模拟账户")}</div>
-                        <div className="text-[12px] text-[#8a8a93] font-mono">đ {demoBalance.toLocaleString()}</div>
+                        <div className="text-[12px] text-[#8a8a93] font-mono">{formatVndAmount(demoBalance)}</div>
                       </div>
                     </div>
                     {accountType === 'demo' && <CheckCircle2 size={18} className="text-[#10b981]" />}
@@ -342,7 +343,7 @@ export default function PositionsPage() {
                       <div className="w-8 h-8 rounded-full bg-[#2a2a36] flex items-center justify-center text-xs">{tx("真")}</div>
                       <div>
                         <div className="text-[13px] font-medium text-white">{tx("真实账户")}</div>
-                        <div className="text-[12px] text-[#8a8a93] font-mono">đ {realBalance.toLocaleString()}</div>
+                        <div className="text-[12px] text-[#8a8a93] font-mono">{formatVndAmount(realBalance)}</div>
                       </div>
                     </div>
                     {accountType === 'real' && <CheckCircle2 size={18} className="text-[#10b981]" />}
@@ -352,14 +353,14 @@ export default function PositionsPage() {
           </AnimatePresence>
 
           <div className="text-[32px] font-bold font-mono tracking-tight mb-8 leading-none text-white">
-            đ {availableBalance.toLocaleString()}
+            {formatVndAmount(availableBalance)}
           </div>
 
           <div className="flex justify-between items-center">
             <div className="flex-1">
               <div className="text-[#8a8a93] text-[12px] mb-1.5 font-medium">{tx("今日盈亏")}</div>
               <div className={`text-[16px] font-bold font-mono ${getToneTextClass(getProfitTone(todayProfitLoss))}`}>
-                {todayProfitLoss >= 0 ? '+' : ''}{Math.floor(todayProfitLoss).toLocaleString()}
+                {formatVndAmount(todayProfitLoss, { showCode: false, signed: true })}
               </div>
             </div>
             <div className="flex-1 text-center">
@@ -439,9 +440,7 @@ export default function PositionsPage() {
                           <Clock size={14} className="animate-pulse" />{' '}
                           {calculateCountdown(position.expectedCloseTime)}
                         </div> : history ? <div className={`font-mono text-[16px] font-bold ${getToneTextClass(getProfitTone(history.profitLoss))}`}>
-                          {history.profitLoss > 0 ? '+' : ''}
-                          {Number(history.profitLoss || 0).toLocaleString()}{' '}
-                          <span className="text-[12px] font-sans font-normal ml-0.5">VND</span>
+                          {formatVndAmount(history.profitLoss)}
                         </div> : null}
                     </div>
 
@@ -455,7 +454,7 @@ export default function PositionsPage() {
                       </div>
                       <div className="flex items-center gap-3">
                         <span className="text-white/90 font-mono text-[14px] font-medium">
-                          {Number(order.investmentAmount || 0).toLocaleString()}
+                          {formatVndAmount(order.investmentAmount)}
                         </span>
                         <span className={`text-[11px] px-2 py-0.5 rounded-[6px] font-bold tracking-wider whitespace-nowrap shrink-0 ${tradeTone === 'red' ? 'bg-[#ef4444]/15 text-[#ef4444] border border-[#ef4444]/20' : 'bg-[#10b981]/15 text-[#10b981] border border-[#10b981]/20'}`}>
                           {order.tradeType === 'bull' ? tx("看涨") : tx("看跌")}

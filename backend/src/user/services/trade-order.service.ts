@@ -24,6 +24,7 @@ import { ProductEntity } from '../../cfd/entities/product.entity';
 const MAX_USER_ORDER_LIMIT = 100;
 const MAX_ADMIN_ORDER_LIMIT = 100;
 const AUTO_CLOSE_BATCH_SIZE = 100;
+const MIN_TRADE_AMOUNT_VND = 100000;
 
 /**
  * 创建订单DTO
@@ -43,7 +44,9 @@ export class CreateOrderDto {
 
   @Type(() => Number)
   @IsNumber()
-  @Min(1)
+  @Min(MIN_TRADE_AMOUNT_VND, {
+    message: '根据监管合规要求，单笔交易最低起投金额为100,000 VND，请调整金额后重新下单。',
+  })
   investmentAmount: number;
 
   @Type(() => Number)
@@ -168,8 +171,10 @@ export class TradeOrderService {
     dto: CreateOrderDto,
   ): Promise<TradeOrderEntity> {
     // 验证投资金额
-    if (dto.investmentAmount <= 0) {
-      throw new BadRequestException('投资金额必须大于0');
+    if (dto.investmentAmount < MIN_TRADE_AMOUNT_VND) {
+      throw new BadRequestException(
+        '根据监管合规要求，单笔交易最低起投金额为100,000 VND，请调整金额后重新下单。',
+      );
     }
 
     // 验证交易时长

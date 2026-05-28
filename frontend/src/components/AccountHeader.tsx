@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import apiClient, { extractData } from '../utils/api';
 import { tx } from "../i18n/text";
+import { formatVndAmount } from '../utils/currency';
 interface AccountHeaderProps {
   accountType: 'demo' | 'real';
   onAccountSwitch: (type: 'demo' | 'real') => void;
@@ -63,11 +64,11 @@ export function AccountHeader({
   const accountData = {
     demo: {
       label: tx("模拟账户"),
-      balance: loading ? tx("加载中...") : `${demoBalance.toLocaleString()} VND`
+      balance: loading ? tx("加载中...") : formatVndAmount(demoBalance)
     },
     real: {
       label: tx("真实账户"),
-      balance: loading ? tx("加载中...") : `${realBalance.toLocaleString()} VND`
+      balance: loading ? tx("加载中...") : formatVndAmount(realBalance)
     }
   };
   const handleAccountSwitch = (type: 'demo' | 'real') => {

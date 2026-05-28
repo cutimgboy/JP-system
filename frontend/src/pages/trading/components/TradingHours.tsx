@@ -35,9 +35,24 @@ export function TradingHours({
     const source = value.trim();
     const localizeCalendarText = (text: string) => {
       if (getCurrentLanguage() !== 'vi') {
-        return text;
+        return text
+          .replace(/周一/g, '星期一')
+          .replace(/周二/g, '星期二')
+          .replace(/周三/g, '星期三')
+          .replace(/周四/g, '星期四')
+          .replace(/周五/g, '星期五')
+          .replace(/周六/g, '星期六')
+          .replace(/周日/g, '星期日')
+          .replace(/全天休市/g, '休市');
       }
       return text
+        .replace(/次日（星期一）/g, 'hôm sau (Thứ Hai)')
+        .replace(/次日（星期二）/g, 'hôm sau (Thứ Ba)')
+        .replace(/次日（星期三）/g, 'hôm sau (Thứ Tư)')
+        .replace(/次日（星期四）/g, 'hôm sau (Thứ Năm)')
+        .replace(/次日（星期五）/g, 'hôm sau (Thứ Sáu)')
+        .replace(/次日（星期六）/g, 'hôm sau (Thứ Bảy)')
+        .replace(/次日（星期日）/g, 'hôm sau (Chủ Nhật)')
         .replace(/次日（周一）/g, 'hôm sau (Thứ Hai)')
         .replace(/次日（周二）/g, 'hôm sau (Thứ Ba)')
         .replace(/次日（周三）/g, 'hôm sau (Thứ Tư)')
@@ -52,38 +67,45 @@ export function TradingHours({
         .replace(/周五/g, 'Thứ Sáu')
         .replace(/周六/g, 'Thứ Bảy')
         .replace(/周日/g, 'Chủ Nhật')
-        .replace(/全天休市/g, 'Đóng cửa cả ngày');
+        .replace(/星期一/g, 'Thứ Hai')
+        .replace(/星期二/g, 'Thứ Ba')
+        .replace(/星期三/g, 'Thứ Tư')
+        .replace(/星期四/g, 'Thứ Năm')
+        .replace(/星期五/g, 'Thứ Sáu')
+        .replace(/星期六/g, 'Thứ Bảy')
+        .replace(/星期日/g, 'Chủ Nhật')
+        .replace(/全天休市/g, 'Đóng cửa cả ngày')
+        .replace(/休市/g, 'Đóng cửa');
     };
     if (!source) {
       return [{
-        session: tx("常规交易"),
-        days: tx("周一至周五"),
+        day: tx("周一至周五"),
         time: tx("以交易所实时开放状态为准")
       }];
     }
-    return source.split(/\n|；|;/).map(row => row.trim()).filter(Boolean).map((row, index) => {
-      const normalized = row.replace(/\s+/g, ' ');
-      const localized = localizeCalendarText(normalized);
-      const parts = normalized.split(/[:：]/);
-      if (parts.length >= 2) {
+    return source.split(/\n|[；;](?=\s*(?:周[一二三四五六日]|星期[一二三四五六日]))/).map(row => row.trim()).filter(Boolean).map((row, index) => {
+      const normalized = row
+        .replace(/\s+/g, ' ')
+        .replace(/[–—]/g, '-')
+        .replace(/\s*-\s*/g, ' - ');
+      const dayMatch = normalized.match(/^(周[一二三四五六日]|星期[一二三四五六日])\s*(.*)$/);
+      if (dayMatch) {
+        const timeText = dayMatch[2].trim();
         return {
-          session: localizeCalendarText(parts[0].trim()) || tx('时段 {{index}}', { index: index + 1 }),
-          days: tx("交易日"),
+          day: localizeCalendarText(dayMatch[1]),
+          time: localizeCalendarText(timeText || tx("以交易所实时开放状态为准"))
+        };
+      }
+      const parts = normalized.split(/\s*[:：]\s*/);
+      if (parts.length >= 2 && !/\d{1,2}$/.test(parts[0])) {
+        return {
+          day: localizeCalendarText(parts[0].trim()) || tx('时段 {{index}}', { index: index + 1 }),
           time: localizeCalendarText(parts.slice(1).join(':').trim())
         };
       }
-      const timeMatch = normalized.match(/(\d{1,2}:\d{2}\s*[-~至]\s*\d{1,2}:\d{2}.*)$/);
-      if (timeMatch) {
-        return {
-          session: localizeCalendarText(normalized.replace(timeMatch[0], '').trim()) || tx('时段 {{index}}', { index: index + 1 }),
-          days: tx("交易日"),
-          time: localizeCalendarText(timeMatch[0])
-        };
-      }
       return {
-        session: tx('时段 {{index}}', { index: index + 1 }),
-        days: tx("交易日"),
-        time: localized
+        day: tx('时段 {{index}}', { index: index + 1 }),
+        time: localizeCalendarText(normalized)
       };
     });
   };
@@ -95,17 +117,14 @@ export function TradingHours({
       <div className="px-5 py-4 pb-12">
         <h3 className="text-[16px] font-bold mb-4 flex items-center gap-2 text-white">
           <div className="w-1 h-4 bg-[#f7931a] rounded-full"></div>{tx("交易时间")}</h3>
-        <div className="overflow-hidden rounded-2xl border border-white/5 bg-[#14141c]">
-          <div className="grid grid-cols-[1fr_1fr_1.5fr] bg-white/[0.03] px-4 py-3 text-[11px] font-medium text-[#8a8a93]">
-            <span>{tx("时段")}</span>
-            <span>{tx("日期")}</span>
-            <span className="text-right">{tx("时间")}</span>
-          </div>
-          {rows.map((row, index) => <div key={`${row.session}-${index}`} className="grid grid-cols-[1fr_1fr_1.5fr] items-center border-t border-white/5 px-4 py-3 text-[12px]">
-              <span className="font-medium text-white">{row.session}</span>
-              <span className="text-[#8a8a93]">{row.days}</span>
-              <span className="text-right font-mono text-white">{row.time}</span>
-            </div>)}
+        <div className="flex flex-col gap-3 rounded-2xl border border-white/5 bg-[#14141c] p-4">
+          {rows.map((row, index) => {
+          const isClosed = /休市|Đóng cửa/.test(row.time);
+          return <div key={`${row.day}-${index}`} className={`flex items-start justify-between gap-4 text-[13px] ${isClosed ? 'text-[#8a8a93] opacity-60' : ''}`}>
+              <span className={`shrink-0 font-medium ${isClosed ? '' : 'text-white'}`}>{row.day}</span>
+              <span className={`text-right leading-relaxed ${isClosed ? '' : 'font-mono text-[#8a8a93]'}`}>{row.time}</span>
+            </div>;
+        })}
         </div>
         <p className="text-[11px] text-[#8a8a93] mt-3 opacity-60">{tx("以上交易时间并未考虑节假日或市场特殊情况调整的影响。")}</p>
       </div>

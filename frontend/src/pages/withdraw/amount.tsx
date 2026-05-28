@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { AlertCircle, ChevronLeft, DollarSign, Landmark } from 'lucide-react';
+import { AlertCircle, ChevronLeft, Landmark } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useAccount } from '../../contexts/AccountContext';
 import apiClient, { extractData } from '../../utils/api';
 import { tx } from "../../i18n/text";
+import { formatVndAmount } from '../../utils/currency';
 interface SelectedBank {
   id: number;
   bankName: string;
@@ -25,7 +26,7 @@ export function WithdrawAmount() {
   const [amount, setAmount] = useState('');
   const [availableBalance, setAvailableBalance] = useState(0);
   const [loadingBalance, setLoadingBalance] = useState(true);
-  const minAmount = 2500000;
+  const minAmount = 250000;
   useEffect(() => {
     if (!bank) {
       navigate('/withdraw', {
@@ -57,7 +58,7 @@ export function WithdrawAmount() {
     if (!amount) return '';
     const numericAmount = Number(amount);
     if (!Number.isFinite(numericAmount) || numericAmount <= 0) return tx("请输入有效的金额");
-    if (numericAmount < minAmount) return tx("因银行监管需求，单次出金申请的最低金额为100USD≈2500000，在您提交出金申请后，相应金额会从您账户余额中扣除。");
+    if (numericAmount < minAmount) return tx("单次出金申请的最低金额为250,000 VND，请调整金额后重新提交。");
     if (numericAmount > availableBalance) return tx("超出可出金额上限");
     return '';
   }, [amount, availableBalance]);
@@ -102,21 +103,19 @@ export function WithdrawAmount() {
 
         <div>
           <div className="mb-3 flex items-end justify-between gap-3">
-            <label className="text-[14px] text-[#8a8a93]">{tx("出金金额 (USD)")}</label>
+            <label className="text-[14px] text-[#8a8a93]">{tx("出金金额 (VND)")}</label>
             <div className="text-right text-[13px] text-white/60">{tx("可出金余额:")}{' '}
               <span className="font-medium text-white">
-                {loadingBalance ? tx("加载中") : `$${availableBalance.toLocaleString('en-US', {
-                minimumFractionDigits: 2
-              })}`}
+                {loadingBalance ? tx("加载中") : formatVndAmount(availableBalance)}
               </span>
             </div>
           </div>
 
           <div className={`relative overflow-hidden rounded-[16px] border bg-[#14141c] transition-colors ${error ? 'border-[#ef4444]' : 'border-white/10'}`}>
-            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-white/40">
-              <DollarSign size={24} />
+            <div className="absolute left-4 top-1/2 -translate-y-1/2 font-mono text-[24px] font-semibold text-white/40">
+              ₫
             </div>
-            <input type="number" inputMode="decimal" value={amount} onChange={event => setAmount(event.target.value)} placeholder="0.00" className="h-[64px] w-full bg-transparent pl-12 pr-20 text-[28px] font-bold text-white outline-none placeholder:text-white/20" />
+            <input type="number" inputMode="numeric" value={amount} onChange={event => setAmount(event.target.value)} placeholder="0" className="h-[64px] w-full bg-transparent pl-12 pr-20 text-[28px] font-bold text-white outline-none placeholder:text-white/20" />
             <button onClick={() => setAmount(String(Math.floor(availableBalance)))} className="absolute right-4 top-1/2 -translate-y-1/2 text-[14px] font-medium text-[#6c48f5] transition-colors hover:text-[#8c6bff]">{tx("全部")}</button>
           </div>
 

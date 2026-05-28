@@ -24,6 +24,8 @@ if (typeof window !== 'undefined') {
       supportedLngs: ['zh-CN', 'vi'],
       defaultNS: 'common',
       ns: ['common'],
+      keySeparator: false,
+      nsSeparator: false,
       detection: {
         order: ['querystring', 'localStorage'],
         caches: ['localStorage'],
@@ -52,6 +54,8 @@ if (typeof window !== 'undefined') {
       supportedLngs: ['zh-CN', 'vi'],
       defaultNS: 'common',
       ns: ['common'],
+      keySeparator: false,
+      nsSeparator: false,
       interpolation: {
         escapeValue: false,
       },

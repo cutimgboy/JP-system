@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { apiClient, extractData } from '../../utils/api';
 import { getLocale, tx } from "../../i18n/text";
+import { formatVndAmount } from '../../utils/currency';
 interface DepositDetail {
   id: number;
   userId: number;
@@ -100,10 +101,7 @@ export function DepositDetail() {
       }} className="mb-8 flex flex-col items-center justify-center">
           <div className="mb-2 text-[14px] text-[#8a8a93]">{tx("入金金额 (VND)")}</div>
           <div className="font-mono text-[42px] font-bold tracking-tight text-[#10b981]">
-            +{Number(deposit.amount).toLocaleString(undefined, {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2
-          })}
+            {formatVndAmount(deposit.amount, { signed: true })}
           </div>
           <div className="mt-3 flex items-center justify-center">
             <span className={`flex items-center gap-1.5 rounded-full border px-3 py-1 text-[13px] font-medium ${status.badge}`}>

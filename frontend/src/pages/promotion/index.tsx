@@ -3,6 +3,10 @@ import { ChevronLeft, Gift, ShieldCheck, Zap, Globe, TrendingUp, CircleDollarSig
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect } from "react";
 import { tx } from "../../i18n/text";
+import { formatVndAmount } from "../../utils/currency";
+
+const formatPromoAmount = (amount: string | number) => formatVndAmount(String(amount).replace(/[^0-9.-]/g, ''));
+
 export function Promotion() {
   const navigate = useNavigate();
   return <div className="min-h-screen bg-[#09090b] text-white flex flex-col">
@@ -56,10 +60,10 @@ export function Promotion() {
           }].map((tier, idx) => <div key={idx} className="bg-[#14141c] border border-white/5 rounded-[20px] p-4 relative overflow-hidden group">
                 <div className="absolute -right-4 -top-4 w-16 h-16 bg-[#6c48f5]/10 rounded-full blur-[10px] group-hover:bg-[#6c48f5]/20 transition-colors" />
                 <p className="text-[#8a8a93] text-[11px] mb-1">{tx("入金达")}</p>
-                <p className="font-semibold text-[15px] mb-3">${tier.deposit}</p>
+                <p className="font-semibold text-[15px] mb-3">{formatPromoAmount(tier.deposit)}</p>
                 <div className="w-full h-[1px] bg-gradient-to-r from-white/10 to-transparent mb-3" />
                 <p className="text-[#10b981] text-[11px] mb-0.5">{tx("可获得")}</p>
-                <p className="font-bold text-[18px] text-[#10b981]">${tier.reward}</p>
+                <p className="font-bold text-[18px] text-[#10b981]">{formatPromoAmount(tier.reward)}</p>
               </div>)}
           </div>
           <div className="mt-4 bg-[#1a1a24] rounded-xl px-4 py-3 flex items-start gap-3 border border-white/5">
@@ -90,24 +94,24 @@ export function Promotion() {
             <div className="flex flex-col">
               {[{
               user: "A***8",
-              deposit: "$6,250,000",
-              reward: "$31M"
+              deposit: "6,250,000",
+              reward: "31,000,000"
             }, {
               user: "L***m",
-              deposit: "$4,800,000",
-              reward: "$24M"
+              deposit: "4,800,000",
+              reward: "24,000,000"
             }, {
               user: "W***x",
-              deposit: "$2,100,000",
-              reward: "$8.5M"
+              deposit: "2,100,000",
+              reward: "8,500,000"
             }, {
               user: "T***9",
-              deposit: "$1,500,000",
-              reward: "$4.5M"
+              deposit: "1,500,000",
+              reward: "4,500,000"
             }, {
               user: "J***1",
-              deposit: "$850,000",
-              reward: "$1.2M"
+              deposit: "850,000",
+              reward: "1,200,000"
             }].map((row, i) => <div key={i} className="grid grid-cols-[1.2fr_2fr_3fr_2fr] gap-2 px-4 py-3.5 border-b border-white/[0.03] last:border-0 items-center">
                   <div className="flex justify-center">
                     {i < 3 ? <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold text-black ${i === 0 ? 'bg-gradient-to-br from-[#ffd700] to-[#f7931a]' : i === 1 ? 'bg-gradient-to-br from-[#e0e0e0] to-[#99a1af]' : 'bg-gradient-to-br from-[#cd7f32] to-[#a0522d]'}`}>
@@ -115,8 +119,8 @@ export function Promotion() {
                       </div> : <span className="text-[#8a8a93] text-[12px] font-medium">{i + 1}</span>}
                   </div>
                   <span className="text-white text-[13px] font-medium">{row.user}</span>
-                  <span className="text-white text-[13px] font-semibold text-right font-mono">{row.deposit}</span>
-                  <span className="text-[#10b981] text-[13px] font-bold text-right font-mono">{row.reward}</span>
+                  <span className="text-white text-[13px] font-semibold text-right font-mono">{formatPromoAmount(row.deposit)}</span>
+                  <span className="text-[#10b981] text-[13px] font-bold text-right font-mono">{formatPromoAmount(row.reward)}</span>
                 </div>)}
             </div>
           </div>
@@ -254,9 +258,9 @@ function RecentDeposits() {
                   <span className="text-[#8a8a93] w-10 shrink-0">{item.time}</span>
                   <div className="flex-1 bg-white/[0.03] px-3 py-1.5 rounded-lg flex items-center justify-between">
                     <span className="text-[#d4d4d8]">
-                      <span className="text-white font-medium">{item.user}</span>{tx("入金")}<span className="text-white font-mono">${item.deposit}</span>
+                      <span className="text-white font-medium">{item.user}</span>{tx("入金")}<span className="text-white font-mono">{formatPromoAmount(item.deposit)}</span>
                     </span>
-                    <span className="text-[#10b981] font-medium shrink-0 ml-2">{tx("获 $")}{item.reward}
+                    <span className="text-[#10b981] font-medium shrink-0 ml-2">{tx("获")}{formatPromoAmount(item.reward)}
                     </span>
                   </div>
                 </motion.div>)}

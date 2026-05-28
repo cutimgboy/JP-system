@@ -1,5 +1,7 @@
 import { useTradeColors } from '../../../contexts/TradeColorContext';
+import { useTranslation } from 'react-i18next';
 import { tx } from "../../../i18n/text";
+import { formatVndAmount } from '../../../utils/currency';
 interface TradingControlsProps {
   selectedTime: string;
   investmentAmount: string;
@@ -34,6 +36,7 @@ export function TradingControls({
   guideStep = -1,
   onGuideStepChange
 }: TradingControlsProps) {
+  useTranslation();
   const {
     getProfitTone,
     getTradeTone,
@@ -44,14 +47,6 @@ export function TradingControls({
   const bearTone = getTradeTone('bear');
   const expectedProfitTone = getProfitTone(expectedProfit);
   const activeTradeTone = tradeStatus === 'bull' || tradeStatus === 'bear' ? getTradeTone(tradeStatus) : 'red';
-
-  // 格式化数字显示
-  const formatNumber = (num: number) => {
-    if (num === undefined || num === null || isNaN(num)) {
-      return '0';
-    }
-    return Math.floor(num).toLocaleString('en-US');
-  };
 
   // 格式化时间显示为秒数
   const formatTimeDisplay = (time: string) => {
@@ -152,7 +147,7 @@ export function TradingControls({
           <div className="text-[12px]">
             <span className="text-[#8a8a93]">{tx("投资收益：")}</span>
             <span className={`font-bold font-mono ${getToneTextClass(expectedProfitTone)}`}>
-              {tradeStatus === 'idle' ? expectedProfit === 0 ? '0' : expectedProfit > 0 ? `+${formatNumber(expectedProfit)}` : formatNumber(expectedProfit) : tradeStatus === 'completed' ? expectedProfit > 0 ? `+${formatNumber(expectedProfit)}` : formatNumber(expectedProfit) : `+${profitRate}% +${formatNumber(expectedProfit)}`}
+              {tradeStatus === 'idle' ? formatVndAmount(expectedProfit, { showCode: false, signed: expectedProfit !== 0 }) : tradeStatus === 'completed' ? formatVndAmount(expectedProfit, { showCode: false, signed: expectedProfit !== 0 }) : `+${profitRate}% +${formatVndAmount(expectedProfit, { showCode: false })}`}
             </span>
           </div>
           <div className="text-[12px] flex items-center gap-1.5">
@@ -160,7 +155,7 @@ export function TradingControls({
               <div className="w-1.5 h-1.5 rounded-full bg-[#10b981]"></div>
             </div>
             <span className="text-[#8a8a93]">{tx("账户资金:")}</span>
-            <span className="text-[#f7931a] font-bold font-mono">{formatNumber(balance)}</span>
+            <span className="text-[#f7931a] font-bold font-mono">{formatVndAmount(balance)}</span>
           </div>
         </div>
       </div>
