@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { apiClient, extractData } from '../../utils/api';
 import { Toast } from '../../components/Toast';
 import { tx } from "../../i18n/text";
+import { compressImageFile } from '../../utils/image';
 interface BankCard {
   id: number;
   bankName: string;
@@ -49,7 +50,10 @@ export function DepositUpload() {
       event.target.value = '';
       return;
     }
-    Promise.all(selectedFiles.map(readFileAsDataUrl)).then(newImages => {
+    Promise.all(selectedFiles.map(file => compressImageFile(file, {
+      maxDimension: 960,
+      quality: 0.72
+    }))).then(newImages => {
       setUploadedImages(prev => [...prev, ...newImages]);
     }).catch(() => {
       setToast({
@@ -115,6 +119,7 @@ export function DepositUpload() {
       setLoading(false);
     }
   };
+  const canSubmit = Boolean(amount) && uploadedImages.length > 0 && !loading;
   const formattedAmount = amount && !Number.isNaN(Number(amount)) ? `${Number(amount).toLocaleString()} VND` : '0 VND';
   return <div className="min-h-screen bg-[#09090b] text-white">
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
@@ -194,7 +199,7 @@ export function DepositUpload() {
       </div>
 
       <div className="fixed bottom-0 left-0 right-0 bg-gradient-to-t from-[#09090b] via-[#09090b]/95 to-transparent p-5 pt-10">
-        <button onClick={handleSubmit} disabled={loading || !amount || uploadedImages.length === 0} className="h-[52px] w-full rounded-[16px] border border-white/10 bg-[#2a2a36] text-[16px] font-medium text-white shadow-[0_4px_12px_rgba(0,0,0,0.2)] transition-colors hover:bg-[#3a3a46] disabled:cursor-not-allowed disabled:bg-[#1a1a24] disabled:text-white/30">
+        <button onClick={handleSubmit} disabled={!canSubmit} className={`h-[52px] w-full rounded-[16px] text-[16px] font-medium text-white transition-all ${canSubmit ? 'border border-[#6c48f5]/30 bg-[#6c48f5] shadow-[0_4px_16px_rgba(108,72,245,0.3)] hover:bg-[#5a3be0]' : 'cursor-not-allowed border border-white/10 bg-[#1a1a24] text-white/30'}`}>
           {loading ? tx("提交中...") : tx("提交转账凭证")}
         </button>
       </div>
@@ -249,12 +254,4 @@ export function DepositUpload() {
           </div>}
       </AnimatePresence>
     </div>;
-}
-function readFileAsDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result || ''));
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
 }

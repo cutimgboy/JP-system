@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { apiClient, extractData } from '../../utils/api';
 import { Toast } from '../../components/Toast';
 import { getLocale, tx } from "../../i18n/text";
+import { compressImageFile } from '../../utils/image';
 interface UserInfo {
   id: number;
   phone: string | null;
@@ -79,24 +80,26 @@ export function PersonalInfo() {
       setLoading(false);
     }
   };
-  const handleAvatarChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAvatarChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
+    try {
+      const avatar = await compressImageFile(file, {
+        maxDimension: 512,
+        quality: 0.8
+      });
       setEditForm(prev => ({
         ...prev,
-        avatar: String(reader.result || '')
+        avatar
       }));
-    };
-    reader.onerror = () => {
+    } catch (error) {
       setToast({
         message: tx("头像读取失败，请重新上传"),
         type: 'error'
       });
-    };
-    reader.readAsDataURL(file);
-    event.target.value = '';
+    } finally {
+      event.target.value = '';
+    }
   };
   const handleCopy = async (text: string) => {
     try {

@@ -14,6 +14,8 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { tx } from "../../i18n/text";
 import { getFallbackProductInfo, getLocalizedProductName } from './productInfo';
 const TRADE_GUIDE_COMPLETED_KEY = 'tradeGuideCompleted';
+type ActiveTradeStatus = 'bull' | 'bear';
+type TradeStatus = 'idle' | ActiveTradeStatus | 'completed';
 const hasTriggeredTradeGuide = () => {
   try {
     return localStorage.getItem(TRADE_GUIDE_COMPLETED_KEY) === 'true';
@@ -48,7 +50,7 @@ export function TradingDetail({
   const [selectedTime, setSelectedTime] = useState('00:30');
   const [tempSelectedTime, setTempSelectedTime] = useState('00:30');
   const [investmentAmount, setInvestmentAmount] = useState('100000');
-  const [tradeStatus, setTradeStatus] = useState<'idle' | 'bull' | 'bear' | 'completed'>('idle');
+  const [tradeStatus, setTradeStatus] = useState<TradeStatus>('idle');
   const [countdown, setCountdown] = useState(0);
   const [selectedStock, setSelectedStock] = useState(initialStock);
   const [balance, setBalance] = useState(0);
@@ -95,6 +97,30 @@ export function TradingDetail({
     changePercent: selectedProduct?.changePercent || 0,
     isUpTrend: (selectedProduct?.change || 0) >= 0,
     time: latestTime || 0
+  };
+  const profitRate = 92;
+  const latestSettlementRef = useRef<{
+    latestPrice: number;
+    entryPrice?: number;
+    investmentAmount: string;
+    tradeStatus: TradeStatus;
+    selectedStock: string;
+    productPrice?: number;
+  }>({
+    latestPrice: 0,
+    entryPrice: undefined,
+    investmentAmount: '100000',
+    tradeStatus: 'idle',
+    selectedStock: initialStock,
+    productPrice: undefined
+  });
+  latestSettlementRef.current = {
+    latestPrice,
+    entryPrice,
+    investmentAmount,
+    tradeStatus,
+    selectedStock,
+    productPrice: selectedProduct?.price
   };
 
   // 当 initialStock 变化时更新 selectedStock
@@ -179,10 +205,10 @@ export function TradingDetail({
     const activeOrder = activeOrderByStock[selectedStock];
     if (activeOrder) {
       applyOpenOrderState(activeOrder);
-    } else if (tradeStatus !== 'idle') {
+    } else if (tradeStatus === 'bull' || tradeStatus === 'bear') {
       resetTradeState();
     }
-  }, [selectedStock, activeOrderByStock, initialOrderId]);
+  }, [selectedStock, activeOrderByStock, initialOrderId, tradeStatus]);
   useEffect(() => {
     setQuoteSummary(null);
   }, [selectedStock]);
@@ -484,8 +510,21 @@ export function TradingDetail({
     });
     fetchBalance(); // 刷新余额
   };
-  const applySettledOrder = (orderData: any) => {
-    setActualProfitLoss(Number(orderData?.profitLoss ?? 0));
+  const calculateLocalProfitLoss = (type: ActiveTradeStatus, openPrice: number, closePrice: number, amount: number) => {
+    const priceChange = closePrice - openPrice;
+    if (priceChange === 0) {
+      return 0;
+    }
+    const isWin = type === 'bull' ? priceChange > 0 : priceChange < 0;
+    return isWin ? amount * (profitRate / 100) : -amount;
+  };
+  const applySettledOrder = (orderData: any, options: {
+    refreshBalance?: boolean;
+    adjustBalanceLocally?: boolean;
+  } = {}) => {
+    const profitLoss = Number(orderData?.profitLoss ?? 0);
+    const settledAmount = Number(orderData?.investmentAmount ?? parseInt(investmentAmount || '0'));
+    setActualProfitLoss(profitLoss);
     setCompletedTradeType(orderData?.tradeType || (tradeStatus === 'bull' || tradeStatus === 'bear' ? tradeStatus : null));
     setTradeStatus('completed');
     setIsSettling(false);
@@ -496,7 +535,39 @@ export function TradingDetail({
       delete next[orderData?.stockCode || selectedStock];
       return next;
     });
-    fetchBalance();
+    if (options.adjustBalanceLocally) {
+      const releasedAmount = profitLoss > 0 ? settledAmount + profitLoss : profitLoss === 0 ? settledAmount : 0;
+      setBalance(prev => prev + releasedAmount);
+    }
+    if (options.refreshBalance !== false) {
+      fetchBalance();
+    }
+  };
+  const applyLocalSettledOrder = (orderId: number) => {
+    const snapshot = latestSettlementRef.current;
+    if (snapshot.tradeStatus !== 'bull' && snapshot.tradeStatus !== 'bear') {
+      return;
+    }
+    const amount = parseInt(snapshot.investmentAmount || '0');
+    const fallbackClosePrice = Number(snapshot.latestPrice || snapshot.productPrice || 0);
+    const openPrice = Number(snapshot.entryPrice || fallbackClosePrice);
+    const closePrice = fallbackClosePrice || openPrice;
+    const profitLoss = calculateLocalProfitLoss(snapshot.tradeStatus, openPrice, closePrice, amount);
+    applySettledOrder({
+      id: orderId,
+      stockCode: snapshot.selectedStock,
+      tradeType: snapshot.tradeStatus,
+      investmentAmount: amount,
+      profitRate,
+      openPrice,
+      closePrice,
+      closeTime: new Date().toISOString(),
+      status: 'closed',
+      profitLoss
+    }, {
+      refreshBalance: false,
+      adjustBalanceLocally: true
+    });
   };
 
   // 获取订单详情
@@ -518,12 +589,11 @@ export function TradingDetail({
   };
   const settleOrder = async (orderId: number, attempt = 0) => {
     try {
-      setIsSettling(true);
       const response = await apiClient.post(`/trade/order/${orderId}/close`);
       const orderData = extractData(response);
       applySettledOrder(orderData);
     } catch (error: any) {
-      console.error(tx("订单结算失败:"), error);
+      console.error(tx("订单结算失败:"), error.response?.data || error);
       try {
         const detailResponse = await apiClient.get(`/trade/order/${orderId}`);
         const orderData = extractData(detailResponse);
@@ -535,15 +605,10 @@ export function TradingDetail({
         console.error(tx("获取结算订单详情失败:"), detailError);
       }
       if (attempt < 8) {
-        window.setTimeout(() => settleOrder(orderId, attempt + 1), 1000);
+        window.setTimeout(() => settleOrder(orderId, attempt + 1), attempt < 2 ? 600 : 1000);
         return;
       }
-      setIsSettling(false);
-      setAlertDialog({
-        isOpen: true,
-        title: tx("结算中"),
-        message: tx("订单正在结算，请稍后在持仓记录查看结果")
-      });
+      console.warn(tx("订单后台结算仍未完成，已先展示本地计算结果"));
     }
   };
 
@@ -556,7 +621,8 @@ export function TradingDetail({
         setCountdown(remaining);
         if (remaining <= 0 && currentOrderId && !closeTriggeredRef.current) {
           closeTriggeredRef.current = true;
-          settleOrder(currentOrderId);
+          applyLocalSettledOrder(currentOrderId);
+          window.setTimeout(() => settleOrder(currentOrderId), 600);
         }
       }, 250); // 降低刷新频率，减少交易页整体重渲染压力
 
@@ -566,8 +632,6 @@ export function TradingDetail({
 
   // 计算预期收益
   const expectedProfit = Math.floor(parseInt(investmentAmount || '0') * 0.92);
-  const profitRate = 92;
-
   // 根据交易状态决定显示的收益
   const displayProfit = tradeStatus === 'idle' ? actualProfitLoss : tradeStatus === 'completed' ? actualProfitLoss : expectedProfit;
   const changeSign = displayQuote.change >= 0 ? '+' : '';
@@ -692,7 +756,10 @@ export function TradingDetail({
               <button onClick={() => {
             markTradeGuideTriggered();
             setGuideStep(-1);
-          }} className="mt-3 text-[13px] text-black/45">{tx("暂时跳过")}</button>
+          }} style={{
+            color: '#000000',
+            opacity: 1
+          }} className="mt-3 text-[13px] font-medium !text-black">{tx("暂时跳过")}</button>
             </motion.div>
           </motion.div>}
       </AnimatePresence>

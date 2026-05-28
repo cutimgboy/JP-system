@@ -25,7 +25,7 @@ export function WithdrawAmount() {
   const [amount, setAmount] = useState('');
   const [availableBalance, setAvailableBalance] = useState(0);
   const [loadingBalance, setLoadingBalance] = useState(true);
-  const minAmount = 100;
+  const minAmount = 2500000;
   useEffect(() => {
     if (!bank) {
       navigate('/withdraw', {
@@ -57,7 +57,7 @@ export function WithdrawAmount() {
     if (!amount) return '';
     const numericAmount = Number(amount);
     if (!Number.isFinite(numericAmount) || numericAmount <= 0) return tx("请输入有效的金额");
-    if (numericAmount < minAmount) return tx("因银行监管需求，单次出金申请的最低金额为100USD，在您提交出金申请后，相应金额会从您账户余额中扣除。");
+    if (numericAmount < minAmount) return tx("因银行监管需求，单次出金申请的最低金额为100USD≈2500000，在您提交出金申请后，相应金额会从您账户余额中扣除。");
     if (numericAmount > availableBalance) return tx("超出可出金额上限");
     return '';
   }, [amount, availableBalance]);

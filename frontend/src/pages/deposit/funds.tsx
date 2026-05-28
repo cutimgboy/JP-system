@@ -42,23 +42,35 @@ export function DepositFunds() {
       setLoading(false);
     }
   };
-  const copyToClipboard = (text: string, field: string) => {
+  const copyFallback = (text: string) => {
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.setAttribute('readonly', '');
+    textarea.style.position = 'fixed';
+    textarea.style.left = '-9999px';
+    textarea.style.top = '0';
+    document.body.appendChild(textarea);
+    textarea.select();
+    const copied = document.execCommand('copy');
+    document.body.removeChild(textarea);
+    return copied;
+  };
+  const markCopied = (field: string) => {
+    setCopiedField(field);
+    setTimeout(() => setCopiedField(null), 2000);
+  };
+  const copyToClipboard = async (text: string, field: string) => {
     try {
       if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(text).then(() => {
-          setCopiedField(field);
-          setTimeout(() => setCopiedField(null), 2000);
-        }).catch(() => {
-          setCopiedField(field);
-          setTimeout(() => setCopiedField(null), 2000);
-        });
+        await navigator.clipboard.writeText(text);
       } else {
-        setCopiedField(field);
-        setTimeout(() => setCopiedField(null), 2000);
+        copyFallback(text);
       }
+      markCopied(field);
     } catch (error) {
-      setCopiedField(field);
-      setTimeout(() => setCopiedField(null), 2000);
+      if (copyFallback(text)) {
+        markCopied(field);
+      }
     }
   };
   const maskAccountNumber = (accountNumber: string) => {
