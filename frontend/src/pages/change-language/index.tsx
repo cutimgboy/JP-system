@@ -50,7 +50,7 @@ export function ChangeLanguage() {
               }`}
             >
               <span className={`text-[15px] ${selectedLanguage === language.code ? 'font-medium text-[#6c48f5]' : 'text-white/90'}`}>
-                {language.name}
+                {tx(language.name)}
               </span>
               {selectedLanguage === language.code ? <Check size={18} className="text-[#6c48f5]" strokeWidth={2.5} /> : null}
             </motion.button>

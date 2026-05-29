@@ -6,11 +6,11 @@ export type AppLanguage = 'zh-CN' | 'vi';
 
 export const appLanguages: Array<{ code: AppLanguage; name: string; nativeName: string }> = [
   { code: 'zh-CN', name: '简体中文', nativeName: '简体中文' },
-  { code: 'vi', name: 'Tiếng Việt', nativeName: 'Tiếng Việt' },
+  { code: 'vi', name: '越南语', nativeName: 'Tiếng Việt' },
 ];
 
 export function normalizeLanguage(language?: string | null): AppLanguage {
-  return language === 'vi' ? 'vi' : 'zh-CN';
+  return language?.toLowerCase().startsWith('vi') ? 'vi' : 'zh-CN';
 }
 
 export function getCurrentLanguage(): AppLanguage {

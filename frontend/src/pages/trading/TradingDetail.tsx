@@ -325,6 +325,9 @@ export function TradingDetail({
     }
   };
   const timeOptions = [{
+    value: '00:15',
+    label: '15S'
+  }, {
     value: '00:30',
     label: '30S'
   }, {

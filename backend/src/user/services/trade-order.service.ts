@@ -25,6 +25,8 @@ const MAX_USER_ORDER_LIMIT = 100;
 const MAX_ADMIN_ORDER_LIMIT = 100;
 const AUTO_CLOSE_BATCH_SIZE = 100;
 const MIN_TRADE_AMOUNT_VND = 100000;
+const MIN_TRADE_DURATION_SECONDS = 15;
+const MAX_TRADE_DURATION_SECONDS = 300;
 
 /**
  * 创建订单DTO
@@ -51,8 +53,12 @@ export class CreateOrderDto {
 
   @Type(() => Number)
   @IsNumber()
-  @Min(30)
-  @Max(300)
+  @Min(MIN_TRADE_DURATION_SECONDS, {
+    message: '交易时长必须在15秒到300秒之间',
+  })
+  @Max(MAX_TRADE_DURATION_SECONDS, {
+    message: '交易时长必须在15秒到300秒之间',
+  })
   durationSeconds: number;
 
   @IsOptional()
@@ -178,8 +184,11 @@ export class TradeOrderService {
     }
 
     // 验证交易时长
-    if (dto.durationSeconds < 30 || dto.durationSeconds > 300) {
-      throw new BadRequestException('交易时长必须在30秒到300秒之间');
+    if (
+      dto.durationSeconds < MIN_TRADE_DURATION_SECONDS ||
+      dto.durationSeconds > MAX_TRADE_DURATION_SECONDS
+    ) {
+      throw new BadRequestException('交易时长必须在15秒到300秒之间');
     }
 
     const accountType = await this.resolveOrderAccountType(userId, dto);

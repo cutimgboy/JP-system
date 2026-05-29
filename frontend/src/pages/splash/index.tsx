@@ -1,5 +1,6 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
+import { LanguageSwitcher } from "../../components/LanguageSwitcher";
 import { tx } from "../../i18n/text";
 export default function Splash() {
   const navigate = useNavigate();
@@ -12,6 +13,11 @@ export default function Splash() {
       <img alt="" className="absolute inset-0 w-full h-full object-cover" src="/bgp.png" />
 
       <div className="absolute inset-0 mx-auto w-full max-w-[430px]">
+        <LanguageSwitcher
+          variant="splash"
+          className="absolute right-4 top-[calc(env(safe-area-inset-top)+24px)] z-20"
+        />
+
         <div className="absolute left-4 right-4 top-[12dvh] text-white">
           <h1 className="text-[48px] font-semibold leading-none tracking-normal drop-shadow-[0_4px_18px_rgba(0,0,0,0.45)]">
             JMP Trading

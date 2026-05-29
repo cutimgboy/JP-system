@@ -12,6 +12,11 @@ interface CheckPhoneLoginMethodResult {
   loginMethod: 'password' | 'sms';
 }
 const phoneRegex = /^1[3-9]\d{9}$/;
+const socialLoginMethods = [
+  { key: 'x', labelKey: 'X', symbol: 'X', symbolClassName: 'text-[15px]' },
+  { key: 'google', labelKey: '谷歌', symbol: 'G', symbolClassName: 'text-[19px]' },
+  { key: 'facebook', labelKey: '脸书', symbol: 'f', symbolClassName: 'text-[23px] leading-none' },
+];
 function maskPhone(phone: string) {
   if (phone.length !== 11) {
     return phone;
@@ -284,8 +289,8 @@ export function Login() {
             </div>
 
             <div className="mt-8 flex items-center justify-center gap-7">
-              {['X', tx("谷歌"), tx("脸书")].map(item => <button key={item} type="button" disabled className="flex h-14 w-14 items-center justify-center rounded-full border border-white/8 bg-[#14141c] text-[15px] text-white/45 shadow-[0_8px_18px_rgba(0,0,0,0.18)]">
-                  {item}
+              {socialLoginMethods.map(item => <button key={item.key} type="button" aria-label={tx(item.labelKey)} disabled className="flex h-14 w-14 items-center justify-center rounded-full border border-white/8 bg-[#14141c] font-semibold text-white/50 shadow-[0_8px_18px_rgba(0,0,0,0.18)]">
+                  <span className={item.symbolClassName}>{item.symbol}</span>
                 </button>)}
             </div>
           </div>
