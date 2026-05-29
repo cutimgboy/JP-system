@@ -113,6 +113,54 @@ function getAppOnlineUrl() {
   }
   return '';
 }
+function getPublicAssetUrl(path: string) {
+  if (typeof window === 'undefined') return path;
+  return new URL(path, window.location.origin).toString();
+}
+function imageUrlToDataUrl(path: string) {
+  return fetch(getPublicAssetUrl(path), { cache: 'force-cache' }).then(response => {
+    if (!response.ok) {
+      throw new Error(`Failed to load image asset: ${path}`);
+    }
+    return response.blob();
+  }).then(blob => new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(String(reader.result || ''));
+    reader.onerror = () => reject(reader.error || new Error(`Failed to read image asset: ${path}`));
+    reader.readAsDataURL(blob);
+  }));
+}
+async function waitForImageDecode(image: HTMLImageElement) {
+  if (image.complete) {
+    if (image.naturalWidth > 0) {
+      await image.decode?.().catch(() => undefined);
+    }
+    return;
+  }
+  await new Promise<void>(resolve => {
+    const done = () => {
+      image.removeEventListener('load', done);
+      image.removeEventListener('error', done);
+      resolve();
+    };
+    image.addEventListener('load', done, { once: true });
+    image.addEventListener('error', done, { once: true });
+  });
+  if (image.naturalWidth > 0) {
+    await image.decode?.().catch(() => undefined);
+  }
+}
+async function waitForPosterImages(root: HTMLElement) {
+  const images = Array.from(root.querySelectorAll('img'));
+  await Promise.all(images.map(image => waitForImageDecode(image)));
+}
+function waitForNextPaint() {
+  return new Promise<void>(resolve => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => resolve());
+    });
+  });
+}
 export default function OrderDetail() {
   const navigate = useNavigate();
   const {
@@ -122,10 +170,15 @@ export default function OrderDetail() {
     accountType
   } = useAccount();
   const sharePosterRef = useRef<HTMLDivElement>(null);
+  const shareAssetsPromiseRef = useRef<Promise<void> | null>(null);
+  const assetLogoPromiseRef = useRef<Promise<void> | null>(null);
   const [order, setOrder] = useState<OrderDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [showShare, setShowShare] = useState(false);
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState('');
+  const [shareAppIconSrc, setShareAppIconSrc] = useState('/icons/icon-192.png');
+  const [shareAdSrc, setShareAdSrc] = useState('/trad.png');
+  const [assetLogoSrc, setAssetLogoSrc] = useState('');
   const [savingShareImage, setSavingShareImage] = useState(false);
   const [toast, setToast] = useState<{
     message: string;
@@ -167,6 +220,55 @@ export default function OrderDetail() {
       isActive = false;
     };
   }, [appOnlineUrl]);
+  useEffect(() => {
+    let isActive = true;
+    const preloadShareAssets = async () => {
+      try {
+        const [appIconDataUrl, adDataUrl] = await Promise.all([imageUrlToDataUrl('/icons/icon-192.png'), imageUrlToDataUrl('/trad.png')]);
+        if (isActive) {
+          setShareAppIconSrc(appIconDataUrl);
+          setShareAdSrc(adDataUrl);
+        }
+      } catch (error) {
+        console.warn('Preload share poster assets failed:', error);
+      }
+    };
+    const preloadPromise = preloadShareAssets();
+    shareAssetsPromiseRef.current = preloadPromise;
+    void preloadPromise;
+    return () => {
+      isActive = false;
+    };
+  }, []);
+  useEffect(() => {
+    if (!order?.stockCode) {
+      setAssetLogoSrc('');
+      assetLogoPromiseRef.current = null;
+      return;
+    }
+    let isActive = true;
+    setAssetLogoSrc('');
+    const logoUrl = `/logo/${order.stockCode}.svg`;
+    const preloadAssetLogo = async () => {
+      try {
+        const logoDataUrl = await imageUrlToDataUrl(logoUrl);
+        if (isActive) {
+          setAssetLogoSrc(logoDataUrl);
+        }
+      } catch (error) {
+        console.warn('Preload asset logo failed:', error);
+        if (isActive) {
+          setAssetLogoSrc('');
+        }
+      }
+    };
+    const preloadPromise = preloadAssetLogo();
+    assetLogoPromiseRef.current = preloadPromise;
+    void preloadPromise;
+    return () => {
+      isActive = false;
+    };
+  }, [order?.stockCode]);
   const fetchOrderDetail = async () => {
     try {
       setLoading(true);
@@ -193,6 +295,11 @@ export default function OrderDetail() {
     try {
       setSavingShareImage(true);
       await document.fonts?.ready;
+      await shareAssetsPromiseRef.current?.catch(() => undefined);
+      await assetLogoPromiseRef.current?.catch(() => undefined);
+      await waitForNextPaint();
+      await waitForPosterImages(sharePosterRef.current);
+      await waitForNextPaint();
       const dataUrl = await toPng(sharePosterRef.current, {
         cacheBust: true,
         pixelRatio: Math.min(window.devicePixelRatio || 2, 3),
@@ -347,7 +454,7 @@ export default function OrderDetail() {
         }} className="relative flex w-full max-w-[320px] flex-col overflow-hidden rounded-[24px] border border-[#6c48f5]/30 bg-[#111119] shadow-[0_0_40px_rgba(108,72,245,0.4)]">
               <div className="relative z-10 flex items-center gap-3 px-6 pb-3 pt-6">
              <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-[8px] shadow-[0_0_14px_rgba(108,72,245,0.65)]">
-                    <img src="/icons/icon-192.png" alt="JMP Trading" crossOrigin="anonymous" className="h-full w-full object-cover" />
+                    <img src={shareAppIconSrc} alt="JMP Trading" crossOrigin="anonymous" className="h-full w-full object-cover" />
                 </div>
                 <span className="text-sm font-bold tracking-wider text-white drop-shadow-md">JMP Trading</span>
               </div>
@@ -368,7 +475,7 @@ export default function OrderDetail() {
                 <div className="mb-5 flex min-h-[84px] items-center justify-between gap-3 rounded-[16px] bg-[#1c1c24] px-4 py-3">
                   <div className="flex min-w-0 items-center gap-3">
                               <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white shadow-[0_0_12px_rgba(108,72,245,0.3)]">
-                           <img src={`/logo/${order.stockCode}.svg`} alt={assetName} crossOrigin="anonymous" className="h-full w-full object-cover" onError={(e) => {
+                           <img src={assetLogoSrc || `/logo/${order.stockCode}.svg`} alt={assetName} crossOrigin="anonymous" className="h-full w-full object-cover" onError={(e) => {
                      const target = e.target as HTMLImageElement;
                     target.style.display = 'none';
                         const parent = target.parentElement;
@@ -394,7 +501,7 @@ export default function OrderDetail() {
               </div>
 
               <div className="relative h-[260px] w-full px-6">
-                <img src="/trad.png" alt="" crossOrigin="anonymous" className="h-full w-full rounded-[12px] object-cover object-center opacity-95" />
+                <img src={shareAdSrc} alt="" crossOrigin="anonymous" className="h-full w-full rounded-[12px] object-cover object-center opacity-95" />
                 <div className="pointer-events-none absolute inset-x-6 bottom-0 h-20 rounded-b-[12px] bg-gradient-to-t from-[#111119] to-transparent" />
               </div>
 
