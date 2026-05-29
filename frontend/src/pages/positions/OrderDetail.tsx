@@ -6,7 +6,6 @@ import apiClient, { extractData } from '../../utils/api';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Toast } from '../../components/Toast';
 import QRCode from 'qrcode';
-import { toPng } from 'html-to-image';
 import { tx } from "../../i18n/text";
 import { formatVndAmount } from '../../utils/currency';
 interface OrderDetail {
@@ -130,36 +129,259 @@ function imageUrlToDataUrl(path: string) {
     reader.readAsDataURL(blob);
   }));
 }
-async function waitForImageDecode(image: HTMLImageElement) {
-  if (image.complete) {
-    if (image.naturalWidth > 0) {
-      await image.decode?.().catch(() => undefined);
+function loadCanvasImage(src: string) {
+  return new Promise<HTMLImageElement>((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error(`Failed to load canvas image: ${src}`));
+    image.src = src;
+  });
+}
+async function tryLoadCanvasImage(src: string) {
+  try {
+    return await loadCanvasImage(src);
+  } catch (error) {
+    console.warn(error);
+    return null;
+  }
+}
+function buildRoundRectPath(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, radius: number) {
+  const size = Math.min(radius, width / 2, height / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + size, y);
+  ctx.lineTo(x + width - size, y);
+  ctx.quadraticCurveTo(x + width, y, x + width, y + size);
+  ctx.lineTo(x + width, y + height - size);
+  ctx.quadraticCurveTo(x + width, y + height, x + width - size, y + height);
+  ctx.lineTo(x + size, y + height);
+  ctx.quadraticCurveTo(x, y + height, x, y + height - size);
+  ctx.lineTo(x, y + size);
+  ctx.quadraticCurveTo(x, y, x + size, y);
+  ctx.closePath();
+}
+function fillRoundRect(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, radius: number, fillStyle: string) {
+  buildRoundRectPath(ctx, x, y, width, height, radius);
+  ctx.fillStyle = fillStyle;
+  ctx.fill();
+}
+function strokeRoundRect(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, radius: number, strokeStyle: string, lineWidth = 1) {
+  buildRoundRectPath(ctx, x, y, width, height, radius);
+  ctx.strokeStyle = strokeStyle;
+  ctx.lineWidth = lineWidth;
+  ctx.stroke();
+}
+function drawImageCover(ctx: CanvasRenderingContext2D, image: HTMLImageElement, x: number, y: number, width: number, height: number) {
+  const imageWidth = image.naturalWidth || image.width;
+  const imageHeight = image.naturalHeight || image.height;
+  if (!imageWidth || !imageHeight) return;
+  const sourceRatio = imageWidth / imageHeight;
+  const targetRatio = width / height;
+  let sourceX = 0;
+  let sourceY = 0;
+  let sourceWidth = imageWidth;
+  let sourceHeight = imageHeight;
+  if (sourceRatio > targetRatio) {
+    sourceWidth = imageHeight * targetRatio;
+    sourceX = (imageWidth - sourceWidth) / 2;
+  } else {
+    sourceHeight = imageWidth / targetRatio;
+    sourceY = (imageHeight - sourceHeight) / 2;
+  }
+  ctx.drawImage(image, sourceX, sourceY, sourceWidth, sourceHeight, x, y, width, height);
+}
+function drawRoundedImageCover(ctx: CanvasRenderingContext2D, image: HTMLImageElement, x: number, y: number, width: number, height: number, radius: number) {
+  ctx.save();
+  buildRoundRectPath(ctx, x, y, width, height, radius);
+  ctx.clip();
+  drawImageCover(ctx, image, x, y, width, height);
+  ctx.restore();
+}
+function drawCircleImageCover(ctx: CanvasRenderingContext2D, image: HTMLImageElement, x: number, y: number, size: number) {
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(x + size / 2, y + size / 2, size / 2, 0, Math.PI * 2);
+  ctx.clip();
+  drawImageCover(ctx, image, x, y, size, size);
+  ctx.restore();
+}
+function truncateCanvasText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number) {
+  if (ctx.measureText(text).width <= maxWidth) return text;
+  const suffix = '...';
+  let result = text;
+  while (result.length > 0 && ctx.measureText(`${result}${suffix}`).width > maxWidth) {
+    result = result.slice(0, -1);
+  }
+  return `${result}${suffix}`;
+}
+function drawCanvasText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, maxWidth?: number) {
+  ctx.fillText(maxWidth ? truncateCanvasText(ctx, text, maxWidth) : text, x, y);
+}
+async function createSharePosterDataUrl(order: OrderDetail, qrCodeDataUrl: string, appOnlineUrl: string) {
+  const cssWidth = 320;
+  const cssHeight = 658;
+  const scale = Math.min(Math.max(window.devicePixelRatio || 2, 2), 3);
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.round(cssWidth * scale);
+  canvas.height = Math.round(cssHeight * scale);
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    throw new Error('Canvas context unavailable');
+  }
+  ctx.scale(scale, scale);
+  ctx.textBaseline = 'alphabetic';
+
+  const displayProfitLoss = getDisplayProfitLoss(order);
+  const profitRate = getProfitRate(order);
+  const isProfit = displayProfitLoss > 0;
+  const isLoss = displayProfitLoss < 0;
+  const accentColor = isProfit ? '#10b981' : isLoss ? '#ef4444' : '#ffffff';
+  const accentGlow = isProfit ? 'rgba(16,185,129,0.28)' : isLoss ? 'rgba(239,68,68,0.28)' : 'rgba(255,255,255,0.12)';
+  const assetName = order.stockName || order.stockCode;
+  const assetInitial = (assetName || order.stockCode || '?').trim().charAt(0).toUpperCase();
+  const directionText = order.tradeType === 'bull' ? tx("买涨") : tx("买跌");
+  const directionColor = order.tradeType === 'bull' ? '#10b981' : '#ef4444';
+  const shareProfitText = formatShareMoney(displayProfitLoss);
+  const shareAmountText = formatShareAmount(order.investmentAmount);
+  const shareRateText = `${formatShareRate(profitRate)}%`;
+  const qrDataUrl = qrCodeDataUrl || (appOnlineUrl ? await QRCode.toDataURL(appOnlineUrl, {
+    width: 192,
+    margin: 1,
+    errorCorrectionLevel: 'M',
+    color: {
+      dark: '#09090b',
+      light: '#ffffff'
     }
-    return;
+  }) : '');
+  const [appIcon, assetLogo, adImage, qrImage] = await Promise.all([
+    tryLoadCanvasImage('/icons/icon-192.png'),
+    tryLoadCanvasImage(`/logo/${order.stockCode}.svg`),
+    tryLoadCanvasImage('/trad.png'),
+    qrDataUrl ? tryLoadCanvasImage(qrDataUrl) : Promise.resolve(null)
+  ]);
+
+  ctx.clearRect(0, 0, cssWidth, cssHeight);
+  ctx.save();
+  buildRoundRectPath(ctx, 0, 0, cssWidth, cssHeight, 24);
+  ctx.clip();
+  ctx.fillStyle = '#111119';
+  ctx.fillRect(0, 0, cssWidth, cssHeight);
+
+  if (appIcon) {
+    ctx.save();
+    ctx.shadowColor = 'rgba(108,72,245,0.65)';
+    ctx.shadowBlur = 14;
+    fillRoundRect(ctx, 24, 24, 32, 32, 8, '#1b1730');
+    ctx.restore();
+    drawRoundedImageCover(ctx, appIcon, 24, 24, 32, 32, 8);
+  } else {
+    fillRoundRect(ctx, 24, 24, 32, 32, 8, '#6c48f5');
   }
-  await new Promise<void>(resolve => {
-    const done = () => {
-      image.removeEventListener('load', done);
-      image.removeEventListener('error', done);
-      resolve();
-    };
-    image.addEventListener('load', done, { once: true });
-    image.addEventListener('error', done, { once: true });
-  });
-  if (image.naturalWidth > 0) {
-    await image.decode?.().catch(() => undefined);
+  ctx.fillStyle = '#ffffff';
+  ctx.font = '700 14px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+  drawCanvasText(ctx, 'JMP Trading', 68, 45, 180);
+
+  ctx.fillStyle = '#8a8a93';
+  ctx.font = '400 13px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(`${getDurationLabel(order)}${tx("交易收益")}`, cssWidth / 2, 105);
+
+  let profitFontSize = shareProfitText.length > 12 ? 32 : shareProfitText.length > 10 ? 36 : 42;
+  const codeFontSize = 20;
+  const maxProfitWidth = 268;
+  while (profitFontSize > 28) {
+    ctx.font = `700 ${profitFontSize}px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace`;
+    const amountWidth = ctx.measureText(shareProfitText).width;
+    ctx.font = `700 ${codeFontSize}px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace`;
+    const codeWidth = ctx.measureText('VND').width;
+    if (amountWidth + codeWidth + 4 <= maxProfitWidth) break;
+    profitFontSize -= 1;
   }
-}
-async function waitForPosterImages(root: HTMLElement) {
-  const images = Array.from(root.querySelectorAll('img'));
-  await Promise.all(images.map(image => waitForImageDecode(image)));
-}
-function waitForNextPaint() {
-  return new Promise<void>(resolve => {
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => resolve());
-    });
-  });
+  ctx.textAlign = 'left';
+  ctx.shadowColor = accentGlow;
+  ctx.shadowBlur = 15;
+  ctx.fillStyle = accentColor;
+  ctx.font = `700 ${profitFontSize}px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace`;
+  const amountWidth = ctx.measureText(shareProfitText).width;
+  ctx.font = `700 ${codeFontSize}px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace`;
+  const codeWidth = ctx.measureText('VND').width;
+  const amountStartX = (cssWidth - amountWidth - codeWidth - 4) / 2;
+  ctx.font = `700 ${profitFontSize}px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace`;
+  ctx.fillText(shareProfitText, amountStartX, 152);
+  ctx.font = `700 ${codeFontSize}px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace`;
+  ctx.fillText('VND', amountStartX + amountWidth + 4, 152);
+  ctx.shadowBlur = 0;
+
+  ctx.textAlign = 'center';
+  ctx.font = '400 17px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace';
+  ctx.fillStyle = accentColor;
+  ctx.fillText(`${tx("收益率")} ${shareRateText}`, cssWidth / 2, 196);
+
+  fillRoundRect(ctx, 24, 220, 272, 84, 16, '#1c1c24');
+  ctx.save();
+  ctx.shadowColor = 'rgba(108,72,245,0.3)';
+  ctx.shadowBlur = 12;
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  ctx.arc(62, 262, 22, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+  if (assetLogo) {
+    drawCircleImageCover(ctx, assetLogo, 40, 240, 44);
+  } else {
+    ctx.fillStyle = '#6c48f5';
+    ctx.beginPath();
+    ctx.arc(62, 262, 22, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    ctx.textAlign = 'center';
+    ctx.font = '700 18px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+    ctx.fillText(assetInitial, 62, 269);
+  }
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#ffffff';
+  ctx.font = '700 15px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+  drawCanvasText(ctx, assetName, 96, 257, 118);
+  ctx.fillStyle = '#8a8a93';
+  ctx.font = '400 12px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+  drawCanvasText(ctx, order.stockCode, 96, 283, 118);
+  ctx.textAlign = 'right';
+  ctx.fillStyle = directionColor;
+  ctx.font = '700 13px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+  ctx.fillText(`${order.tradeType === 'bull' ? '↗' : '↘'} ${directionText}`, 276, 253);
+  ctx.fillStyle = '#ffffff';
+  ctx.font = '700 16px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace';
+  ctx.fillText(shareAmountText, 276, 289);
+  ctx.textAlign = 'left';
+
+  if (adImage) {
+    drawRoundedImageCover(ctx, adImage, 24, 325, 272, 260, 12);
+    const adFade = ctx.createLinearGradient(0, 505, 0, 585);
+    adFade.addColorStop(0, 'rgba(17,17,25,0)');
+    adFade.addColorStop(1, '#111119');
+    ctx.save();
+    buildRoundRectPath(ctx, 24, 325, 272, 260, 12);
+    ctx.clip();
+    ctx.fillStyle = adFade;
+    ctx.fillRect(24, 505, 272, 80);
+    ctx.restore();
+  }
+
+  fillRoundRect(ctx, 24, 558, 272, 76, 14, 'rgba(255,255,255,0.05)');
+  strokeRoundRect(ctx, 24, 558, 272, 76, 14, 'rgba(255,255,255,0.1)');
+  ctx.fillStyle = '#ffffff';
+  ctx.font = '500 14px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+  drawCanvasText(ctx, tx("扫码加入交易"), 36, 587, 176);
+  ctx.fillStyle = '#8a8a93';
+  ctx.font = '400 12px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+  drawCanvasText(ctx, tx("交易全球资产 获取全球收益"), 36, 613, 176);
+  fillRoundRect(ctx, 232, 570, 52, 52, 10, '#ffffff');
+  if (qrImage) {
+    drawRoundedImageCover(ctx, qrImage, 238, 576, 40, 40, 0);
+  }
+
+  ctx.restore();
+  strokeRoundRect(ctx, 0.5, 0.5, cssWidth - 1, cssHeight - 1, 24, 'rgba(108,72,245,0.3)', 1);
+  return canvas.toDataURL('image/png');
 }
 export default function OrderDetail() {
   const navigate = useNavigate();
@@ -291,25 +513,19 @@ export default function OrderDetail() {
     }
   };
   const handleSaveShareImage = async () => {
-    if (!sharePosterRef.current || savingShareImage) return;
+    if (!order || savingShareImage) return;
     try {
       setSavingShareImage(true);
       await document.fonts?.ready;
-      await shareAssetsPromiseRef.current?.catch(() => undefined);
-      await assetLogoPromiseRef.current?.catch(() => undefined);
-      await waitForNextPaint();
-      await waitForPosterImages(sharePosterRef.current);
-      await waitForNextPaint();
-      const dataUrl = await toPng(sharePosterRef.current, {
-        cacheBust: true,
-        pixelRatio: Math.min(window.devicePixelRatio || 2, 3),
-        backgroundColor: '#14141c'
-      });
+      const dataUrl = await createSharePosterDataUrl(order, qrCodeDataUrl, appOnlineUrl);
       const link = document.createElement('a');
       const safeOrderNo = order ? getOrderDisplayNo(order).replace(/[^a-z0-9-]/gi, '') : 'order';
       link.href = dataUrl;
       link.download = `jmp-trading-${safeOrderNo}.png`;
+      link.rel = 'noopener';
+      document.body.appendChild(link);
       link.click();
+      link.remove();
       setToast({
         message: tx("分享图已保存"),
         type: 'success'
