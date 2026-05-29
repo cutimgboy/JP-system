@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { apiClient, extractData, extractMessage } from '../../utils/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { tx } from "../../i18n/text";
+import { goBackOrNavigate } from '../../utils/navigation';
 interface UserInfo {
   phone: string | null;
   email: string | null;
@@ -161,7 +162,7 @@ export function BindEmail() {
       setSubmitting(false);
     }
   };
-  return <BindShell title={title} onBack={() => step === 1 ? navigate(-1) : setStep(1)}>
+  return <BindShell title={title} onBack={() => step === 1 ? goBackOrNavigate(navigate, '/personal-info') : setStep(1)}>
       <div className="mb-8">
         <h2 className="text-[24px] font-bold tracking-tight">{step === 1 ? tx("验证当前账户") : tx("输入新邮箱")}</h2>
         <p className="mt-2 text-[13px] leading-6 text-[#8a8a93]">

@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { apiClient, extractMessage } from '../../utils/api';
 import { Toast } from '../../components/Toast';
 import { tx } from "../../i18n/text";
+import { goBackOrNavigate } from '../../utils/navigation';
 function hasPasswordComplexity(password: string) {
   const hasLetter = /[A-Za-z]/.test(password);
   const hasNumber = /\d/.test(password);
@@ -93,7 +94,7 @@ export function ChangePassword() {
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
       <div className="sticky top-0 z-20 flex h-[60px] items-center justify-between border-b border-white/5 bg-[#09090b]/90 px-4 backdrop-blur-md">
-        <button onClick={() => navigate(-1)} className="-ml-2 flex h-10 w-10 items-center justify-center rounded-full text-white transition-colors hover:bg-white/10">
+        <button onClick={() => goBackOrNavigate(navigate, '/profile')} className="-ml-2 flex h-10 w-10 items-center justify-center rounded-full text-white transition-colors hover:bg-white/10">
           <ChevronLeft size={24} />
         </button>
         <h1 className="absolute left-1/2 -translate-x-1/2 text-[18px] font-medium text-white">{tx("修改登录密码")}</h1>

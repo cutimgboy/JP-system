@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import { apiClient, extractData } from '../../utils/api';
 import { Toast } from '../../components/Toast';
 import { tx } from "../../i18n/text";
+import { goBackOrNavigate } from '../../utils/navigation';
 interface BankCard {
   id: number;
   bankName: string;
@@ -56,7 +57,7 @@ export function Deposit() {
   };
   return <div className="min-h-screen bg-[#09090b] text-white">
       <div className="sticky top-0 z-20 flex h-[60px] items-center justify-between border-b border-white/5 bg-[#09090b]/90 px-4 backdrop-blur-md">
-        <button onClick={() => navigate(-1)} className="-ml-2 flex h-10 w-10 items-center justify-center rounded-full text-white transition-colors hover:bg-white/10">
+        <button onClick={() => goBackOrNavigate(navigate, '/profile')} className="-ml-2 flex h-10 w-10 items-center justify-center rounded-full text-white transition-colors hover:bg-white/10">
           <ChevronLeft size={24} />
         </button>
         <h1 className="absolute left-1/2 -translate-x-1/2 text-[18px] font-medium text-white">{tx("入金")}</h1>

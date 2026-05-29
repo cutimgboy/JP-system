@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { apiClient, extractData } from '../../utils/api';
 import { tx } from "../../i18n/text";
+import { goBackOrNavigate } from '../../utils/navigation';
 interface BankCard {
   id: number;
   bankName: string;
@@ -90,13 +91,13 @@ export function DepositFunds() {
     return <div className="flex min-h-screen items-center justify-center bg-[#09090b] px-5 text-white">
         <div className="text-center">
           <div className="mb-4 text-[#8a8a93]">{tx("暂无可用的收款银行卡")}</div>
-          <button onClick={() => navigate(-1)} className="rounded-[16px] border border-white/10 bg-[#2a2a36] px-6 py-3 text-white transition-colors hover:bg-[#3a3a46]">{tx("返回")}</button>
+          <button onClick={() => goBackOrNavigate(navigate, '/deposit')} className="rounded-[16px] border border-white/10 bg-[#2a2a36] px-6 py-3 text-white transition-colors hover:bg-[#3a3a46]">{tx("返回")}</button>
         </div>
       </div>;
   }
   return <div className="min-h-screen bg-[#09090b] text-white">
       <div className="sticky top-0 z-20 flex h-[60px] items-center justify-between border-b border-white/5 bg-[#09090b]/90 px-4 backdrop-blur-md">
-        <button onClick={() => navigate(-1)} className="-ml-2 flex h-10 w-10 items-center justify-center rounded-full text-white transition-colors hover:bg-white/10">
+        <button onClick={() => goBackOrNavigate(navigate, '/deposit')} className="-ml-2 flex h-10 w-10 items-center justify-center rounded-full text-white transition-colors hover:bg-white/10">
           <ChevronLeft size={24} />
         </button>
         <h1 className="absolute left-1/2 -translate-x-1/2 text-[18px] font-medium text-white">{tx("存入资金")}</h1>

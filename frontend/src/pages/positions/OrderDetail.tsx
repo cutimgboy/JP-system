@@ -8,6 +8,7 @@ import { Toast } from '../../components/Toast';
 import QRCode from 'qrcode';
 import { tx } from "../../i18n/text";
 import { formatVndAmount } from '../../utils/currency';
+import { goBackOrNavigate } from '../../utils/navigation';
 interface OrderDetail {
   id: number;
   stockCode: string;
@@ -570,7 +571,7 @@ export default function OrderDetail() {
 
       {/* Header */}
       <div className="relative z-10 flex h-[60px] shrink-0 items-center justify-between border-b border-white/5 bg-[#09090b]/80 px-4 backdrop-blur-md">
-        <button onClick={() => navigate(-1)} className="-ml-2 flex h-10 w-10 items-center justify-center rounded-full text-white transition-colors hover:bg-white/10">
+        <button onClick={() => goBackOrNavigate(navigate, '/positions')} className="-ml-2 flex h-10 w-10 items-center justify-center rounded-full text-white transition-colors hover:bg-white/10">
           <ChevronLeft size={24} />
         </button>
         <h1 className="absolute left-1/2 -translate-x-1/2 text-[18px] font-medium text-white">{tx("订单详情")}</h1>

@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import i18n from '../../i18n/config';
 import { appLanguages, changeAppLanguage, normalizeLanguage, tx, type AppLanguage } from '../../i18n/text';
+import { goBackOrNavigate } from '../../utils/navigation';
 
 export function ChangeLanguage() {
   const navigate = useNavigate();
@@ -20,14 +21,14 @@ export function ChangeLanguage() {
   const handleLanguageChange = (languageCode: AppLanguage) => {
     setSelectedLanguage(languageCode);
     void changeAppLanguage(languageCode);
-    setTimeout(() => navigate(-1), 250);
+    setTimeout(() => goBackOrNavigate(navigate, '/profile'), 250);
   };
 
   return (
     <div className="min-h-screen bg-[#09090b] text-white">
       <div className="sticky top-0 z-20 flex h-[60px] items-center justify-between border-b border-white/5 bg-[#09090b]/90 px-4 backdrop-blur-md">
         <button
-          onClick={() => navigate(-1)}
+          onClick={() => goBackOrNavigate(navigate, '/profile')}
           className="-ml-2 flex h-10 w-10 items-center justify-center rounded-full transition-colors hover:bg-white/10"
         >
           <ChevronLeft size={24} />

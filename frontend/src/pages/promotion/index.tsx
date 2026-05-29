@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect } from "react";
 import { tx } from "../../i18n/text";
 import { formatVndAmount } from "../../utils/currency";
+import { goBackOrNavigate } from "../../utils/navigation";
 
 const formatPromoAmount = (amount: string | number) => formatVndAmount(String(amount).replace(/[^0-9.-]/g, ''));
 
@@ -12,7 +13,7 @@ export function Promotion() {
   return <div className="min-h-screen bg-[#09090b] text-white flex flex-col">
       {/* Header */}
       <div className="fixed top-0 left-0 right-0 h-[60px] flex items-center justify-between px-6 shrink-0 z-20 bg-[#09090b]/80 backdrop-blur-md border-b border-white/5">
-        <button onClick={() => navigate(-1)} className="w-10 h-10 flex items-center justify-center -ml-3 rounded-full hover:bg-white/10 transition-colors">
+        <button onClick={() => goBackOrNavigate(navigate, '/profile')} className="w-10 h-10 flex items-center justify-center -ml-3 rounded-full hover:bg-white/10 transition-colors">
           <ChevronLeft size={24} className="text-white" />
         </button>
         <h1 className="font-medium text-[16px] tracking-wide">{tx("活动详情")}</h1>
