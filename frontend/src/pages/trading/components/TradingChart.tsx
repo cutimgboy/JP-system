@@ -23,6 +23,34 @@ export interface TradingQuoteSummary {
   isUpTrend: boolean;
   time: number;
 }
+const MAX_KLINE_POINTS = 20 * 60;
+const SNAPSHOT_LIMIT = 300;
+const RECONNECT_BASE_DELAY_MS = 1000;
+const RECONNECT_MAX_DELAY_MS = 10000;
+
+function trimKLineData(data: KLineData[]) {
+  return data.length > MAX_KLINE_POINTS ? data.slice(-MAX_KLINE_POINTS) : data;
+}
+
+function mergeKLineData(current: KLineData[], incoming: KLineData[]) {
+  const byTime = new Map<number, KLineData>();
+  current.forEach(point => {
+    byTime.set(point.time, point);
+  });
+  incoming.forEach(point => {
+    const existing = byTime.get(point.time);
+    byTime.set(point.time, {
+      ...existing,
+      ...point,
+      sequence: existing?.sequence ?? point.sequence
+    });
+  });
+  return trimKLineData(Array.from(byTime.values()).sort((a, b) => {
+    if (a.time !== b.time) return a.time - b.time;
+    return (a.sequence ?? 0) - (b.sequence ?? 0);
+  }));
+}
+
 export function TradingChart({
   countdown,
   stockCode = 'AAPL.US',
@@ -48,6 +76,8 @@ export function TradingChart({
   const [currentPrice, setCurrentPrice] = useState(0);
   const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting');
   const eventSourceRef = useRef<EventSource | null>(null);
+  const reconnectTimerRef = useRef<number | null>(null);
+  const reconnectAttemptRef = useRef(0);
   const pendingPointsRef = useRef<KLineData[]>([]);
   const flushTimerRef = useRef<number | null>(null);
   const latestPointRef = useRef<KLineData | null>(null);
@@ -87,7 +117,7 @@ export function TradingChart({
     const latestPoint = pending[pending.length - 1];
     latestPointRef.current = latestPoint;
     const updated = [...kLineDataRef.current, ...pending];
-    const nextData = updated.length > 20 * 60 ? updated.slice(-20 * 60) : updated;
+    const nextData = trimKLineData(updated);
     kLineDataRef.current = nextData;
     setKLineData(nextData);
     setCurrentPrice(latestPoint.price);
@@ -101,6 +131,12 @@ export function TradingChart({
       return;
     }
     let cancelled = false;
+    const clearReconnectTimer = () => {
+      if (reconnectTimerRef.current !== null) {
+        window.clearTimeout(reconnectTimerRef.current);
+        reconnectTimerRef.current = null;
+      }
+    };
 
     // 切换股票时清空旧数据
     setKLineData([]);
@@ -109,12 +145,13 @@ export function TradingChart({
     pendingPointsRef.current = [];
     latestPointRef.current = null;
     nextSequenceRef.current = 0;
-    const loadSnapshot = async () => {
+    reconnectAttemptRef.current = 0;
+    const loadSnapshot = async (mode: 'replace' | 'merge' = 'replace') => {
       try {
         const response = await apiClient.get(`/api/quote/kline/${stockCode}`, {
           params: {
             interval: '1s',
-            limit: 300
+            limit: SNAPSHOT_LIMIT
           }
         });
         const payload = extractData<{
@@ -126,62 +163,92 @@ export function TradingChart({
         }
         const sequencedSnapshot = snapshot.map(withSequence);
         const latestPoint = sequencedSnapshot[sequencedSnapshot.length - 1];
-        latestPointRef.current = latestPoint;
-        kLineDataRef.current = sequencedSnapshot;
-        setKLineData(sequencedSnapshot);
-        setCurrentPrice(latestPoint.price);
-        emitQuoteUpdate(latestPoint, sequencedSnapshot);
+        const nextData = mode === 'merge' ? mergeKLineData(kLineDataRef.current, sequencedSnapshot) : sequencedSnapshot;
+        const nextLatestPoint = nextData[nextData.length - 1] || latestPoint;
+        latestPointRef.current = nextLatestPoint;
+        kLineDataRef.current = nextData;
+        setKLineData(nextData);
+        setCurrentPrice(nextLatestPoint.price);
+        emitQuoteUpdate(nextLatestPoint, nextData);
       } catch (error) {
         console.error(tx("加载K线快照失败:"), error);
       }
     };
-    void loadSnapshot();
     const sseUrl = `${API_BASE_URL}/api/quote/stream/${stockCode}`;
-    setConnectionStatus('connecting');
-    const eventSource = new EventSource(sseUrl);
-    eventSourceRef.current = eventSource;
-    eventSource.onopen = () => {
-      setConnectionStatus('connected');
-    };
-    eventSource.onmessage = event => {
-      try {
-        const parsed = JSON.parse(event.data);
-        // 处理 NestJS SSE 的双重嵌套格式
-        const data = parsed.data || parsed;
-        if (data.type === 'tick') {
-          // 接收到新的 tick 数据
-          const newDataPoint: KLineData = withSequence({
-            time: data.time,
-            price: data.price,
-            volume: data.volume
-          });
-          const latestPoint = latestPointRef.current;
-          if (latestPoint && newDataPoint.time < latestPoint.time) {
-            return;
+    const connectStream = () => {
+      if (cancelled) {
+        return;
+      }
+      clearReconnectTimer();
+      eventSourceRef.current?.close();
+      setConnectionStatus('connecting');
+      const eventSource = new EventSource(sseUrl);
+      eventSourceRef.current = eventSource;
+      eventSource.onopen = () => {
+        reconnectAttemptRef.current = 0;
+        setConnectionStatus('connected');
+      };
+      eventSource.onmessage = event => {
+        try {
+          const parsed = JSON.parse(event.data);
+          // 处理 NestJS SSE 的双重嵌套格式
+          const data = parsed.data || parsed;
+          if (data.type === 'tick') {
+            // 接收到新的 tick 数据
+            const newDataPoint: KLineData = withSequence({
+              time: data.time,
+              price: data.price,
+              volume: data.volume
+            });
+            const latestPoint = latestPointRef.current;
+            if (latestPoint && newDataPoint.time < latestPoint.time) {
+              return;
+            }
+            pendingPointsRef.current.push(newDataPoint);
+            if (flushTimerRef.current === null) {
+              flushTimerRef.current = window.setTimeout(() => {
+                flushTimerRef.current = null;
+                flushPendingPoints();
+              }, 200);
+            }
           }
-          pendingPointsRef.current.push(newDataPoint);
-          if (flushTimerRef.current === null) {
-            flushTimerRef.current = window.setTimeout(() => {
-              flushTimerRef.current = null;
-              flushPendingPoints();
-            }, 200);
-          }
+        } catch (error) {
+          console.error(tx("解析 SSE 数据失败:"), error, event.data);
         }
-      } catch (error) {
-        console.error(tx("解析 SSE 数据失败:"), error, event.data);
+      };
+      eventSource.onerror = error => {
+        console.error(tx("SSE 连接错误:"), error);
+        eventSource.close();
+        if (cancelled || eventSourceRef.current !== eventSource) {
+          return;
+        }
+        setConnectionStatus('disconnected');
+        eventSourceRef.current = null;
+        const attempt = reconnectAttemptRef.current;
+        reconnectAttemptRef.current += 1;
+        const delay = Math.min(RECONNECT_BASE_DELAY_MS * 2 ** attempt, RECONNECT_MAX_DELAY_MS);
+        reconnectTimerRef.current = window.setTimeout(() => {
+          reconnectTimerRef.current = null;
+          void loadSnapshot('merge').finally(connectStream);
+        }, delay);
+      };
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && !eventSourceRef.current && reconnectTimerRef.current === null) {
+        void loadSnapshot('merge').finally(connectStream);
       }
     };
-    eventSource.onerror = error => {
-      console.error(tx("SSE 连接错误:"), error);
-      setConnectionStatus('disconnected');
-      eventSource.close();
-    };
+
+    void loadSnapshot().finally(connectStream);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     // 清理函数
     return () => {
       cancelled = true;
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      eventSourceRef.current?.close();
       eventSourceRef.current = null;
-      eventSource.close();
+      clearReconnectTimer();
       if (flushTimerRef.current !== null) {
         window.clearTimeout(flushTimerRef.current);
         flushTimerRef.current = null;
