@@ -8,6 +8,7 @@
 - `authenticated-user.js`：登录后用户读接口压测。需要 `AUTH_TOKEN`，或 `TEST_PHONE` + `TEST_PASSWORD`。
 - `trading-demo.js`：模拟账户下单写接口压测。会真实创建 demo 订单，建议只在测试账号和测试环境使用。
 - `trading-operation.js`：交易页操作链路压测。每个 VU 使用独立测试账号，覆盖打开交易页、读取账户/持仓/K线、下单、等待到期、平仓、复查余额。
+- `../sse/sse-load.mjs`：SSE 长连接压测。模拟交易页持续订阅 `/api/quote/stream/:code`，统计连接数、tick 推送、心跳、断线和事件间隔。
 
 ## 安装 k6
 
@@ -85,6 +86,17 @@ LOAD_USER_COUNT=40 LOAD_PHONE_BASE=19970000000 \
   k6 run --vus 40 --duration 3m load-tests/k6/trading-operation.js
 ```
 
+## SSE 长连接压测
+
+SSE 不适合用普通 k6 HTTP 请求压测，因为连接不会像普通接口一样快速结束。用 Node 脚本模拟浏览器长期持有 EventSource 连接：
+
+```bash
+CONNECTIONS=100 DURATION_SECONDS=300 RAMP_SECONDS=60 \
+  node load-tests/sse/sse-load.mjs
+```
+
+逐步升压时建议按 `50 -> 100 -> 200 -> 400` 连接数递增，每档至少跑 5 分钟。重点看 `active` 是否稳定等于 `CONNECTIONS`、`connectErrors`/`streamErrors` 是否为 0、`ticksPerSecond` 是否随连接数线性增长、`eventGapP95Ms` 是否明显变大。
+
 ## 推荐压测顺序
 
 1. `public-read.js` + `SCENARIO=smoke`
@@ -92,6 +104,7 @@ LOAD_USER_COUNT=40 LOAD_PHONE_BASE=19970000000 \
 3. 服务器稳定后跑 `public-read.js` + `SCENARIO=ramp`
 4. 准备测试账号后跑 `authenticated-user.js`
 5. 只有在明确接受写入测试数据时，再跑 `trading-demo.js` 或 `trading-operation.js`
+6. 最后单独跑 `../sse/sse-load.mjs` 验证在线盯盘长连接容量
 
 ## 服务器观测命令
 
