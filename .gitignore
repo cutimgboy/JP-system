@@ -27,9 +27,13 @@ yarn-error.log*
 # IDE
 .idea/
 .vscode/
+.codegraph/
 *.swp
 *.swo
 *~
 
 # OS
 Thumbs.db
+
+# Load test outputs
+load-tests/results/

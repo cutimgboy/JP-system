@@ -35,6 +35,16 @@ export class RedisService implements OnModuleDestroy {
     return await this.redisClient.get(key);
   }
 
+  async getJson<T>(key: string): Promise<T | null> {
+    try {
+      const value = await this.get(key);
+      return value ? (JSON.parse(value) as T) : null;
+    } catch (error) {
+      console.error(`读取 JSON 缓存失败 ${key}:`, error);
+      return null;
+    }
+  }
+
   /**
    * 设置 Redis 键值
    * @param key 键名
@@ -49,12 +59,38 @@ export class RedisService implements OnModuleDestroy {
     }
   }
 
+  async setJson(key: string, value: unknown, ttl?: number): Promise<void> {
+    try {
+      await this.set(key, JSON.stringify(value), ttl);
+    } catch (error) {
+      console.error(`写入 JSON 缓存失败 ${key}:`, error);
+    }
+  }
+
   /**
    * 删除 Redis 中的键
    * @param key 键名
    */
   async del(key: string): Promise<number> {
-    return await this.redisClient.del(key);
+    try {
+      return await this.redisClient.del(key);
+    } catch (error) {
+      console.error(`删除缓存失败 ${key}:`, error);
+      return 0;
+    }
+  }
+
+  async delByPattern(pattern: string): Promise<number> {
+    try {
+      const keys = await this.redisClient.keys(pattern);
+      if (keys.length === 0) {
+        return 0;
+      }
+      return await this.redisClient.del(...keys);
+    } catch (error) {
+      console.error(`按模式删除缓存失败 ${pattern}:`, error);
+      return 0;
+    }
   }
 
   /**

@@ -4,6 +4,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ProductEntity } from '../../cfd/entities/product.entity';
 
+const QUOTE_PRODUCT_CACHE_TTL_MS = 60_000;
+
 /**
  * Mock 行情数据服务
  * 用于生成模拟的实时行情数据
@@ -13,6 +15,9 @@ export class MockQuoteService implements OnModuleInit {
   // 存储每个产品的基础价格和当前价格
   private priceCache: Map<string, { basePrice: number; currentPrice: number; lastUpdate: number }> = new Map();
   private updateInterval: NodeJS.Timeout | null = null;
+  private productListCache: { expiresAt: number; products: ProductEntity[] } | null = null;
+  private productsByTypeCache: Map<string, { expiresAt: number; products: ProductEntity[] }> = new Map();
+  private productByTradeCodeCache: Map<string, { expiresAt: number; product: ProductEntity | null }> = new Map();
 
   constructor(
     private readonly configService: ConfigService,
@@ -152,9 +157,7 @@ export class MockQuoteService implements OnModuleInit {
       return null;
     }
 
-    const product = await this.productRepository.findOne({
-      where: { tradeCode, isActive: true }
-    });
+    const product = await this.getCachedProductByTradeCode(tradeCode);
 
     if (!product) {
       return null;
@@ -170,14 +173,9 @@ export class MockQuoteService implements OnModuleInit {
     let products: ProductEntity[];
 
     if (tradeCodes && tradeCodes.length > 0) {
-      products = await this.productRepository.find({
-        where: tradeCodes.map(code => ({ tradeCode: code, isActive: true })),
-      });
+      products = await this.getCachedProductsByTradeCodes(tradeCodes);
     } else {
-      products = await this.productRepository.find({
-        where: { isActive: true },
-        order: { sortOrder: 'ASC' },
-      });
+      products = await this.getCachedActiveProducts();
     }
 
     const quotes: any[] = [];
@@ -195,10 +193,7 @@ export class MockQuoteService implements OnModuleInit {
    * 按类型获取产品行情
    */
   async getQuotesByType(type: string) {
-    const products = await this.productRepository.find({
-      where: { type, isActive: true },
-      order: { sortOrder: 'ASC' },
-    });
+    const products = await this.getCachedProductsByType(type);
 
     const quotes: any[] = [];
     for (const product of products) {
@@ -222,5 +217,68 @@ export class MockQuoteService implements OnModuleInit {
       .getRawMany();
 
     return result.map(r => r.type);
+  }
+
+  private isFresh(expiresAt: number) {
+    return expiresAt > Date.now();
+  }
+
+  private async getCachedActiveProducts() {
+    if (this.productListCache && this.isFresh(this.productListCache.expiresAt)) {
+      return this.productListCache.products;
+    }
+
+    const products = await this.productRepository.find({
+      where: { isActive: true },
+      order: { sortOrder: 'ASC' },
+    });
+
+    this.productListCache = {
+      expiresAt: Date.now() + QUOTE_PRODUCT_CACHE_TTL_MS,
+      products,
+    };
+    return products;
+  }
+
+  private async getCachedProductsByType(type: string) {
+    const cached = this.productsByTypeCache.get(type);
+    if (cached && this.isFresh(cached.expiresAt)) {
+      return cached.products;
+    }
+
+    const products = await this.productRepository.find({
+      where: { type, isActive: true },
+      order: { sortOrder: 'ASC' },
+    });
+
+    this.productsByTypeCache.set(type, {
+      expiresAt: Date.now() + QUOTE_PRODUCT_CACHE_TTL_MS,
+      products,
+    });
+    return products;
+  }
+
+  private async getCachedProductByTradeCode(tradeCode: string) {
+    const cached = this.productByTradeCodeCache.get(tradeCode);
+    if (cached && this.isFresh(cached.expiresAt)) {
+      return cached.product;
+    }
+
+    const product = await this.productRepository.findOne({
+      where: { tradeCode, isActive: true },
+    });
+
+    this.productByTradeCodeCache.set(tradeCode, {
+      expiresAt: Date.now() + QUOTE_PRODUCT_CACHE_TTL_MS,
+      product,
+    });
+    return product;
+  }
+
+  private async getCachedProductsByTradeCodes(tradeCodes: string[]) {
+    const products = await Promise.all(
+      tradeCodes.map((tradeCode) => this.getCachedProductByTradeCode(tradeCode)),
+    );
+    return products.filter((product): product is ProductEntity => Boolean(product));
   }
 }
