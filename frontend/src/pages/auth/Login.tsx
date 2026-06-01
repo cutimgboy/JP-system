@@ -4,25 +4,57 @@ import { ArrowLeft, Eye, EyeOff, Mail, Smartphone } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { apiClient, extractData, extractMessage } from '../../utils/api';
 import { tx } from "../../i18n/text";
-type LoginStep = 'phone' | 'password' | 'sms';
-interface CheckPhoneLoginMethodResult {
-  phone: string;
+
+type LoginChannel = 'phone' | 'email';
+type LoginStep = 'identifier' | 'password' | 'code';
+
+interface CheckLoginMethodResult {
+  phone?: string;
+  email?: string;
   userExists: boolean;
   hasPassword: boolean;
-  loginMethod: 'password' | 'sms';
+  loginMethod: 'password' | 'sms' | 'email';
 }
+
+interface LoginResult {
+  token: string;
+  userInfo: {
+    id: number;
+    phone: string | null;
+    email?: string | null;
+    nickname?: string;
+    avatar?: string;
+    hasPassword?: boolean;
+    requiresPasswordSetup?: boolean;
+  };
+}
+
 const phoneRegex = /^1[3-9]\d{9}$/;
+const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const socialLoginMethods = [
   { key: 'x', labelKey: 'X', symbol: 'X', symbolClassName: 'text-[15px]' },
   { key: 'google', labelKey: '谷歌', symbol: 'G', symbolClassName: 'text-[19px]' },
   { key: 'facebook', labelKey: '脸书', symbol: 'f', symbolClassName: 'text-[23px] leading-none' },
 ];
+
 function maskPhone(phone: string) {
   if (phone.length !== 11) {
     return phone;
   }
   return `${phone.slice(0, 3)}****${phone.slice(-4)}`;
 }
+
+function maskEmail(email: string) {
+  const [name, domain] = email.split('@');
+  if (!name || !domain) {
+    return email;
+  }
+  if (name.length <= 2) {
+    return `${name[0] ?? ''}***@${domain}`;
+  }
+  return `${name.slice(0, 2)}***@${domain}`;
+}
+
 function ScreenShell({
   title,
   subtitle,
@@ -47,7 +79,7 @@ function ScreenShell({
         </div>
 
         <div className="relative mt-8">
-          <h1 className="text-[28px] font-semibold leading-[1.2] tracking-[-0.03em] text-white">
+          <h1 className="text-[28px] font-semibold leading-[1.2] tracking-normal text-white">
             {title}
           </h1>
           {subtitle && <p className="mt-4 text-[14px] leading-6 text-white/55">{subtitle}</p>}
@@ -61,6 +93,7 @@ function ScreenShell({
       </div>
     </div>;
 }
+
 export function Login() {
   const navigate = useNavigate();
   const {
@@ -68,8 +101,10 @@ export function Login() {
     user
   } = useAuth();
   const hiddenCodeInputRef = useRef<HTMLInputElement | null>(null);
-  const [step, setStep] = useState<LoginStep>('phone');
+  const [channel, setChannel] = useState<LoginChannel>('phone');
+  const [step, setStep] = useState<LoginStep>('identifier');
   const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [code, setCode] = useState('');
   const [countdown, setCountdown] = useState(0);
@@ -77,6 +112,7 @@ export function Login() {
   const [sendingCode, setSendingCode] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+
   useEffect(() => {
     const hasSeenSplash = localStorage.getItem('hasSeenSplash');
     if (!hasSeenSplash) {
@@ -85,6 +121,7 @@ export function Login() {
       });
     }
   }, [navigate]);
+
   useEffect(() => {
     if (user) {
       navigate('/', {
@@ -92,6 +129,7 @@ export function Login() {
       });
     }
   }, [navigate, user]);
+
   useEffect(() => {
     if (countdown <= 0) {
       return undefined;
@@ -101,8 +139,14 @@ export function Login() {
     }, 1000);
     return () => window.clearTimeout(timer);
   }, [countdown]);
+
+  const normalizedEmail = useMemo(() => email.trim().toLowerCase(), [email]);
   const isPhoneValid = useMemo(() => phoneRegex.test(phone), [phone]);
+  const isEmailValid = useMemo(() => emailRegex.test(normalizedEmail), [normalizedEmail]);
+  const isIdentifierValid = channel === 'phone' ? isPhoneValid : isEmailValid;
   const maskedPhone = useMemo(() => maskPhone(phone), [phone]);
+  const maskedEmail = useMemo(() => maskEmail(normalizedEmail), [normalizedEmail]);
+
   const goToStep = (nextStep: LoginStep) => {
     setError('');
     setStep(nextStep);
@@ -110,14 +154,23 @@ export function Login() {
       setPassword('');
       setShowPassword(false);
     }
-    if (nextStep !== 'sms') {
+    if (nextStep !== 'code') {
       setCode('');
       setCountdown(0);
     }
   };
-  const sendSmsCode = async () => {
-    if (!isPhoneValid) {
-      setError(tx("请输入正确的手机号"));
+
+  const handleChannelChange = (nextChannel: LoginChannel) => {
+    setChannel(nextChannel);
+    setError('');
+    setPassword('');
+    setCode('');
+    setCountdown(0);
+  };
+
+  const sendCode = async () => {
+    if (!isIdentifierValid) {
+      setError(channel === 'phone' ? tx("请输入正确的手机号") : tx("请输入正确的邮箱地址"));
       return false;
     }
     if (countdown > 0) {
@@ -126,15 +179,17 @@ export function Login() {
     try {
       setSendingCode(true);
       setError('');
-      const response = await apiClient.post('/auth/send-sms', {
+      const response = await apiClient.post(channel === 'phone' ? '/auth/send-sms' : '/auth/send-email', channel === 'phone' ? {
         phone
+      } : {
+        email: normalizedEmail
       });
-      const smsData = extractData<{
+      const codeData = extractData<{
         code?: string | number;
       }>(response);
-      if (import.meta.env.DEV && smsData?.code) {
-        console.log(tx("验证码:"), smsData.code);
-        alert(tx('验证码开发提示', { code: smsData.code }));
+      if (import.meta.env.DEV && codeData?.code) {
+        console.log(tx("验证码:"), codeData.code);
+        alert(tx('验证码开发提示', { code: codeData.code }));
       }
       setCountdown(58);
       return true;
@@ -145,30 +200,39 @@ export function Login() {
       setSendingCode(false);
     }
   };
-  const handlePhoneContinue = async (event: React.FormEvent<HTMLFormElement>) => {
+
+  const handleIdentifierContinue = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError('');
-    if (!isPhoneValid) {
-      setError(tx("请输入正确的手机号"));
+    if (!isIdentifierValid) {
+      setError(channel === 'phone' ? tx("请输入正确的手机号") : tx("请输入正确的邮箱地址"));
       return;
     }
     try {
       setSubmitting(true);
-      const response = await apiClient.post('/auth/check-phone-login-method', {
+      const response = await apiClient.post(channel === 'phone' ? '/auth/check-phone-login-method' : '/auth/check-email-login-method', channel === 'phone' ? {
         phone
+      } : {
+        email: normalizedEmail
       });
-      const result = extractData<CheckPhoneLoginMethodResult>(response);
+      const result = extractData<CheckLoginMethodResult>(response);
       if (!result) {
         setError(tx("登录方式识别失败，请稍后重试"));
         return;
+      }
+      if (result.phone) {
+        setPhone(result.phone);
+      }
+      if (result.email) {
+        setEmail(result.email);
       }
       if (result.loginMethod === 'password') {
         goToStep('password');
         return;
       }
-      const sent = await sendSmsCode();
+      const sent = await sendCode();
       if (sent) {
-        setStep('sms');
+        setStep('code');
         setError('');
         window.setTimeout(() => hiddenCodeInputRef.current?.focus(), 0);
       }
@@ -178,6 +242,7 @@ export function Login() {
       setSubmitting(false);
     }
   };
+
   const handlePasswordLogin = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError('');
@@ -187,39 +252,14 @@ export function Login() {
     }
     try {
       setSubmitting(true);
-      const response = await apiClient.post('/auth/phone-password-login', {
+      const response = await apiClient.post(channel === 'phone' ? '/auth/phone-password-login' : '/auth/email-password-login', channel === 'phone' ? {
         phone,
         password
+      } : {
+        email: normalizedEmail,
+        password
       });
-      const loginData = extractData(response);
-      if (loginData?.token && loginData?.userInfo) {
-        login(loginData.token, loginData.userInfo);
-        navigate('/', {
-          replace: true
-        });
-        return;
-      }
-      setError(tx("登录失败，请重试"));
-    } catch (err: any) {
-      setError(extractMessage(err.response?.data, err.message || tx("登录失败")));
-    } finally {
-      setSubmitting(false);
-    }
-  };
-  const handleSmsLogin = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setError('');
-    if (!code || code.length !== 6) {
-      setError(tx("请输入6位验证码"));
-      return;
-    }
-    try {
-      setSubmitting(true);
-      const response = await apiClient.post('/auth/sms-login', {
-        phone,
-        code
-      });
-      const loginData = extractData(response);
+      const loginData = extractData<LoginResult>(response);
       if (loginData?.token && loginData?.userInfo) {
         login(loginData.token, loginData.userInfo);
         navigate(loginData.userInfo.requiresPasswordSetup ? '/setup-password' : '/', {
@@ -234,54 +274,98 @@ export function Login() {
       setSubmitting(false);
     }
   };
+
+  const handleCodeLogin = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setError('');
+    if (!code || code.length !== 6) {
+      setError(tx("请输入6位验证码"));
+      return;
+    }
+    try {
+      setSubmitting(true);
+      const response = await apiClient.post(channel === 'phone' ? '/auth/sms-login' : '/auth/email-login', channel === 'phone' ? {
+        phone,
+        code
+      } : {
+        email: normalizedEmail,
+        code
+      });
+      const loginData = extractData<LoginResult>(response);
+      if (loginData?.token && loginData?.userInfo) {
+        login(loginData.token, loginData.userInfo);
+        navigate(loginData.userInfo.requiresPasswordSetup ? '/setup-password' : '/', {
+          replace: true
+        });
+        return;
+      }
+      setError(tx("登录失败，请重试"));
+    } catch (err: any) {
+      setError(extractMessage(err.response?.data, err.message || tx("登录失败")));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const handleBack = () => {
-    if (step === 'phone') {
+    if (step === 'identifier') {
       navigate('/splash');
       return;
     }
-    goToStep('phone');
+    goToStep('identifier');
   };
-  const handleUseSmsInstead = async () => {
-    const sent = await sendSmsCode();
+
+  const handleUseCodeInstead = async () => {
+    const sent = await sendCode();
     if (sent) {
-      setStep('sms');
+      setStep('code');
       setError('');
       window.setTimeout(() => hiddenCodeInputRef.current?.focus(), 0);
     }
   };
+
   const handleCodeChange = (value: string) => {
     setCode(value.replace(/\D/g, '').slice(0, 6));
   };
-  const primaryText = step === 'phone' ? submitting ? tx("识别中...") : tx("继续") : submitting ? tx("登录中...") : tx("继续");
-  if (step === 'phone') {
-    return <ScreenShell title={tx("一键注册登录")} subtitle={tx("新用户最高可领取5000000奖励，1分钟开始投资")} onBack={handleBack} footer={<button type="submit" form="phone-login-form" disabled={!isPhoneValid || submitting} className="h-14 w-full rounded-[16px] bg-[linear-gradient(135deg,#6c48f5_0%,#8b5cf6_100%)] text-[18px] font-semibold text-white shadow-[0_14px_30px_rgba(108,72,245,0.36)] transition disabled:bg-[#26262d] disabled:shadow-none disabled:text-white/30">
+
+  const primaryText = step === 'identifier' ? submitting ? tx("识别中...") : tx("继续") : submitting ? tx("登录中...") : tx("继续");
+  const channelButtonClass = (value: LoginChannel) => `flex flex-1 items-center justify-center gap-2 rounded-full px-3 py-2.5 text-[15px] font-medium transition ${channel === value ? 'bg-[#1e1e28] text-white shadow-[0_4px_10px_rgba(108,72,245,0.08)]' : 'text-white/35 hover:text-white/60'}`;
+  const codeSubtitle = channel === 'phone' ? tx('验证码短信已经发送到 {{phone}}', { phone: maskedPhone || tx("您的手机号") }) : tx('验证码邮件已经发送到 {{email}}', { email: maskedEmail || tx("您的邮箱") });
+
+  if (step === 'identifier') {
+    return <ScreenShell title={tx("一键注册登录")} subtitle={tx("新用户最高可领取5000000奖励，1分钟开始投资")} onBack={handleBack} footer={<button type="submit" form="identifier-login-form" disabled={!isIdentifierValid || submitting} className="h-14 w-full rounded-[16px] bg-[linear-gradient(135deg,#6c48f5_0%,#8b5cf6_100%)] text-[18px] font-semibold text-white shadow-[0_14px_30px_rgba(108,72,245,0.36)] transition disabled:bg-[#26262d] disabled:shadow-none disabled:text-white/30">
             {primaryText}
           </button>}>
-        <form id="phone-login-form" onSubmit={handlePhoneContinue}>
-          <div className="flex items-center gap-8 text-[15px] font-medium text-white">
-            <div className="flex items-center gap-2">
-              <Smartphone className="h-5 w-5" />{tx("手机号")}</div>
-            <div className="flex items-center gap-2 text-white/35">
-              <Mail className="h-5 w-5" />{tx("邮箱")}</div>
+        <form id="identifier-login-form" onSubmit={handleIdentifierContinue}>
+          <div className="flex rounded-full border border-white/5 bg-[#14141c] p-1">
+            <button type="button" aria-pressed={channel === 'phone'} onClick={() => handleChannelChange('phone')} className={channelButtonClass('phone')}>
+              <Smartphone className="h-5 w-5" />{tx("手机号")}
+            </button>
+            <button type="button" aria-pressed={channel === 'email'} onClick={() => handleChannelChange('email')} className={channelButtonClass('email')}>
+              <Mail className="h-5 w-5" />{tx("邮箱")}
+            </button>
           </div>
 
           <div className="mt-6 rounded-[20px] border border-white/5 bg-[#14141c] px-3 py-3 shadow-[0_12px_24px_rgba(0,0,0,0.2)]">
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2 rounded-full bg-[#1e1e28] px-2.5 py-1.5 text-[14px] font-medium text-white shadow-[0_4px_10px_rgba(108,72,245,0.08)]">
-                <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-[#2a263c] text-[10px] font-semibold text-[#a58dff]">
-                  CN
-                </span>
-                +86
-              </div>
-              <input type="tel" inputMode="numeric" autoComplete="tel" value={phone} onChange={event => setPhone(event.target.value.replace(/\D/g, '').slice(0, 11))} placeholder={tx("请输入手机号")} className="min-w-0 flex-1 bg-transparent text-[17px] font-medium text-white outline-none placeholder:text-white/25" maxLength={11} />
-            </div>
+            {channel === 'phone' ? <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 rounded-full bg-[#1e1e28] px-2.5 py-1.5 text-[14px] font-medium text-white shadow-[0_4px_10px_rgba(108,72,245,0.08)]">
+                  <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-[#2a263c] text-[10px] font-semibold text-[#a58dff]">
+                    CN
+                  </span>
+                  +86
+                </div>
+                <input type="tel" inputMode="numeric" autoComplete="tel" value={phone} onChange={event => setPhone(event.target.value.replace(/\D/g, '').slice(0, 11))} placeholder={tx("请输入手机号")} className="min-w-0 flex-1 bg-transparent text-[17px] font-medium text-white outline-none placeholder:text-white/25" maxLength={11} />
+              </div> : <div className="flex items-center gap-3 px-1">
+                <Mail className="h-5 w-5 shrink-0 text-[#a58dff]" />
+                <input type="email" inputMode="email" autoComplete="email" value={email} onChange={event => setEmail(event.target.value.replace(/\s/g, ''))} onBlur={() => setEmail(value => value.trim().toLowerCase())} placeholder={tx("请输入邮箱地址")} className="min-w-0 flex-1 bg-transparent text-[17px] font-medium text-white outline-none placeholder:text-white/25" />
+              </div>}
           </div>
 
           {error && <div className="mt-4 rounded-[14px] border border-[#7f1d1d]/60 bg-[#2a1115] px-4 py-3 text-sm text-[#fca5a5]">
               {error}
             </div>}
 
-          <div className="mt-44">
+          <div className="mt-28">
             <div className="flex items-center gap-4 text-[14px] text-white/35">
               <div className="h-px flex-1 bg-white/8" />
               <span>{tx("其他方式")}</span>
@@ -297,11 +381,12 @@ export function Login() {
         </form>
       </ScreenShell>;
   }
-  if (step === 'sms') {
-    return <ScreenShell title={tx("请输入验证码")} subtitle={tx('验证码短信已经发送到 {{phone}}', { phone: maskedPhone || tx("您的手机号") })} onBack={handleBack} footer={<button type="submit" form="sms-login-form" disabled={code.length !== 6 || submitting} className="h-14 w-full rounded-[16px] bg-[linear-gradient(135deg,#6c48f5_0%,#8b5cf6_100%)] text-[18px] font-semibold text-white shadow-[0_14px_30px_rgba(108,72,245,0.36)] transition disabled:bg-[#26262d] disabled:shadow-none disabled:text-white/30">
+
+  if (step === 'code') {
+    return <ScreenShell title={tx("请输入验证码")} subtitle={codeSubtitle} onBack={handleBack} footer={<button type="submit" form="code-login-form" disabled={code.length !== 6 || submitting} className="h-14 w-full rounded-[16px] bg-[linear-gradient(135deg,#6c48f5_0%,#8b5cf6_100%)] text-[18px] font-semibold text-white shadow-[0_14px_30px_rgba(108,72,245,0.36)] transition disabled:bg-[#26262d] disabled:shadow-none disabled:text-white/30">
             {primaryText}
           </button>}>
-        <form id="sms-login-form" onSubmit={handleSmsLogin}>
+        <form id="code-login-form" onSubmit={handleCodeLogin}>
           <div onClick={() => hiddenCodeInputRef.current?.focus()} className="relative mt-2 cursor-text">
             <input ref={hiddenCodeInputRef} type="text" inputMode="numeric" autoComplete="one-time-code" value={code} onChange={event => handleCodeChange(event.target.value)} className="absolute inset-0 opacity-0" maxLength={6} />
             <div className="flex items-center justify-between gap-3">
@@ -322,7 +407,7 @@ export function Login() {
 
           <div className="mt-8 flex items-center gap-2 text-[15px]">
             <span className="text-white/50">{tx("没有收到？")}</span>
-            <button type="button" onClick={sendSmsCode} disabled={sendingCode || countdown > 0} className="font-semibold text-[#a58dff] disabled:text-white/25">
+            <button type="button" onClick={sendCode} disabled={sendingCode || countdown > 0} className="font-semibold text-[#a58dff] disabled:text-white/25">
               {sendingCode ? tx("发送中...") : countdown > 0 ? tx('重新发送倒计时', { seconds: countdown }) : tx("重新发送")}
             </button>
           </div>
@@ -333,6 +418,7 @@ export function Login() {
         </form>
       </ScreenShell>;
   }
+
   return <ScreenShell title={tx("输入您的登录密码")} onBack={handleBack} footer={<button type="submit" form="password-login-form" disabled={!password.trim() || submitting} className="h-14 w-full rounded-[16px] bg-[linear-gradient(135deg,#6c48f5_0%,#8b5cf6_100%)] text-[18px] font-semibold text-white shadow-[0_14px_30px_rgba(108,72,245,0.36)] transition disabled:bg-[#26262d] disabled:shadow-none disabled:text-white/30">
           {primaryText}
         </button>}>
@@ -346,7 +432,7 @@ export function Login() {
           </div>
         </div>
 
-        <button type="button" onClick={handleUseSmsInstead} disabled={sendingCode} className="mt-5 inline-flex items-center justify-center rounded-full border border-[#2a263c] bg-[#161420] px-4 py-2.5 text-[14px] font-medium text-[#b9a8ff] shadow-[0_8px_20px_rgba(0,0,0,0.18)] transition hover:border-[#3a3556] hover:bg-[#1b1828] hover:text-white disabled:cursor-not-allowed disabled:border-white/6 disabled:bg-white/[0.03] disabled:text-white/25">
+        <button type="button" onClick={handleUseCodeInstead} disabled={sendingCode} className="mt-5 inline-flex items-center justify-center rounded-full border border-[#2a263c] bg-[#161420] px-4 py-2.5 text-[14px] font-medium text-[#b9a8ff] shadow-[0_8px_20px_rgba(0,0,0,0.18)] transition hover:border-[#3a3556] hover:bg-[#1b1828] hover:text-white disabled:cursor-not-allowed disabled:border-white/6 disabled:bg-white/[0.03] disabled:text-white/25">
           {sendingCode ? tx("验证码发送中...") : tx("去验证码登录")}
         </button>
 

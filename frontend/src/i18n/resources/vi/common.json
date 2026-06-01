@@ -245,6 +245,7 @@
   "昵称": "Biệt danh",
   "您的出金申请及身份信息已提交成功，我们将在1-3个工作日内完成审核并处理您的出金。": "Yêu cầu rút tiền và thông tin định danh của bạn đã được gửi thành công. Chúng tôi sẽ hoàn tất xét duyệt và xử lý rút tiền trong 1-3 ngày làm việc.",
   "您的手机号": "số điện thoại của bạn",
+  "您的邮箱": "email của bạn",
   "您的资金享有高标准托管机制，遵循全球多重监管要求，层层防护，确保交易环境安全可靠。": "Tiền của bạn được quản lý theo cơ chế lưu ký tiêu chuẩn cao, tuân thủ nhiều yêu cầu quản lý toàn cầu và được bảo vệ nhiều lớp để đảm bảo môi trường giao dịch an toàn, đáng tin cậy.",
   "您确定要删除这张银行卡吗？删除后将无法用于资金提取。": "Bạn chắc chắn muốn xóa thẻ ngân hàng này? Sau khi xóa, thẻ sẽ không thể dùng để rút tiền.",
   "您已有进行中的交易，请等待当前交易完成": "Bạn đã có giao dịch đang diễn ra, vui lòng chờ giao dịch hiện tại hoàn tất",
@@ -265,6 +266,7 @@
   "请输入当前密码": "Vui lòng nhập mật khẩu hiện tại",
   "请输入登录密码": "Vui lòng nhập mật khẩu đăng nhập",
   "请输入昵称": "Vui lòng nhập biệt danh",
+  "请输入邮箱地址": "Vui lòng nhập địa chỉ email",
   "请输入身份证号": "Vui lòng nhập số giấy tờ tùy thân",
   "请输入手机号": "Vui lòng nhập số điện thoại",
   "请输入新密码": "Vui lòng nhập mật khẩu mới",
@@ -573,6 +575,7 @@
     "title": "Đổi ngôn ngữ"
   },
   "验证码开发提示": "Mã xác minh: {{code}} (môi trường phát triển)",
+  "验证码邮件已经发送到 {{email}}": "Mã xác minh email đã được gửi đến {{email}}",
   "验证码短信已经发送到 {{phone}}": "Tin nhắn mã xác minh đã được gửi đến {{phone}}",
   "重新发送倒计时": "Gửi lại ({{seconds}} giây)",
   "账户余额不足，当前余额：{{balance}} VND": "Số dư tài khoản không đủ, số dư hiện tại: {{balance}} VND",

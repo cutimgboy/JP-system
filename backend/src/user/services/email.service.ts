@@ -1,9 +1,12 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { RedisService } from '../../redis/redis.service';
+import nodemailer from 'nodemailer';
 
 @Injectable()
 export class EmailService {
+  private readonly logger = new Logger(EmailService.name);
+
   constructor(
     private redisService: RedisService,
     private configService: ConfigService,
@@ -26,11 +29,16 @@ export class EmailService {
     return Math.floor(100000 + Math.random() * 900000).toString();
   }
 
+  private normalizeEmail(email: string) {
+    return email.trim().toLowerCase();
+  }
+
   /**
    * 发送邮箱验证码
    * @param email 邮箱地址
    */
   async sendEmail(email: string): Promise<string> {
+    const normalizedEmail = this.normalizeEmail(email);
     const fixedCode = this.getFixedCode();
 
     if (fixedCode) {
@@ -38,7 +46,7 @@ export class EmailService {
     }
 
     // 检查是否频繁发送
-    const cacheKey = `email:${email}`;
+    const cacheKey = `email:${normalizedEmail}`;
     const existingCode = await this.redisService.get(cacheKey);
 
     if (existingCode) {
@@ -48,8 +56,7 @@ export class EmailService {
     // 生成验证码
     const code = this.generateCode();
 
-    // TODO: 接入真实邮件服务商。不要在生产日志中暴露验证码。
-    // await this.sendEmailToProvider(email, code);
+    await this.sendEmailToProvider(normalizedEmail, code);
 
     // 将验证码存入缓存，有效期5分钟（300秒）
     await this.redisService.set(cacheKey, code, 300);
@@ -62,13 +69,14 @@ export class EmailService {
    * @param code 验证码
    */
   async verifyEmail(email: string, code: string): Promise<boolean> {
+    const normalizedEmail = this.normalizeEmail(email);
     const fixedCode = this.getFixedCode();
 
     if (fixedCode && code === fixedCode) {
       return true;
     }
 
-    const cacheKey = `email:${email}`;
+    const cacheKey = `email:${normalizedEmail}`;
     const cachedCode = await this.redisService.get(cacheKey);
 
     if (!cachedCode) {
@@ -85,13 +93,14 @@ export class EmailService {
   }
 
   async assertEmailCode(email: string, code: string): Promise<boolean> {
+    const normalizedEmail = this.normalizeEmail(email);
     const fixedCode = this.getFixedCode();
 
     if (fixedCode && code === fixedCode) {
       return true;
     }
 
-    const cacheKey = `email:${email}`;
+    const cacheKey = `email:${normalizedEmail}`;
     const cachedCode = await this.redisService.get(cacheKey);
 
     if (!cachedCode) {
@@ -105,27 +114,38 @@ export class EmailService {
     return true;
   }
 
-  /**
-   * 调用第三方邮件服务商发送邮件（示例）
-   * 实际使用时需要替换为真实的邮件服务商SDK
-   */
   private async sendEmailToProvider(email: string, code: string): Promise<void> {
-    // 示例：使用 Nodemailer
-    // const transporter = nodemailer.createTransport({
-    //   host: 'smtp.example.com',
-    //   port: 587,
-    //   secure: false,
-    //   auth: {
-    //     user: 'your-email@example.com',
-    //     pass: 'your-password'
-    //   }
-    // });
-    //
-    // await transporter.sendMail({
-    //   from: '"Your App" <noreply@example.com>',
-    //   to: email,
-    //   subject: '登录验证码',
-    //   html: `<p>您的验证码是：<strong>${code}</strong>，有效期5分钟。</p>`
-    // });
+    const host = this.configService.get<string>('SMTP_HOST');
+    const port = Number(this.configService.get<string>('SMTP_PORT', '587'));
+    const secureConfig = this.configService.get<string>('SMTP_SECURE');
+    const user = this.configService.get<string>('SMTP_USER');
+    const pass = this.configService.get<string>('SMTP_PASS');
+    const from = this.configService.get<string>('SMTP_FROM') || user;
+    const appName = this.configService.get<string>('APP_NAME', 'JMP Trading');
+    const subject = this.configService.get<string>('EMAIL_CODE_SUBJECT', '登录验证码');
+
+    if (!host || !from) {
+      throw new BadRequestException('邮件服务未配置');
+    }
+
+    const transporter = nodemailer.createTransport({
+      host,
+      port: Number.isFinite(port) ? port : 587,
+      secure: secureConfig !== undefined ? secureConfig === 'true' : port === 465,
+      auth: user && pass ? { user, pass } : undefined,
+    });
+
+    try {
+      await transporter.sendMail({
+        from,
+        to: email,
+        subject,
+        text: `您的验证码是 ${code}，有效期5分钟。`,
+        html: `<p>${appName} 登录验证码：<strong>${code}</strong></p><p>验证码有效期5分钟，请勿泄露给他人。</p>`,
+      });
+    } catch (error) {
+      this.logger.error('Failed to send email verification code', error);
+      throw new BadRequestException('邮件发送失败，请稍后再试');
+    }
   }
 }

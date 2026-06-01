@@ -9,7 +9,9 @@ import { SmsLoginDto } from './dto/sms-login.dto';
 import { SendEmailDto } from './dto/send-email.dto';
 import { EmailLoginDto } from './dto/email-login.dto';
 import { CheckPhoneLoginMethodDto } from './dto/check-phone-login-method.dto';
+import { CheckEmailLoginMethodDto } from './dto/check-email-login-method.dto';
 import { PhonePasswordLoginDto } from './dto/phone-password-login.dto';
+import { EmailPasswordLoginDto } from './dto/email-password-login.dto';
 import { AdminLoginDto } from './dto/admin-login.dto';
 import { Public } from './decorators/public.decorator';
 import { ConfigService } from '@nestjs/config';
@@ -59,6 +61,18 @@ export class AuthController {
   }
 
   @Public()
+  @Post('check-email-login-method')
+  @ApiOperation({ summary: '检查邮箱登录方式' })
+  @ApiResponse({ status: 200, description: '检查成功' })
+  async checkEmailLoginMethod(@Body() dto: CheckEmailLoginMethodDto) {
+    const result = await this.authService.checkEmailLoginMethod(dto.email);
+    return {
+      message: '检查成功',
+      data: result,
+    };
+  }
+
+  @Public()
   @Post('login')
   @ApiOperation({ summary: '用户名密码登录' })
   @ApiResponse({ status: 200, description: '登录成功' })
@@ -73,6 +87,18 @@ export class AuthController {
   @ApiResponse({ status: 200, description: '登录成功' })
   async phonePasswordLogin(@Body() dto: PhonePasswordLoginDto) {
     const result = await this.authService.phonePasswordLogin(dto.phone, dto.password);
+    return {
+      message: '登录成功',
+      data: result,
+    };
+  }
+
+  @Public()
+  @Post('email-password-login')
+  @ApiOperation({ summary: '邮箱密码登录' })
+  @ApiResponse({ status: 200, description: '登录成功' })
+  async emailPasswordLogin(@Body() dto: EmailPasswordLoginDto) {
+    const result = await this.authService.emailPasswordLogin(dto.email, dto.password);
     return {
       message: '登录成功',
       data: result,

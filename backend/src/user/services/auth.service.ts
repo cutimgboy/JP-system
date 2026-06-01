@@ -15,6 +15,10 @@ export class AuthService {
     private readonly jwtService: JwtService,
   ) {}
 
+  private normalizeEmail(email: string) {
+    return email.trim().toLowerCase();
+  }
+
   /**
    * 用户名密码登录（管理员）
    * @param username 用户名
@@ -73,6 +77,23 @@ export class AuthService {
   }
 
   /**
+   * 检查邮箱登录方式
+   * 已设置密码则走密码登录，否则走邮箱验证码登录。
+   */
+  async checkEmailLoginMethod(email: string) {
+    const normalizedEmail = this.normalizeEmail(email);
+    const user = await this.userService.findByEmail(normalizedEmail);
+    const hasPassword = Boolean(user?.password);
+
+    return {
+      email: normalizedEmail,
+      userExists: Boolean(user),
+      hasPassword,
+      loginMethod: hasPassword ? 'password' : 'email',
+    };
+  }
+
+  /**
    * 手机号密码登录
    * @param phone 手机号
    * @param password 密码
@@ -104,6 +125,49 @@ export class AuthService {
       userInfo: {
         id: user.id,
         phone: user.phone,
+        email: user.email,
+        nickname: user.nickname,
+        avatar: user.avatar,
+        hasPassword: true,
+        requiresPasswordSetup: false,
+      },
+    };
+  }
+
+  /**
+   * 邮箱密码登录
+   * @param email 邮箱地址
+   * @param password 密码
+   */
+  async emailPasswordLogin(email: string, password: string) {
+    const normalizedEmail = this.normalizeEmail(email);
+    const user = await this.userService.findByEmail(normalizedEmail);
+    if (!user) {
+      throw new UnauthorizedException('邮箱或密码错误');
+    }
+
+    if (!user.password) {
+      throw new UnauthorizedException('该邮箱未设置登录密码，请使用验证码登录');
+    }
+
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+    if (!isPasswordValid) {
+      throw new UnauthorizedException('邮箱或密码错误');
+    }
+
+    const isValid = await this.userService.validateUserStatus(user);
+    if (!isValid) {
+      throw new UnauthorizedException('用户已被禁用');
+    }
+
+    const token = await this.generateToken(user);
+
+    return {
+      token,
+      userInfo: {
+        id: user.id,
+        phone: user.phone,
+        email: user.email,
         nickname: user.nickname,
         avatar: user.avatar,
         hasPassword: true,
@@ -141,6 +205,7 @@ export class AuthService {
       userInfo: {
         id: user.id,
         phone: user.phone,
+        email: user.email,
         nickname: user.nickname,
         avatar: user.avatar,
         hasPassword: Boolean(user.password),
@@ -156,6 +221,7 @@ export class AuthService {
     const payload = {
       sub: user.id,
       phone: user.phone,
+      email: user.email,
     };
     return this.jwtService.sign(payload);
   }
@@ -166,13 +232,14 @@ export class AuthService {
    * @param code 验证码
    */
   async emailLogin(email: string, code: string) {
+    const normalizedEmail = this.normalizeEmail(email);
     // 验证邮箱验证码
-    await this.emailService.verifyEmail(email, code);
+    await this.emailService.verifyEmail(normalizedEmail, code);
 
     // 查找或创建用户
-    let user = await this.userService.findByEmail(email);
+    let user = await this.userService.findByEmail(normalizedEmail);
     if (!user) {
-      user = await this.userService.createByEmail(email);
+      user = await this.userService.createByEmail(normalizedEmail);
     }
 
     // 验证用户状态
@@ -188,6 +255,7 @@ export class AuthService {
       token,
       userInfo: {
         id: user.id,
+        phone: user.phone,
         email: user.email,
         nickname: user.nickname,
         avatar: user.avatar,
